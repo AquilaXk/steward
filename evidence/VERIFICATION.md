@@ -37,3 +37,9 @@ The README and six skill procedures were refined for the public source release.
 An independent read-only scenario inspection informed the changes; no model API
 evaluation was performed. The structural skill validator used Python 3.14.6 and
 PyYAML 6.0.3 in a temporary tooling environment, not a project runtime dependency.
+
+Publication CI exposed two Windows installation assertions affected by Git's CRLF
+checkout conversion. The follow-up `.gitattributes` policy preserves canonical LF
+bytes. Both affected installation tests passed on Node v22.16.0, and a checkout
+with `core.autocrlf=true` preserved every tracked file byte for byte. The original
+suite output above is unchanged; the follow-up's full matrix is recorded in CI.

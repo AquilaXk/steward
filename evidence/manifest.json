@@ -10,6 +10,11 @@
       "sha256": "1381c7a291c1f181ef2457c5a148d55596d36b05174f9df907e82e253a5c3234"
     },
     {
+      "path": ".gitattributes",
+      "bytes": 19,
+      "sha256": "d60f352d0db1404c70afb4bb8b2ca3fd1c610572aa40720e8a0b7baa7885418c"
+    },
+    {
       "path": ".github/ISSUE_TEMPLATE/bug.md",
       "bytes": 281,
       "sha256": "6b9b6dad05dbedfa2a5173fd75cb056097321b9ffd991420c8fa4b791b046423"
@@ -156,8 +161,8 @@
     },
     {
       "path": "evidence/VERIFICATION.md",
-      "bytes": 2457,
-      "sha256": "e08a774f37acd1e0aa3b6ff61978c571619e5448bceb93043f28eee9d7ecca7d"
+      "bytes": 2865,
+      "sha256": "ec523c5c36807cc8ab3cd8548fdf036479da67dab3e7a01a82bf7fee3c1c7e85"
     },
     {
       "path": "evidence/check-results.json",
@@ -186,8 +191,8 @@
     },
     {
       "path": "evidence/source-manifest.json",
-      "bytes": 12355,
-      "sha256": "091526e45ffcf41de130b2b52994fcd28da856dca57244b2f60e3fb71cde05e7"
+      "bytes": 12502,
+      "sha256": "c57be747bf108554a674034cab57ef94c5ec8e4f3a0021dbd94a6907abfb7ddf"
     },
     {
       "path": "evidence/test-results.tap",
