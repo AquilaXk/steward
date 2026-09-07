@@ -1,8 +1,9 @@
 # Native host integration
 
 Reviewed on 2026-09-07 against [Codex hooks](https://developers.openai.com/codex/hooks)
-and [Claude Code hooks](https://code.claude.com/docs/en/hooks). Protocol tests are local;
-neither native application was launched for the delivery run.
+and [Claude Code hooks](https://code.claude.com/docs/en/hooks). See the
+[0.2.0 observations](../evidence/0.2.0.md#native-observations) for actual native
+discovery, model execution and unverified enforcement boundaries.
 
 ## Files and discovery
 
@@ -64,6 +65,10 @@ A disabled hook, missing executable, crash, timeout or uncovered tool can bypass
 interception layer. Steward cannot stop a host from inside a process that never ran.
 Use actual OS isolation where the required boundary exceeds a cooperative local hook.
 `doctor` deliberately reports `liveHostVerified:false`; local success does not promote it.
+The 0.2.0 automated Codex `exec` smoke discovered skills but did not invoke project
+hooks, even with one-off trust options. Do not use that command's success as an
+installation acceptance check. Native hook review and an observed denied edit
+remain necessary for the actual host session you intend to use.
 
 ## Generic interface
 

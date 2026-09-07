@@ -64,6 +64,8 @@ immutable schedule revisions are enforced by the CLI and tested at the journal b
 Local software tests exercise schemas, decisions, persistence, path handling,
 configuration installation and CLI output. They do not measure model judgment,
 automatic skill selection quality or native host enforcement. The nineteen cases in
-`evals/agent-workflow.json` remain `not_run_on_live_model`. Record exact host and model
-versions, task inputs, tool availability and failures in a supervised comparison before
-claiming a behavioral improvement. Source URLs and dates are indexed in `sources.json`.
+`evals/agent-workflow.json` remain `not_run_on_live_model` as a complete rubric. A
+[bounded native smoke](../evidence/0.2.0.md#native-observations) exercised Codex recall
+and native discovery, and recorded failed enforcement and unavailable Claude model
+execution. Record exact versions, inputs, tool availability and failures before
+claiming a comparative improvement. Source URLs and dates are indexed in `sources.json`.
