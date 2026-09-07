@@ -7,6 +7,8 @@ import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { validatePolicy, validatePlan, validateEntry } from '../src/schema.mjs';
 import { validateEvent } from '../src/engine.mjs';
+import { claudeArtifacts } from '../src/skills.mjs';
+import { VERSION } from '../src/version.mjs';
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const json = (relative) => JSON.parse(read(relative));
@@ -39,6 +41,9 @@ try {
     validateEvent(json('examples/event.json'));
     const pkg = json('package.json'), lock = json('package-lock.json');
     assert.equal(pkg.name, 'steward');
+    assert.equal(VERSION, pkg.version);
+    assert.match(pkg.version, /^\d+\.\d+\.\d+$/);
+    assert(read('CHANGELOG.md').includes(`## ${VERSION}\n`), 'Current release needs a changelog entry.');
     assert.equal(pkg.version, lock.version);
     assert.equal(pkg.version, lock.packages[''].version);
     assert.equal(pkg.name, lock.name);
@@ -46,8 +51,26 @@ try {
     assert.equal(Object.keys(pkg.dependencies || {}).length, 0);
     assert.equal(Object.keys(pkg.devDependencies || {}).length, 0);
     assert.equal(Object.keys(lock.packages).length, 1, 'Unexpected third-party package.');
+    for (const host of ['codex', 'claude']) {
+        const manifest = json(`.${host}-plugin/plugin.json`);
+        assert.equal(manifest.name, pkg.name);
+        assert.equal(manifest.version, pkg.version, 'Plugin and package versions must agree.');
+        assert.equal(manifest.skills, host === 'codex' ? './procedures/' : './.claude-plugin/skills/');
+    }
+    const codexMarketplace = json('.agents/plugins/marketplace.json');
+    const claudeMarketplace = json('.claude-plugin/marketplace.json');
+    for (const marketplace of [codexMarketplace, claudeMarketplace]) {
+        assert.equal(marketplace.name, pkg.name);
+        assert.equal(marketplace.plugins.length, 1);
+        assert.equal(marketplace.plugins[0].name, pkg.name);
+    }
+    assert.equal(codexMarketplace.plugins[0].source.path, './');
+    assert.equal(claudeMarketplace.plugins[0].source, './');
     assert(read('bin/steward.mjs').startsWith('#!/usr/bin/env node'));
-    const skills = all.filter((file) => /^skills\/[^/]+\/SKILL\.md$/.test(file));
+    const skills = all.filter((file) => /^procedures\/[^/]+\/SKILL\.md$/.test(file));
+    const artifacts = claudeArtifacts(root);
+    assert.equal(all.filter(f => f.startsWith('.claude-plugin/skills/')).length, artifacts.length);
+    for (const { relative, body } of artifacts) assert.equal(read(relative), body, `Stale generated skill; run npm run build:skills: ${relative}`);
     assert.equal(skills.length, 8);
     for (const file of skills) {
         const body = read(file);
@@ -66,7 +89,7 @@ try {
     assert.equal(json('profiles/agent-workflow.json').apiIntegration, false);
     const rubric = json('evals/agent-workflow.json');
     assert.equal(rubric.status, 'not_run_on_live_model');
-    assert.equal(rubric.cases.length, 18);
+    assert.equal(rubric.cases.length, 19);
     assert.equal(new Set(rubric.cases.map(item => item.id)).size, rubric.cases.length);
     assert.equal(read('CLAUDE.md').trim(), '@AGENTS.md');
     for (const file of ['README.md', 'README.ko.md', 'SECURITY.md', 'docs/MODEL-GUIDANCE.md', '.github/workflows/ci.yml'])

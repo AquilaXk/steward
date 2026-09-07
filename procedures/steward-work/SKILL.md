@@ -9,7 +9,7 @@ Start with the requested outcome, existing context and a few useful acceptance c
 
 Act within the user's scope. A review-only request produces findings, not unsolicited changes. Make routine reversible choices without repeated approvals. Ask only when missing information materially changes the result or required authority is absent. Give concise progress updates during sustained work and incorporate new instructions without losing completed work.
 
-For durable goals, use the command prefix and example directory recorded in `.steward/USAGE.md`, then append `journal add --file <entry.json>`. Keep facts, assumptions, implementation and deployment separate. A goal marked complete needs current verification evidence.
+For durable goals, use the command prefix and example directory recorded in `.steward/USAGE.md`, then append `journal add --file <entry.json>`. Keep facts, assumptions, implementation and deployment separate. Mark a goal complete only after inspecting evidence that proves its acceptance conditions and passing `gate --evidence <that-hash>` on current source. When scope narrows, record the revised acceptance and next action in a checkpoint; do not keep executing removed work.
 
 Return the requested artifact or observed result, with remaining blockers named. A policy denial is a real executable boundary; optional skill advice is not a reason to leave an authorized task unfinished. Do not invoke every other skill as a mandatory pipeline.
 

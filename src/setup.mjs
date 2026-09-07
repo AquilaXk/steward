@@ -4,11 +4,26 @@ import { fileURLToPath } from 'node:url';
 import { safePath, rootOf, readText, readJSON, atomicWrite, sha256, canonical } from './fs.mjs';
 import { validatePolicy, validatePlan } from './schema.mjs';
 import { insist } from './errors.mjs';
+import { VERSION } from './version.mjs';
+import { claudeSkill } from './skills.mjs';
 export const PACKAGE_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-function installSkills(root, host, write = atomicWrite) {
-    const created = [], skipped = [];
+function skillOwnership(root, host) {
+    const relative = `.steward/install-${host}-skills.json`;
+    const target = safePath(root, relative);
+    const files = fs.existsSync(target) ? readJSON(target) : {};
+    insist(files && typeof files === 'object' && !Array.isArray(files), 'INSTALL_CONFLICT', 'Invalid skill ownership manifest.');
+    const prefix = host === 'claude' ? '.claude/skills/' : '.agents/skills/';
+    for (const [file, hash] of Object.entries(files)) {
+        insist(file.startsWith(prefix) && !file.slice(prefix.length).split('/').some(p => !p || p === '.' || p === '..') && /^[a-f0-9]{64}$/.test(hash), 'INSTALL_CONFLICT', 'Invalid managed skill identity.');
+        safePath(root, file);
+    }
+    return { relative, files };
+}
+function installSkills(root, host, write = atomicWrite, update = false) {
+    const created = [], skipped = [], updated = [];
+    const ownership = skillOwnership(root, host);
     const destination = host === 'claude' ? '.claude/skills' : '.agents/skills';
-    const source = path.join(PACKAGE_ROOT, 'skills');
+    const source = path.join(PACKAGE_ROOT, 'procedures');
     function copy(directory, relative = '') {
         for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
             insist(!item.isSymbolicLink(), 'BAD_SKILL_SOURCE', 'Skill sources must be regular files or directories.');
@@ -20,16 +35,19 @@ function installSkills(root, host, write = atomicWrite) {
             }
             insist(item.isFile(), 'BAD_SKILL_SOURCE', 'Unsupported skill source entry.');
             const rel = `${destination}/${suffix}`;
-            if (fs.existsSync(safePath(root, rel))) { skipped.push(rel); continue; }
+            const exists = fs.existsSync(safePath(root, rel));
+            if (exists && (!update || !ownership.files[rel])) { skipped.push(rel); continue; }
+            if (exists) insist(sha256(readText(safePath(root, rel))) === ownership.files[rel], 'INSTALL_CONFLICT', `Customized skill preserved: ${rel}. Reconcile it before updating.`);
             let body = readText(absolute);
-            if (host === 'claude' && /steward-(policy|schedule)\/SKILL\.md$/.test(suffix))
-                body = body.replace(/^---\r?\n/, '---\ndisable-model-invocation: true\n');
-            write(root, rel, body);
-            created.push(rel);
+            if (host === 'claude' && suffix.endsWith('/SKILL.md')) body = claudeSkill(body, suffix.split('/')[0]);
+            write(root, rel, body, { replace: exists });
+            ownership.files[rel] = sha256(body);
+            (exists ? updated : created).push(rel);
         }
     }
     copy(source);
-    return { created, skipped };
+    write(root, ownership.relative, JSON.stringify(ownership.files, null, 2) + '\n', { replace: fs.existsSync(safePath(root, ownership.relative)) });
+    return { created, skipped, updated };
 }
 function writeUsage(root, write = atomicWrite) {
     const rel = '.steward/USAGE.md';
@@ -43,7 +61,7 @@ function writeUsage(root, write = atomicWrite) {
         'Use actual user data rather than fixture text. The initial verification plan deliberately fails until configured.\n';
     write(root, rel, body, { replace: fs.existsSync(safePath(root, rel)) });
 }
-export function initProject(project) {
+export function initProject(project, { plugin = false } = {}) {
     fs.mkdirSync(path.resolve(project), { recursive: true });
     const root = rootOf(project);
     const policy = validatePolicy(readJSON(path.join(PACKAGE_ROOT, 'profiles/default-policy.json')));
@@ -55,7 +73,7 @@ export function initProject(project) {
         atomicWrite(root, rel, body);
         created.push(rel);
     }
-    const skills = installSkills(root, 'codex');
+    const skills = plugin ? { source: 'plugin', created: [], skipped: [] } : installSkills(root, 'codex');
     created.push(...skills.created); skipped.push(...skills.skipped);
     writeUsage(root);
     const block = readText(path.join(PACKAGE_ROOT, 'profiles/AGENTS-snippet.md'));
@@ -85,9 +103,10 @@ function applyInstallation(root, writes) {
     const completed = [];
     try {
         for (const item of writes) {
-            atomicWrite(root, item.relative, item.body, { replace: item.before !== null });
+            if (item.body === null) fs.unlinkSync(safePath(root, item.relative));
+            else atomicWrite(root, item.relative, item.body, { replace: item.before !== null });
             completed.push(item);
-            if (item.before !== null) fs.chmodSync(safePath(root, item.relative), item.mode);
+            if (item.before !== null && item.body !== null) fs.chmodSync(safePath(root, item.relative), item.mode);
         }
     }
     catch {
@@ -96,7 +115,7 @@ function applyInstallation(root, writes) {
             try {
                 if (item.before === null) fs.unlinkSync(safePath(root, item.relative));
                 else {
-                    atomicWrite(root, item.relative, item.before, { replace: true });
+                    atomicWrite(root, item.relative, item.before, { replace: fs.existsSync(safePath(root, item.relative)) });
                     fs.chmodSync(safePath(root, item.relative), item.mode);
                 }
             }
@@ -106,17 +125,22 @@ function applyInstallation(root, writes) {
         insist(false, 'INSTALL_FAILED', 'Installation failed; completed file writes were restored. Empty created directories may remain.');
     }
 }
-export function installHooks(root, host) {
+export const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PreCompact'];
+export function hookCommand(root, host, event) {
+    return [process.execPath, path.join(PACKAGE_ROOT, 'bin/steward.mjs'), 'hook', '--host', host, '--project', root, '--event', event].map(quote).join(' ');
+}
+export function installHooks(root, host, { plugin = false, update = false, uninstall = false } = {}) {
+    insist(['codex', 'claude'].includes(host), 'BAD_HOST', 'Install supports codex or claude.');
     const lock = safePath(root, '.steward/install.lock');
     try { fs.mkdirSync(lock, { mode: 0o700 }); }
     catch (error) {
         if (error.code === 'EEXIST') insist(false, 'INSTALL_LOCKED', 'Another installer holds the lock. Recover a crashed installer before retrying.');
         throw error;
     }
-    try { return prepareInstallation(root, host); }
+    try { return prepareInstallation(root, host, plugin, update, uninstall); }
     finally { fs.rmdirSync(lock); }
 }
-function prepareInstallation(root, host) {
+function prepareInstallation(root, host, plugin, update, uninstall) {
     insist(['codex', 'claude'].includes(host), 'BAD_HOST', 'Install supports codex or claude.');
     const writes = [];
     const stage = (_, relative, body) => {
@@ -140,26 +164,51 @@ function prepareInstallation(root, host) {
     const receiptPath = `.steward/install-${host}.json`, rp = safePath(root, receiptPath);
     const old = fs.existsSync(rp) ? readJSON(rp) : { commands: [] };
     insist(old && Array.isArray(old.commands) && old.commands.every(c => typeof c === 'string'), 'INSTALL_CONFLICT', 'Invalid previous installation receipt.');
+    if (update) {
+        insist(fs.existsSync(rp), 'INSTALL_CONFLICT', 'Update requires an installation receipt. Run install first.');
+        plugin = old.skillSource === 'plugin';
+    }
+    if (uninstall && !fs.existsSync(rp)) return { host, uninstalled: true, removed: [], preserved: [], note: 'No installation receipt; no files changed.' };
     const commands = [];
-    for (const event of ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PreCompact']) {
-        const command = [process.execPath, path.join(PACKAGE_ROOT, 'bin/steward.mjs'), 'hook', '--host', host, '--project', root, '--event', event].map(quote).join(' ');
+    for (const event of HOOK_EVENTS) {
+        const command = hookCommand(root, host, event);
         const arr = config.hooks[event] ?? [];
         insist(Array.isArray(arr), 'INSTALL_CONFLICT', `Existing ${event} config is not an array.`);
         // Remove only an exact command recorded by our previous installer; preserve other handlers.
         const preserved = [];
         for (const entry of arr) {
             insist(entry && Array.isArray(entry.hooks), 'INSTALL_CONFLICT', 'Existing hook entry has an unsupported shape.');
-            const hooks = entry.hooks.filter(h => !old.commands.includes(h.command) && h.command !== command);
+            const hooks = entry.hooks.filter(h => !old.commands.includes(h.command) && (uninstall || h.command !== command));
             if (hooks.length)
                 preserved.push({ ...entry, hooks });
         }
-        config.hooks[event] = [...preserved, { ...(event === 'PreToolUse' ? { matcher: '.*' } : {}), hooks: [{ type: 'command', command, timeout: 10 }] }];
+        if (uninstall) config.hooks[event] = preserved;
+        else config.hooks[event] = [...preserved, { ...(event === 'PreToolUse' ? { matcher: '.*' } : {}), hooks: [{ type: 'command', command, timeout: 10 }] }];
         commands.push(command);
     }
     stage(root, rel, JSON.stringify(config, null, 2) + '\n');
-    stage(root, receiptPath, JSON.stringify({ version: 1, host, commands, configHash: sha256(canonical(config)) }, null, 2) + '\n');
-    const skills = installSkills(root, host, stage);
+    if (uninstall) {
+        const ownership = skillOwnership(root, host), removed = [], preserved = [];
+        for (const [file, hash] of Object.entries(ownership.files)) {
+            if (!fs.existsSync(safePath(root, file))) continue;
+            if (sha256(readText(safePath(root, file))) === hash) { stage(root, file, null); removed.push(file); }
+            else preserved.push(file);
+        }
+        if (fs.existsSync(safePath(root, ownership.relative))) stage(root, ownership.relative, null);
+        stage(root, receiptPath, null);
+        if (host === 'claude' && old.claudeBlock === '<!-- steward:claude -->\n@AGENTS.md\n<!-- steward:claude:end -->\n') {
+            const cp = safePath(root, 'CLAUDE.md');
+            if (fs.existsSync(cp)) {
+                const before = readText(cp), after = before.replace(old.claudeBlock, '');
+                if (after !== before) stage(root, 'CLAUDE.md', after);
+            }
+        }
+        applyInstallation(root, writes);
+        return { host, uninstalled: true, removed, preserved, note: 'Policy, journal, shared project instructions and unrelated handlers are retained. Native plugin removal is a separate host command.' };
+    }
+    const skills = plugin ? { source: 'plugin', created: [], skipped: [] } : installSkills(root, host, stage, update);
     writeUsage(root, stage);
+    let claudeBlock = old.claudeBlock;
     if (host === 'claude') {
         const cp = safePath(root, 'CLAUDE.md'), text = fs.existsSync(cp) ? readText(cp) : '';
         const oldPointer = '<!-- steward:claude -->\nRead AGENTS.md for the project working agreement and .agents/skills/steward-* for relevant procedures.\n';
@@ -169,7 +218,9 @@ function prepareInstallation(root, host) {
             next += (next && !next.endsWith('\n') ? '\n' : '') + '\n' + block;
         if (next !== text)
             stage(root, 'CLAUDE.md', next);
+        if (next !== text && next.includes(block)) claudeBlock = block;
     }
+    stage(root, receiptPath, JSON.stringify({ version: 1, packageVersion: VERSION, host, commands, skillSource: plugin ? 'plugin' : 'project', configHash: sha256(canonical(config)), ...(claudeBlock ? { claudeBlock } : {}) }, null, 2) + '\n');
     applyInstallation(root, writes);
     return { host, path: rel, installed: true, skills, hostTrustRequired: true, liveHostVerified: false };
 }

@@ -1,0 +1,10 @@
+{
+  "name": "steward",
+  "version": "0.2.0",
+  "description": "Local policy, durable memory and source-bound verification for coding agents.",
+  "author": { "name": "AquilaXk", "url": "https://github.com/AquilaXk" },
+  "homepage": "https://github.com/AquilaXk/steward",
+  "repository": "https://github.com/AquilaXk/steward",
+  "license": "MIT",
+  "skills": "./.claude-plugin/skills/"
+}

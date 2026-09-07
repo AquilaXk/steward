@@ -51,19 +51,19 @@ a scored execution of GPT and Claude sessions.
 | verify | Bind the gate and completed goal to the inspected run's exact evidence hash |
 | delegate | Declare read/write and external-effect authority; accept observed source identity without inventing Git revisions |
 | policy | Resolve the actual toolkit for first setup; preserve exact bundle approval |
-| schedule | Require an explicit timezone in authored records; report both hashes for manual updates without inventing unsupported schema fields |
+| schedule | Require an explicit timezone; preserve stable IDs and supersede only the current revision |
 
 These changes address concrete instruction gaps. No model parameter, mandatory
 verification subagent, automatic scheduler or API integration was added. Existing
 explicit invocation controls for policy and schedule are retained. The documented
-unscoped-checkpoint and passive-schedule limits remain visible rather than being
-turned into new product features by a skill.
+unscoped-checkpoint and passive-schedule limits remain visible. Bounded recall and
+immutable schedule revisions are enforced by the CLI and tested at the journal boundary.
 
 ## Validation boundary
 
 Local software tests exercise schemas, decisions, persistence, path handling,
 configuration installation and CLI output. They do not measure model judgment,
-automatic skill selection quality or native host enforcement. The eighteen cases in
+automatic skill selection quality or native host enforcement. The nineteen cases in
 `evals/agent-workflow.json` remain `not_run_on_live_model`. Record exact host and model
 versions, task inputs, tool availability and failures in a supervised comparison before
 claiming a behavioral improvement. Source URLs and dates are indexed in `sources.json`.

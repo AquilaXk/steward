@@ -1,0 +1,5 @@
+interface:
+  display_name: "Steward Schedule"
+  short_description: "Record an explicitly requested dated note."
+policy:
+  allow_implicit_invocation: false

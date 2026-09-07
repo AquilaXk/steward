@@ -1,0 +1,5 @@
+interface:
+  display_name: "Steward Policy"
+  short_description: "Set up or diagnose project policy and hooks."
+policy:
+  allow_implicit_invocation: false

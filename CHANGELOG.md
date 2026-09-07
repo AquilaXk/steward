@@ -1,19 +1,28 @@
 # Changelog
 
-## Unreleased
+Package, CLI and plugin manifests share a semantic version. Git tags identify
+released source as `vMAJOR.MINOR.PATCH`. Before 1.0, incompatible public CLI or
+configuration changes increment the minor version; compatible fixes increment
+the patch version. Journal and policy schema versions are independent: a package
+release never silently rewrites stored records.
 
-Add matching English and Korean guided READMEs and original project artwork.
-Review the eight skills against current GPT and Claude guidance; clarify requirement
-authority, exact verification evidence, delegation scope and passive state limits.
-Prepare public repository metadata, private vulnerability reporting links and
-commit-pinned CI actions without enabling npm publication.
+## 0.2.0
 
-Rename the package, CLI, skills, state paths and trust environment to Steward.
-Existing installations are not automatically migrated or loaded under the new name.
-Include executable bits in source evidence, validate journal envelopes and typed
-payloads on reads, and isolate checkpoint restoration by session digest.
-Preflight hook installation and restore completed file writes after caught failures.
-Resolve project aliases before trust identity and host working-directory comparisons.
+- Add native plugin onboarding and a doctor command that separates local wiring
+  from observed host behavior.
+- Add bounded journal queries with explicit history, expiry and supersession.
+- Add managed updates and removal that preserve customized skills and project data.
+- Generate Claude skill metadata from shared procedures and reject packaging drift.
+- Preserve schedule identity across immutable revisions and reject forked updates.
+- Report unused policy rules and remaining audit capacity for the current bundle.
+- Synchronize package, CLI and plugin versions through the package check.
+
+This release also includes the previously unreleased public-source preparation:
+English and Korean README alignment, artwork, current model guidance, repository
+metadata and pinned CI actions. Rename package, CLI, skill, state and trust identities
+to Steward without automatically migrating old installations. Validate journal
+envelopes, isolate checkpoint restoration by session digest, preflight hook writes
+with rollback, and resolve project aliases before trust and host comparisons.
 
 ## 0.1.1 — 2026-09-07
 

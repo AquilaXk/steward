@@ -3,6 +3,20 @@
   "scope": "Official public documentation; no live-host or live-model certification.",
   "sources": [
     {
+      "id": "openai-plugin-packaging",
+      "url": "https://developers.openai.com/plugins/build/plugins",
+      "title": "Package your plugin",
+      "usedFor": "Codex plugin manifest, repo marketplace and CLI installation",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "claude-plugin-marketplaces",
+      "url": "https://code.claude.com/docs/en/plugin-marketplaces",
+      "title": "Create and distribute a plugin marketplace",
+      "usedFor": "Claude marketplace source paths and namespaced skill invocation; retrieved through Context7",
+      "checkedAt": "2026-09-07"
+    },
+    {
       "id": "openai-model-guidance",
       "url": "https://developers.openai.com/api/docs/guides/latest-model",
       "title": "OpenAI model guidance",

@@ -92,8 +92,12 @@ test('Claude installation creates all eight native skills with scoped invocation
 });
 test('Codex installation copies manual-invocation metadata only for administrative skills', t => {
     const { root } = sandbox(t);
-    for (const name of ['policy', 'schedule'])
-        assert.equal(fs.readFileSync(path.join(root, `.agents/skills/steward-${name}/agents/openai.yaml`), 'utf8'), 'policy:\n  allow_implicit_invocation: false\n');
+    for (const name of ['policy', 'schedule']) {
+        const relative = `skills/steward-${name}/agents/openai.yaml`;
+        const installed = fs.readFileSync(path.join(root, '.agents', relative), 'utf8');
+        assert.equal(installed, fs.readFileSync(path.join(PACKAGE, relative.replace(/^skills\//, 'procedures/')), 'utf8'));
+        assert.match(installed, /^policy:\n  allow_implicit_invocation: false\n/m);
+    }
     assert.equal(fs.existsSync(path.join(root, '.agents/skills/steward-work/agents/openai.yaml')), false);
 });
 test('Claude import is idempotent and preserves user instructions', t => {
