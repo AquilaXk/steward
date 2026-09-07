@@ -16,6 +16,34 @@ Node.js 22+ · MIT · 런타임 의존성 없음 · English / 한국어
 > 기록합니다. 완료 게이트는 검사 결과를 소스, 실행 권한, 계획, 런타임에 연결합니다.
 > 모델 인증, 작성자 신원 확인, 배포 상태 증명이나 호스트 샌드박스의 대체는 아닙니다.
 
+## 설치
+
+Node.js 22 이상과 로컬 파일·명령 실행이 가능한 호스트가 필요합니다.
+
+**Claude Code**
+
+```text
+/plugin marketplace add AquilaXk/steward
+/plugin install steward@steward
+```
+
+새 세션에서 `/steward:steward-policy 현재 프로젝트에 설정해줘`를 실행하세요.
+
+**Codex CLI**
+
+```sh
+codex plugin marketplace add AquilaXk/steward
+codex plugin add steward@steward
+```
+
+새 세션에서 설치된 Steward 플러그인의 `steward-policy` 스킬을 선택하고
+현재 프로젝트에 설정해 달라고 요청하세요.
+
+에이전트가 프로젝트 검사를 구성하고, 정책과 실행 명령을 보여주고 승인받은 뒤
+프로젝트 훅을 설치합니다. 플러그인은 스킬 8개를 제공하며, 프로젝트 설정 시
+`--plugin`으로 중복 복사를 방지합니다. 호스트 자체의 훅 신뢰·권한 설정도 적용됩니다.
+저장소를 직접 복제해 사용한다면 [수동 설정](#4-프로젝트-설정)을 따르세요.
+
 ## 목차
 
 1. [Steward가 필요한 이유](#1-steward가-필요한-이유)
@@ -89,6 +117,8 @@ node bin/steward.mjs --help
 
 도구 디렉터리를 안정적인 경로에 보관하세요. 해당 디렉터리에서
 `/absolute/path/to/project`를 초기화할 프로젝트 경로로 바꾸어 실행합니다.
+마켓플레이스로 설치했다면 에이전트가 실제 플러그인 경로를 사용하고,
+아래 `init`과 `install` 명령에 모두 `--plugin`을 붙입니다.
 
 ```sh
 node bin/steward.mjs init --project /absolute/path/to/project
@@ -102,7 +132,7 @@ node bin/steward.mjs trust --project /absolute/path/to/project
 ```sh
 node bin/steward.mjs trust --project /absolute/path/to/project --approve REVIEWED_HASH
 node bin/steward.mjs install --project /absolute/path/to/project --host codex
-node bin/steward.mjs doctor --project /absolute/path/to/project
+node bin/steward.mjs doctor --project /absolute/path/to/project --host codex
 ```
 
 Claude Code는 설치 명령에서 `--host claude`를 사용합니다.
@@ -116,11 +146,22 @@ Claude Code는 설치 명령에서 `--host claude`를 사용합니다.
 
 Claude 설치는 `CLAUDE.md`에서 공통 `AGENTS.md`를 가져오도록 연결합니다.
 생성된 `.steward/USAGE.md`에는 실제 실행 파일과 예제 경로가 기록됩니다.
+표의 스킬 경로는 수동 설치 기준이며, 플러그인 설치는 번들 스킬을 사용합니다.
+도구나 플러그인 업데이트 후에는 현재 경로에서 `update --host codex` 또는
+`update --host claude`를 실행하세요. 플러그인을 제거하기 전에
+`uninstall --host <host>`를 실행하면 프로젝트 데이터는 보존하면서
+등록된 훅과 수정하지 않은 관리 대상 스킬을 제거합니다.
 
-**기존 파일은 보존하며 자동으로 업그레이드하지 않습니다.** 업데이트할 때 반환된
-`skipped` 목록을 확인하세요. 이전 이름으로 설치한 상태도 자동 이전하지 않습니다.
+**사용자가 수정한 파일은 보존합니다.** 관리 대상 스킬이 수정되었으면 업데이트가
+중단되고, 소유권이 없는 기존 파일은 `skipped`로 남습니다.
+이전 이름으로 설치한 상태도 자동 이전하지 않습니다.
 훅을 적용하기 전에 [운영 안내](docs/OPERATIONS.md)와
 [호스트 확인 절차](docs/HOSTS.md#required-native-smoke-test)를 읽어보세요.
+
+`version`으로 설치 버전을 확인하세요. 패키지·CLI·플러그인은 `0.2.0`을 공유하며,
+[변경 기록](CHANGELOG.md)에 버전 정책과 변경 내용을 정리했습니다.
+필요한 기억은 `journal query --text <검색어> --limit 20`으로 조회합니다.
+만료되거나 대체된 기록은 `--history`를 요청할 때만 포함됩니다.
 
 ## 5. 스킬 선택
 
@@ -141,6 +182,15 @@ Claude 설치는 `CLAUDE.md`에서 공통 `AGENTS.md`를 가져오도록 연결�
 `$steward-policy` / `$steward-schedule`, Claude Code에서는
 `/steward-policy` / `/steward-schedule`을 사용하세요.
 호출 제어 설정 자체가 변경 작업의 권한을 부여하지는 않습니다.
+Claude 플러그인에서는 `/steward:steward-policy`와
+`/steward:steward-schedule`을 사용하고, Codex에서는 번들 스킬을 선택하세요.
+
+설치 상태를 확인하거나 규칙을 수정하려면 `steward-policy`를 호출하고
+증상이나 수정할 내용을 설명하세요. `doctor`는 로컬 훅의 설정 완료·미설치·오류를
+구분하며, 실제 호스트 동작은 미검증으로 표시합니다. `report`는 현재 정책의
+일치·출력·예산 초과로 생략된 규칙, 마지막 출력 시각, 출력 이력이 없는 주입 규칙과
+남은 감사 기록 용량을 보여줍니다. 이 수치는 출력 준비 기록이며,
+호스트의 수신이나 규칙 준수를 증명하지는 않습니다.
 
 [모델·스킬 검토](docs/MODEL-GUIDANCE.md)는 최신 공식 GPT·Claude 지침과 절차를
 연결합니다. 모델 이름은 문서 검토의 기준이며, 런타임 설정이나 호환성 인증이 아닙니다.
@@ -183,11 +233,14 @@ node bin/steward.mjs checkpoint --project /absolute/path/to/project \
 
 ```text
 steward/
+├── .codex-plugin/ # Codex 플러그인 명세
+├── .claude-plugin/ # Claude 플러그인과 마켓플레이스
+├── .agents/plugins/ # Codex 마켓플레이스
 ├── bin/           # CLI 진입점
 ├── src/           # 정책, 신뢰, 상태, 검증, 호스트 어댑터
 ├── schemas/       # 편집기 스키마; 추가 불변식은 런타임에서 검사
 ├── profiles/      # 기본 정책, 초기 검사, 공통 작업 지침
-├── skills/        # 스킬 8개의 원본
+├── procedures/    # 스킬 8개의 원본
 ├── examples/      # 합성 JSON 입력
 ├── test/          # 단위, 파일시스템 경계, CLI 프로세스 검사
 ├── scripts/       # 정적 검사, 테스트 실행기, 격리 데모
@@ -226,9 +279,6 @@ npm 패키지는 `private: true`를 유지합니다. 소스 저장소 공개는 
 - [Claude 모델](https://platform.claude.com/docs/en/models/overview),
   [Claude Fable 5.1 지침](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1),
   [Claude Code 스킬](https://code.claude.com/docs/en/skills).
-- README의 단계별 소개, 예제, 저장소 안내 구성은
-  [RAPTOR Study](https://github.com/AquilaXk/raptor-transit-routing-study)를 참고했습니다.
-  Steward의 설명과 이미지는 직접 작성했습니다.
 
 출처별 검토 날짜와 범위는 [docs/sources.json](docs/sources.json)에 기록합니다.
 Steward는 OpenAI·Anthropic과 독립적인 프로젝트입니다.

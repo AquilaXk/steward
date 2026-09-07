@@ -1,6 +1,6 @@
 {
   "name": "steward",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "A local, evidence-aware policy and memory toolkit for coding agents.",
   "type": "module",
@@ -19,6 +19,7 @@
     "steward": "./bin/steward.mjs"
   },
   "scripts": {
+    "build:skills": "node scripts/build-skills.mjs",
     "test": "node scripts/test.mjs",
     "check": "node scripts/check.mjs",
     "demo": "node scripts/demo.mjs",
@@ -29,7 +30,11 @@
     "src",
     "schemas",
     "profiles",
-    "skills",
+    "procedures",
+    ".codex-plugin",
+    ".claude-plugin",
+    ".agents/plugins",
+    "CHANGELOG.md",
     "docs",
     "examples",
     "assets",

@@ -18,6 +18,35 @@ demo, inspect the files, then adopt only the procedures your project needs.
 > executable permissions, plan and runtime. It does not certify a model, authenticate
 > the writer, establish deployment status or replace the host's sandbox.
 
+## Install
+
+Use Node.js 22+ and a host with local file and command access.
+
+**Claude Code**
+
+```text
+/plugin marketplace add AquilaXk/steward
+/plugin install steward@steward
+```
+
+Start a new session, then run `/steward:steward-policy set up this project`.
+
+**Codex CLI**
+
+```sh
+codex plugin marketplace add AquilaXk/steward
+codex plugin add steward@steward
+```
+
+Start a new session and select `steward-policy` from the installed Steward plugin,
+then ask it to set up the current project.
+
+The agent configures the project's checks, shows the policy and executable commands
+for approval, and installs the project hooks. The plugin supplies eight skills;
+project setup uses `--plugin` to avoid copying them again. The native host's own
+hook trust and permissions still apply. Use [manual setup](#4-set-up-a-project)
+if you are working from a clone.
+
 ## Contents
 
 1. [Why Steward exists](#1-why-steward-exists)
@@ -92,6 +121,8 @@ For the full local software suite, run `npm test`. See the
 
 Keep this toolkit at a stable path. From its directory, replace
 `/absolute/path/to/project` with the project you want to initialize.
+For a marketplace installation, the agent uses the installed plugin root and adds
+`--plugin` to both `init` and `install` below.
 
 ```sh
 node bin/steward.mjs init --project /absolute/path/to/project
@@ -105,7 +136,7 @@ updated rules, commands and digest. Approve that exact reviewed hash:
 ```sh
 node bin/steward.mjs trust --project /absolute/path/to/project --approve REVIEWED_HASH
 node bin/steward.mjs install --project /absolute/path/to/project --host codex
-node bin/steward.mjs doctor --project /absolute/path/to/project
+node bin/steward.mjs doctor --project /absolute/path/to/project --host codex
 ```
 
 For Claude Code, use `--host claude` in the installation command. Complete the host's
@@ -119,11 +150,20 @@ own trust and permission review before relying on its hooks.
 
 Claude installation also imports the shared `AGENTS.md` from `CLAUDE.md`.
 Generated `.steward/USAGE.md` records the actual runner and example paths.
+The skill paths in the table apply to manual setup; plugin setup uses the bundled
+skills. After a toolkit or plugin update, run `update --host codex` (or `claude`)
+from its current path. Before removing a plugin, run `uninstall --host <host>` to
+remove its project hooks and unchanged managed skills while retaining project data.
 
-**Existing files are preserved, not automatically upgraded.** Inspect the returned
-`skipped` list when updating. Earlier branded installations are not automatically
+**Customized files are preserved.** Update stops on modified managed skills; existing
+unowned files remain in the `skipped` list. Earlier branded installations are not automatically
 migrated. Read [operations](docs/OPERATIONS.md) and the
 [host smoke test](docs/HOSTS.md#required-native-smoke-test) before adopting hooks.
+
+Run `version` to inspect the installed version. Package, CLI and plugins share
+`0.2.0`; [release notes](CHANGELOG.md) explain the versioning policy and changes.
+For bounded recall, use `journal query --text <term> --limit 20`. Expired and
+superseded records are excluded unless `--history` is requested.
 
 ## 5. Choose a skill
 
@@ -143,6 +183,15 @@ Use one relevant procedure; the eight skills are not mandatory pipeline stages.
 Invoke policy and schedule explicitly: `$steward-policy` / `$steward-schedule` in
 Codex, or `/steward-policy` / `/steward-schedule` in Claude Code. Their invocation
 controls do not grant permission for mutations.
+Claude plugin skills use the `/steward:steward-policy` and
+`/steward:steward-schedule` names; select the bundled skills in Codex's skill picker.
+
+To inspect an installation or refine a rule, invoke `steward-policy` and describe
+the symptom or correction. `doctor` reports local hooks as configured, missing or
+broken, while native behavior remains unchecked. `report` shows current-policy
+matches, emitted and budget-omitted rules, last emission times, never-emitted
+injection rules and remaining audit capacity. These are prepared outputs, not proof
+that the host received or followed a rule.
 
 The [model and skill review](docs/MODEL-GUIDANCE.md) maps the procedures to current
 official GPT and Claude guidance. Model names are reviewed references, not runtime
@@ -186,11 +235,14 @@ suffix removal. See [security](SECURITY.md), [memory](docs/MEMORY.md) and
 
 ```text
 steward/
+├── .codex-plugin/ # Codex plugin manifest
+├── .claude-plugin/ # Claude plugin and marketplace
+├── .agents/plugins/ # Codex marketplace
 ├── bin/           # CLI entrypoint
 ├── src/           # Policy, trust, state, verification and host adapters
 ├── schemas/       # Editor schemas; runtime enforces further invariants
 ├── profiles/      # Default policy, initial checks and working agreement
-├── skills/        # Eight canonical skill sources
+├── procedures/    # Eight canonical skill sources
 ├── examples/      # Synthetic JSON inputs
 ├── test/          # Unit, filesystem-boundary and CLI process tests
 ├── scripts/       # Static checks, test runner and isolated demo
@@ -230,9 +282,6 @@ publishing the source repository does not publish an npm package.
 - [Claude models](https://platform.claude.com/docs/en/models/overview),
   [Claude Fable 5.1 guidance](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1)
   and [Claude Code skills](https://code.claude.com/docs/en/skills).
-- The README's guided introduction, examples and repository map take structural
-  inspiration from [RAPTOR Study](https://github.com/AquilaXk/raptor-transit-routing-study).
-  Steward's explanations and artwork are original.
 
 Source review dates and scope are recorded in [docs/sources.json](docs/sources.json).
 Steward is independent of OpenAI and Anthropic. Original project material is available

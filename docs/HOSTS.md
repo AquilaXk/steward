@@ -1,10 +1,17 @@
 # Native host integration
 
 Reviewed on 2026-09-07 against [Codex hooks](https://developers.openai.com/codex/hooks)
-and [Claude Code hooks](https://code.claude.com/docs/en/hooks). Protocol tests are local;
-neither native application was launched for the delivery run.
+and [Claude Code hooks](https://code.claude.com/docs/en/hooks). See the
+[0.2.0 observations](../evidence/0.2.0.md#native-observations) for actual native
+discovery, model execution and unverified enforcement boundaries.
 
 ## Files and discovery
+
+Both hosts can install the `steward@steward` marketplace plugin, which exposes the
+eight canonical skills. Project setup then runs `init --plugin` and
+`install --host <host> --plugin` from the actual cached toolkit path. There are no
+automatically activated plugin hooks: project policy and verification commands are
+reviewed before local hook registration. Native trust is still required.
 
 `init` installs the eight canonical skill sources under `.agents/skills/steward-*`.
 `install --host codex` merges `.codex/hooks.json`. `install --host claude` merges
@@ -12,11 +19,15 @@ neither native application was launched for the delivery run.
 adds `@AGENTS.md` to `CLAUDE.md` without replacing user notes. An old exact pointer
 written by this installer is replaced with the native import.
 
-Policy and schedule use explicit invocation on new installations: Codex metadata sets
+Policy and schedule use explicit invocation controls on new manual installations: Codex metadata sets
 `allow_implicit_invocation: false`; the Claude copy sets `disable-model-invocation: true`.
 Other skills remain available for task-triggered selection. These are invocation controls,
 not authorization grants. Existing files are preserved and reported as skipped, including
 customized skills whose invocation controls may differ.
+Codex plugins load `procedures/` with their `agents/openai.yaml` controls. The Claude
+plugin loads `.claude-plugin/skills/`, generated from the same procedures with native
+frontmatter controls. Run `npm run build:skills` after editing a procedure; `npm run
+check` rejects stale generated files. Skill selection never authorizes a mutation.
 
 The installer records absolute executable/toolkit paths and generated usage instructions.
 Rerun it after relocation. It merges four synchronous command handlers with a ten-second
@@ -54,6 +65,10 @@ A disabled hook, missing executable, crash, timeout or uncovered tool can bypass
 interception layer. Steward cannot stop a host from inside a process that never ran.
 Use actual OS isolation where the required boundary exceeds a cooperative local hook.
 `doctor` deliberately reports `liveHostVerified:false`; local success does not promote it.
+The 0.2.0 automated Codex `exec` smoke discovered skills but did not invoke project
+hooks, even with one-off trust options. Do not use that command's success as an
+installation acceptance check. Native hook review and an observed denied edit
+remain necessary for the actual host session you intend to use.
 
 ## Generic interface
 

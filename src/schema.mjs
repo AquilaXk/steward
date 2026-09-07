@@ -83,7 +83,7 @@ export function validateEntry(entry) {
     object(entry, ['type', 'data'], 'entry');
     insist(RECORD_TYPES.includes(entry.type), 'SCHEMA', 'Unknown or reserved journal entry type.');
     const d = entry.data;
-    const fields = { decision: ['statement', 'authority', 'supersedes'], question: ['question', 'assumptions', 'resolution', 'supersedes'], knowledge: ['claim', 'basis', 'sources', 'expiresAt'], goal: ['objective', 'acceptance', 'status', 'evidence'], checkpoint: ['summary', 'next', 'blockers', 'session'], schedule: ['title', 'dueAt', 'status', 'members'], handoff: ['task', 'scope', 'constraints', 'acceptance', 'evidence'] };
+    const fields = { decision: ['statement', 'authority', 'supersedes'], question: ['question', 'assumptions', 'resolution', 'supersedes'], knowledge: ['claim', 'basis', 'sources', 'expiresAt'], goal: ['objective', 'acceptance', 'status', 'evidence'], checkpoint: ['summary', 'next', 'blockers', 'session'], schedule: ['title', 'dueAt', 'status', 'members', 'id', 'supersedes'], handoff: ['task', 'scope', 'constraints', 'acceptance', 'evidence'] };
     object(d, fields[entry.type], entry.type);
     if (entry.type === 'decision') {
         text(d.statement, 'statement');
@@ -128,6 +128,10 @@ export function validateEntry(entry) {
         insist(Buffer.byteLength(JSON.stringify(d)) <= 4096, 'SCHEMA', 'Checkpoint exceeds 4096 bytes.');
     }
     if (entry.type === 'schedule') {
+        if (d.id !== undefined) {
+            insist(typeof d.id === 'string' && /^[a-zA-Z0-9][a-zA-Z0-9._-]{0,127}$/.test(d.id), 'SCHEMA', 'Invalid schedule identity.');
+            insist(d.supersedes === null || (typeof d.supersedes === 'string' && /^[a-f0-9]{64}$/.test(d.supersedes)), 'SCHEMA', 'Schedule supersedes must be null or a record hash.');
+        } else insist(d.supersedes === undefined, 'SCHEMA', 'Schedule revisions require an identity.');
         text(d.title, 'title');
         date(d.dueAt, 'dueAt');
         insist(['planned', 'staged', 'completed', 'cancelled'].includes(d.status), 'SCHEMA', 'Invalid schedule status.');

@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { safePath, mkdir, readJSON, sha256, canonical, atomicWrite, withLock } from './fs.mjs';
-import { validateEntry, validateJournalRow } from './schema.mjs';
+import { validateEntry, validateJournalRow, RECORD_TYPES } from './schema.mjs';
 import { insist } from './errors.mjs';
 const DIRECTORY = '.steward/state/journal';
 export function readJournal(root, { anchor = null } = {}) {
@@ -35,13 +35,36 @@ export function readJournal(root, { anchor = null } = {}) {
     return rows;
 }
 export function journalHead(rows) { return { count: rows.length, head: rows.at(-1)?.hash || null }; }
+export function queryJournal(root, { type, text = '', limit = 20, history = false, recordId, sessionId, now = Date.now() } = {}) {
+    insist(type === undefined || [...RECORD_TYPES, 'verification'].includes(type), 'BAD_QUERY', 'Unknown record type.');
+    insist(Number.isInteger(limit) && limit >= 1 && limit <= 100, 'BAD_QUERY', 'limit must be an integer from 1 to 100.');
+    insist(typeof text === 'string' && text.length <= 256, 'BAD_QUERY', 'Query text exceeds 256 characters.');
+    insist(Number.isFinite(now), 'BAD_QUERY', 'Invalid query time.');
+    insist(sessionId === undefined || (typeof sessionId === 'string' && sessionId.trim() && sessionId.length <= 256), 'BAD_QUERY', 'Invalid session ID.');
+    const journal = readJournal(root);
+    const superseded = new Set(journal.map(row => row.data.supersedes).filter(Boolean));
+    const session = sessionId === undefined ? undefined : sha256(sessionId);
+    const needle = text.toLocaleLowerCase('en-US');
+    const matches = journal.map(row => ({ ...row, superseded: superseded.has(row.hash),
+        expired: row.type === 'knowledge' && row.data.expiresAt !== null && Date.parse(row.data.expiresAt) <= now,
+    })).filter(row => (history || (!row.superseded && !row.expired)) &&
+        (type === undefined || row.type === type) &&
+        (recordId === undefined || row.data.id === recordId) &&
+        (session === undefined || (row.type === 'checkpoint' && row.data.session === session)) &&
+        (!needle || JSON.stringify(row.data).toLocaleLowerCase('en-US').includes(needle))).reverse();
+    return { ...journalHead(journal), total: matches.length, limit, truncated: matches.length > limit,
+        history, rows: matches.slice(0, limit) };
+}
 export async function appendInternal(root, type, data) {
     mkdir(root, DIRECTORY);
     return withLock(root, '.steward/state/journal.lock', () => {
         const rows = readJournal(root);
+        if (type === 'schedule' && data.id && !data.supersedes)
+            insist(!rows.some(r => r.type === type && r.data.id === data.id), 'BAD_SUPERSEDE', 'Schedule identity already exists; supersede its latest record.');
         if (data.supersedes) {
             const old = rows.find(r => r.hash === data.supersedes);
             insist(old && old.type === type, 'BAD_SUPERSEDE', 'Superseded record must exist and have the same type.');
+            if (type === 'schedule') insist(old.data.id === data.id, 'BAD_SUPERSEDE', 'Schedule revision must preserve identity.');
             insist(!rows.some(r => r.data.supersedes === old.hash), 'BAD_SUPERSEDE', 'That record has already been superseded.');
         }
         const payload = { version: 1, seq: rows.length + 1, id: randomUUID(), type, time: new Date().toISOString(), previous: rows.at(-1)?.hash || null, data };

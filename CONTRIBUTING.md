@@ -13,7 +13,13 @@ schema validation or skip a required check to make a test pass. Keep host protoc
 separate from live-host observations. Update source references when relying on a changed
 host contract, and leave unsupported integrations explicit.
 
-The package version is defined in package.json and package-lock.json. `private:true`
+Edit procedures under `procedures/`, then run `npm run build:skills` to refresh
+Claude plugin artifacts. The package check rejects missing, extra or stale artifacts.
+
+Define the package version in package.json, synchronize package-lock.json and both
+plugin manifests, and add the corresponding CHANGELOG.md entry. The CLI reads that
+package version directly. Tag merged source as `vMAJOR.MINOR.PATCH`; do not retag a
+released version. `private:true`
 prevents accidental npm publication; intentionally change it only during a separately
 reviewed release process. The included GitHub workflow does not publish packages or
 create releases.

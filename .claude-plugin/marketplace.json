@@ -1,0 +1,12 @@
+{
+  "name": "steward",
+  "description": "Install Steward's local policy, memory and verification skills.",
+  "owner": { "name": "AquilaXk" },
+  "plugins": [
+    {
+      "name": "steward",
+      "source": "./",
+      "description": "Local policy, durable memory and source-bound verification for coding agents."
+    }
+  ]
+}

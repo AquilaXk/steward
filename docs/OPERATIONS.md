@@ -1,7 +1,13 @@
 # Operations
 
-Use `doctor` after setup or a policy change. It validates trust and the journal,
-inventories known instruction files and reports live host verification as false.
+Use `doctor --host codex` or `doctor --host claude` after setup or a policy change.
+It validates trust and the journal, inventories instruction files and checks the
+four registered handlers, their command paths, matchers, synchronous configuration,
+skill files and runner instructions. Unrelated hook entries are preserved.
+`localHealthy: true` means these local checks passed; `healthy` and
+`liveHostVerified` remain false because native invocation is unchecked. Exit 1
+means missing or broken local setup (or a trust/journal error). Without `--host`,
+at least one host must be configured and every recorded installation must pass.
 Use `instructions-audit` separately before adopting additional skills. Findings name
 files and line numbers but remain a heuristic review aid.
 
@@ -16,7 +22,13 @@ local hook installer. No model key, provider SDK, background service or network 
 is part of this process.
 
 The audit directory is per project, with one exclusive JSON receipt per invocation.
-Reports count prepared rule IDs and denials, never prompt contents. The conservative
+Reports count prepared rule IDs and denials, never prompt contents. The
+`current` section groups matches, emissions and omissions by the exact current
+policy/verification bundle. An old receipt with a reused rule ID does not establish
+that the new rule ran. `neverEmitted` covers injection rules only; a deny rule can
+work without emitting context. `retention.remaining` gives the remaining receipt
+capacity. No history is reported as no observations, not as a successful live check.
+The conservative
 retention ceiling is approximately 20,000 receipts; concurrent writers may briefly
 overrun the directory-count check. Once full, activation fails explicitly. Archive
 receipts outside the project state directory during a quiet maintenance window; there
@@ -33,6 +45,27 @@ confirming the corresponding writer is not active. Filesystem fsync and atomic i
 reduce partial writes but do not constitute a guarantee against all storage failures.
 
 ## Updating this installation
+
+Marketplace installations use the plugin's eight bundled skills. Pass `--plugin`
+to both `init` and `install` so they configure project state and hooks without making
+duplicate native skill copies. The commands leave earlier manual copies untouched;
+inspect and deliberately retire those copies if switching installation modes.
+
+After updating the toolkit or native plugin, run `update --host <host>` from its
+current location. This retains the installation mode and refreshes absolute runner
+paths and `.steward/USAGE.md`. Project skills created by this installer have hashes
+in `.steward/install-<host>-skills.json`; update replaces only unchanged owned files.
+A customized owned skill stops the update before activation with `INSTALL_CONFLICT`.
+Reconcile the reported file deliberately before retrying. Existing unowned files
+remain skipped; older receipts do not retroactively establish file ownership.
+
+Before removing the native plugin, run `uninstall --host <host>` with the local
+runner. It removes exact receipt-owned hook commands and unchanged managed skills,
+and reports customized files retained. Policy, verification plans, journal, trust,
+shared `AGENTS.md` content and unrelated handlers remain. Claude's exact generated
+import block is removed only when the receipt records its ownership. Then remove
+the plugin through the host's plugin manager. Repeated uninstall is a no-op when
+the receipt is absent. Empty skill directories may remain.
 
 This source tree uses `steward`, `bin/steward.mjs`, `.steward/`,
 `STEWARD_TRUST_HOME` and `steward-*` skills. Earlier branded installations and trust
@@ -56,8 +89,8 @@ forced termination is not a transactional rollback: inspect files and confirm th
 installer is running before removing a leftover lock. No hostile filesystem race
 protection is claimed.
 
-There is no automatic three-way skill merge, managed-file digest updater or uninstall
-command in this release. Preserve installation receipts for deliberate recovery.
+There is no automatic three-way merge or network updater. Preserve installation
+receipts until removal; a receiptless directory is never assumed to be owned.
 
 ## Project state
 
@@ -67,6 +100,24 @@ digest; unscoped events select only unscoped records. Use `checkpoint --file FIL
 --session-id HOST_SESSION_ID` when saving for a named session. Keep checkpoints concise and
 verify their task and source freshness before using them.
 
-Schedule updates append records; they do not supersede entries through a stable schedule
-ID. Knowledge expiry must be checked by the caller. There is no background reminder
-service or automatic retention deletion. Plan recovery and retention before large-scale use.
+Use `journal query --type knowledge --text <term> --limit 20` for bounded recall.
+The CLI validates the whole chain, then returns newest matches, their total and a
+truncation flag. Limits are 1–100 (default 20); this bounds returned records, not
+storage scanning or total serialized bytes. It performs literal case-insensitive
+matching over data fields, without embeddings or a model. Expired knowledge and
+superseded records are excluded unless `--history` is explicit. Returned freshness
+labels are not a claim that an external source was rechecked.
+
+New schedules can use `id` and `supersedes: null`. A revision preserves that ID and
+references the latest hash; reused initial IDs, changed identities and forks fail.
+`journal query --type schedule --record-id <id>` returns the current revision;
+`--history` includes its past records. Legacy records without IDs remain readable.
+There is no background reminder service or automatic retention deletion.
+
+## Versions
+
+Use `version` or `--version` to print the package version. Package metadata is the
+CLI authority; `npm run check` verifies both plugin manifests, the lockfile and the
+current [changelog](../CHANGELOG.md) entry. Source releases use `vMAJOR.MINOR.PATCH`
+Git tags on merged commits. Package versions do not migrate journal or policy
+schemas. Review the changelog before applying an update.

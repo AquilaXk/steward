@@ -3,26 +3,32 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { rootOf, parseJSON, readText, readJSON, sha256 } from '../src/fs.mjs';
 import { insist, publicError } from '../src/errors.mjs';
-import { loadBundle, trustBundle, requireTrust } from '../src/trust.mjs';
+import { loadBundle, trustBundle } from '../src/trust.mjs';
 import { handleHook } from '../src/service.mjs';
 import { encode, eventKind, normalizeInput } from '../src/adapters.mjs';
 import { evaluate } from '../src/engine.mjs';
-import { appendEntry, readJournal, journalHead } from '../src/journal.mjs';
+import { appendEntry, readJournal, journalHead, queryJournal } from '../src/journal.mjs';
+import { VERSION } from '../src/version.mjs';
 import { runVerification, completionGate } from '../src/verify.mjs';
 import { report } from '../src/audit.mjs';
 import { auditInstructions } from '../src/instructions.mjs';
 import { initProject, installHooks } from '../src/setup.mjs';
-const HELP = `Steward 0.1.1 — local agent policy and evidence toolkit
+import { doctor } from '../src/doctor.mjs';
+const HELP = `Steward ${VERSION} — local agent policy and evidence toolkit
 Usage: node bin/steward.mjs <command> [--project <directory>] [options]
 
-init                   Initialize project files without replacing existing files
+init                   Initialize project files; --plugin uses bundled skills
 trust                  Print bundle hash and commands for review
 trust --approve HASH   Record approval of that exact policy/command bundle
-install --host HOST    Merge local hooks for codex or claude
+install --host HOST    Merge local hooks; --plugin avoids copying bundled skills
+update --host HOST     Refresh managed files; stop on customized skill conflicts
+uninstall --host HOST  Remove owned hooks and unchanged skills; retain project data
 hook --host HOST       Handle JSON on stdin (generic, codex, claude)
 eval --input FILE      Evaluate an untrusted draft as a simulation; no activation
 journal add --file F   Add a typed decision/question/knowledge/goal/schedule/handoff
 journal list           Read the validated journal
+journal query          Recall current records; --type --text --limit (1–100)
+                       --history includes expired/superseded; --record-id filters ID
 journal verify         Check integrity; optional --anchor-file FILE
 journal anchor         Print a count/hash checkpoint to keep outside the project
 checkpoint --file F    Persist {summary,next,blockers}; --session-id binds recovery
@@ -30,9 +36,9 @@ verify                 Run the exact trusted verification commands
 gate                   Check latest evidence against current source and plan
 report                 Count context prepared, never pretend host receipt
 instructions-audit     Inventory agent files and flag common instruction conflicts
-doctor                 Check trusted policy, journal and instruction inventory
+doctor                 Check trust and local wiring; --host codex or claude
 
-Options: --host --project --input --file --approve --event --evidence
+Options: --host --project --input --file --approve --event --evidence --plugin
          --anchor-file --session-id --help
 No network calls, provider routing, daemon, automatic publishing or API keys.
 `;
@@ -74,15 +80,16 @@ async function input() {
     });
 }
 try {
-    const parsed = parseArgs({ allowPositionals: true, options: Object.fromEntries(['host', 'project', 'input', 'file', 'approve', 'event', 'evidence', 'anchor-file', 'session-id'].map(k => [k, { type: 'string' }]).concat([['help', { type: 'boolean' }]])) });
+    const parsed = parseArgs({ allowPositionals: true, options: Object.fromEntries(['host', 'project', 'input', 'file', 'approve', 'event', 'evidence', 'anchor-file', 'session-id', 'type', 'text', 'limit', 'record-id'].map(k => [k, { type: 'string' }]).concat([['help', { type: 'boolean' }], ['plugin', { type: 'boolean' }], ['history', { type: 'boolean' }], ['version', { type: 'boolean' }]])) });
     opts = parsed.values;
     positionals = parsed.positionals;
     command = positionals[0] || 'help';
-    if (opts.help || command === 'help') {
+    if (opts.version || command === 'version') output({ version: VERSION });
+    else if (opts.help || command === 'help') {
         console.log(HELP);
     }
     else if (command === 'init') {
-        output(initProject(opts.project || process.cwd()));
+        output(initProject(opts.project || process.cwd(), { plugin: opts.plugin }));
     }
     else {
         const root = rootOf(opts.project || process.cwd());
@@ -90,9 +97,9 @@ try {
             const bundle = loadBundle(root);
             output(opts.approve ? trustBundle(root, opts.approve) : { trusted: false, review: { hash: bundle.hash, policy: bundle.policy, verification: bundle.plan }, next: 'Review these rules and executable commands, then rerun trust --approve with the displayed hash.' });
         }
-        else if (command === 'install') {
-            loadBundle(root);
-            output(installHooks(root, opts.host));
+        else if (['install', 'update', 'uninstall'].includes(command)) {
+            if (command !== 'uninstall') loadBundle(root);
+            output(installHooks(root, opts.host, { plugin: opts.plugin, update: command === 'update', uninstall: command === 'uninstall' }));
         }
         else if (command === 'hook') {
             const host = opts.host || 'generic';
@@ -116,6 +123,8 @@ try {
             }
             else if (sub === 'list')
                 output(readJournal(root));
+            else if (sub === 'query')
+                output(queryJournal(root, { type: opts.type, text: opts.text, limit: opts.limit === undefined ? 20 : Number(opts.limit), history: opts.history, recordId: opts['record-id'], sessionId: opts['session-id'] }));
             else if (sub === 'anchor')
                 output(journalHead(readJournal(root)));
             else if (sub === 'verify') {
@@ -150,9 +159,9 @@ try {
         else if (command === 'instructions-audit')
             output(auditInstructions(root));
         else if (command === 'doctor') {
-            const b = requireTrust(root);
-            const rows = readJournal(root);
-            output({ healthy: true, bundleHash: b.hash, journal: journalHead(rows), instructions: auditInstructions(root), liveHostVerified: false });
+            const result = doctor(root, opts.host || null);
+            output(result);
+            if (!result.localHealthy) process.exitCode = 1;
         }
         else
             insist(false, 'USAGE', 'Unknown command. Use --help.');

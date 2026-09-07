@@ -31,7 +31,7 @@ export function auditInstructions(root) {
             files.push({ path: relative.split(path.sep).join('/'), sha256: sha256(text), bytes: Buffer.byteLength(text), findings });
         }
     }
-    for (const p of ['AGENTS.md', 'CLAUDE.md', 'skills', '.agents/skills', '.claude/skills'])
+    for (const p of ['AGENTS.md', 'CLAUDE.md', 'procedures', 'skills', '.agents/skills', '.claude/skills'])
         visit(p);
     return { files, inventoryHash: sha256(canonical(files)), findingCount: files.reduce((n, f) => n + f.findings.length, 0), completeSecurityReview: false };
 }
