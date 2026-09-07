@@ -1,0 +1,7 @@
+{
+  "event": "prompt",
+  "text": "Verify this change and return the completed files.",
+  "tool": null,
+  "paths": [],
+  "sessionId": null
+}

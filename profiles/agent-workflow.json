@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "name": "agent-workflow",
+  "guide": "docs/MODEL-GUIDANCE.md",
+  "reviewedAt": "2026-09-07",
+  "purpose": "Host-neutral workflow guidance. Model references record a documentation review, not runtime selections or proven live compatibility.",
+  "behavior": {
+    "initiative": "finish-authorized-work",
+    "instructionPriority": "platform-then-current-authorized-task-then-project-guidance",
+    "communication": "clear-paragraphs-evidence-first",
+    "delegation": "bounded-independent-work-when-host-supports-it",
+    "verification": "risk-proportionate-stop-on-satisfied-acceptance"
+  },
+  "apiIntegration": false,
+  "modelReferences": {
+    "openai": [
+      "gpt-6-astra"
+    ],
+    "anthropic": [
+      "claude-fable-5-1",
+      "claude-opus-5",
+      "claude-sonnet-5"
+    ]
+  }
+}

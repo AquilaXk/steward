@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/AquilaXk/steward/security/advisories/new
+    about: Keep credentials, private prompts and journal contents out of public issues.
+  - name: Ask a question or discuss a workflow
+    url: https://github.com/AquilaXk/steward/discussions
+    about: Discuss setup, host integration and practical uses of Steward.

@@ -1,0 +1,40 @@
+{
+  "name": "steward",
+  "version": "0.1.1",
+  "private": true,
+  "description": "A local, evidence-aware policy and memory toolkit for coding agents.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AquilaXk/steward.git"
+  },
+  "homepage": "https://github.com/AquilaXk/steward#readme",
+  "bugs": { "url": "https://github.com/AquilaXk/steward/issues" },
+  "keywords": ["coding-agents", "codex", "claude-code", "agent-skills", "verification", "local-first"],
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "steward": "./bin/steward.mjs"
+  },
+  "scripts": {
+    "test": "node scripts/test.mjs",
+    "check": "node scripts/check.mjs",
+    "demo": "node scripts/demo.mjs",
+    "verify": "npm run check && npm test"
+  },
+  "files": [
+    "bin",
+    "src",
+    "schemas",
+    "profiles",
+    "skills",
+    "docs",
+    "examples",
+    "assets",
+    "README.md",
+    "README.ko.md",
+    "LICENSE"
+  ]
+}

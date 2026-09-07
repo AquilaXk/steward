@@ -1,0 +1,15 @@
+{
+  "command": "npm run check",
+  "exitCode": 0,
+  "collectedAt": "2026-09-07T12:15:37.062980+00:00",
+  "result": {
+    "pass": true,
+    "node": "v22.16.0",
+    "syntaxModules": 24,
+    "jsonFiles": 17,
+    "skills": 8,
+    "localLinks": 43,
+    "dependencyCount": 0
+  },
+  "rawOutput": "\n> steward@0.1.1 check\n> node scripts/check.mjs\n\n{\n  \"pass\": true,\n  \"node\": \"v22.16.0\",\n  \"syntaxModules\": 24,\n  \"jsonFiles\": 17,\n  \"skills\": 8,\n  \"localLinks\": 43,\n  \"dependencyCount\": 0\n}\n"
+}

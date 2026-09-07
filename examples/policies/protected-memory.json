@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "budget": {
+    "bytes": 6000,
+    "rules": 12
+  },
+  "rules": [
+    {
+      "id": "protect-policy",
+      "on": [
+        "tool"
+      ],
+      "effect": "deny",
+      "priority": 1000,
+      "required": false,
+      "match": {
+        "tools": [
+          "file.write"
+        ],
+        "pathPrefixes": [
+          ".steward/policy.json"
+        ]
+      },
+      "body": "This example explicitly blocks direct edits to the policy file. An operator must review the rule before changing it."
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "type": "decision",
+  "data": {
+    "statement": "Keep the policy engine independent of model providers.",
+    "authority": {
+      "kind": "user",
+      "reference": "Example conversation; replace with actual confirmation evidence.",
+      "quote": "Use a provider-neutral core."
+    },
+    "supersedes": null
+  }
+}

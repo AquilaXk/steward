@@ -1,0 +1,90 @@
+{
+  "reviewedAt": "2026-09-07",
+  "scope": "Official public documentation; no live-host or live-model certification.",
+  "sources": [
+    {
+      "id": "openai-model-guidance",
+      "url": "https://developers.openai.com/api/docs/guides/latest-model",
+      "title": "OpenAI model guidance",
+      "usedFor": "Workflow scope, initiative and proportionate verification",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "openai-skills",
+      "url": "https://developers.openai.com/codex/skills/",
+      "title": "Codex skills",
+      "usedFor": "Native discovery and optional invocation metadata",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "openai-agents",
+      "url": "https://developers.openai.com/codex/guides/agents-md",
+      "title": "Codex AGENTS.md",
+      "usedFor": "Project instruction loading",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "openai-hooks",
+      "url": "https://developers.openai.com/codex/hooks",
+      "title": "Codex hooks",
+      "usedFor": "Native event input and output",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "claude-models",
+      "url": "https://platform.claude.com/docs/en/models/overview",
+      "title": "Claude model overview",
+      "usedFor": "Current model catalog; no runtime selection",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "claude-fable-guidance",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1",
+      "title": "Fable 5.1 prompting",
+      "usedFor": "Task scope and progress communication",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "claude-opus-guidance",
+      "url": "https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5",
+      "title": "Opus 5 prompting",
+      "usedFor": "Appropriate bounded delegation",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "claude-skills",
+      "url": "https://code.claude.com/docs/en/skills",
+      "title": "Claude Code skills",
+      "usedFor": "Native discovery and explicit invocation",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "claude-memory",
+      "url": "https://code.claude.com/docs/en/memory",
+      "title": "Claude Code memory",
+      "usedFor": "Native AGENTS.md import",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "claude-hooks",
+      "url": "https://code.claude.com/docs/en/hooks",
+      "title": "Claude Code hooks",
+      "usedFor": "Event-specific blocking and context behavior",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "agent-skills-spec",
+      "url": "https://agentskills.io/specification",
+      "title": "Agent Skills specification",
+      "usedFor": "Portable skill metadata and directory naming",
+      "checkedAt": "2026-09-07"
+    },
+    {
+      "id": "agent-skills-practice",
+      "url": "https://agentskills.io/skill-creation/best-practices",
+      "title": "Agent Skills best practices",
+      "usedFor": "Focused instructions and progressive disclosure",
+      "checkedAt": "2026-09-07"
+    }
+  ]
+}

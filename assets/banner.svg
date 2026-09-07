@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="400" viewBox="0 0 1440 400" role="img" aria-labelledby="title desc">
+  <title id="title">Steward — carry the work, keep the evidence</title>
+  <desc id="desc">Local policy, memory and verification connected in one inspectable workflow.</desc>
+  <defs>
+    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101f2b"/><stop offset="1" stop-color="#173f45"/></linearGradient>
+    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#80bcb4" stroke-opacity=".08"/></pattern>
+  </defs>
+  <rect width="1440" height="400" rx="20" fill="url(#bg)"/>
+  <rect width="1440" height="400" rx="20" fill="url(#grid)"/>
+  <g font-family="Arial, Helvetica, sans-serif">
+    <text x="72" y="88" fill="#90dbc6" font-size="17" letter-spacing="4">LOCAL TOOLS FOR CODING AGENTS</text>
+    <text x="68" y="182" fill="#f3f8f6" font-size="82" font-weight="700" letter-spacing="-3">Steward</text>
+    <text x="72" y="238" fill="#dcebe8" font-size="27">Carry the work. Keep the evidence.</text>
+    <text x="72" y="328" fill="#a9c9c6" font-size="18">Node.js · No runtime dependencies · No model API calls</text>
+    <path d="M848 155H1280" stroke="#73c9b3" stroke-width="3" stroke-dasharray="7 9"/>
+    <g fill="#17333c" stroke="#599a90" stroke-width="2">
+      <rect x="770" y="112" width="150" height="106" rx="16"/>
+      <rect x="970" y="112" width="150" height="106" rx="16"/>
+      <rect x="1170" y="112" width="190" height="106" rx="16"/>
+    </g>
+    <g fill="#f3f8f6" font-size="20" font-weight="700" text-anchor="middle">
+      <text x="845" y="175">POLICY</text><text x="1045" y="175">MEMORY</text><text x="1265" y="175">EVIDENCE</text>
+    </g>
+    <g fill="#a9c9c6" font-size="16" text-anchor="middle">
+      <text x="845" y="259">Review the rules</text><text x="1045" y="259">Record decisions</text><text x="1265" y="259">Verify the result</text>
+    </g>
+    <path d="M788 318H1342" stroke="#599a90" stroke-opacity=".6"/>
+    <text x="1065" y="350" fill="#90dbc6" font-size="16" text-anchor="middle" letter-spacing="2">CODEX · CLAUDE CODE · GENERIC HOOKS</text>
+  </g>
+</svg>

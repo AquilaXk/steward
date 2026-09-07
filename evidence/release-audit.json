@@ -1,0 +1,17 @@
+{
+  "collectedAt": "2026-09-07T12:15:37.062980+00:00",
+  "referenceScan": {
+    "scope": "All project file paths and UTF-8 contents including hidden files",
+    "caseInsensitive": true,
+    "removedNameSha256": "2a363507a26b8d2a8de3552e5b8d73a78e417c2fa34e1cfc632c2e4c3515da25",
+    "matches": 0
+  },
+  "publicationScan": {
+    "privateMachinePaths": 0,
+    "credentialPatternMatches": 0,
+    "scope": "Project files only; synthetic test values inspected separately"
+  },
+  "npmDependencies": 0,
+  "liveHostInvoked": false,
+  "modelApiCalls": 0
+}

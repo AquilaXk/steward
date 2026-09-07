@@ -1,0 +1,18 @@
+{
+  "scope": "Observed pre-fix regression runs in this local task; summary, not raw TAP",
+  "initialRegressionCases": 11,
+  "initialFailures": 11,
+  "initialPostFixPasses": 11,
+  "additionalAliasRegression": {
+    "before": "failed",
+    "after": "passed"
+  },
+  "finalSuite": {
+    "tests": 136,
+    "pass": 136,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  }
+}

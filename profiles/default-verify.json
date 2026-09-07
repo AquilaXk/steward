@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "maxAgeSeconds": 86400,
+  "checks": [
+    {
+      "id": "configure-project-checks",
+      "description": "Unconfigured placeholder. Replace with real, scoped project checks before relying on verification.",
+      "argv": [
+        "node",
+        "-e",
+        "console.error('STEWARD_UNCONFIGURED: Set real project checks in .steward/verify.json, then review and approve the changed bundle.'); process.exit(1);"
+      ],
+      "timeoutMs": 10000
+    }
+  ]
+}

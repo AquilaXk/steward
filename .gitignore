@@ -1,0 +1,10 @@
+node_modules/
+.steward/state/
+.steward/install-*.json
+.codex/hooks.json
+.claude/settings.local.json
+.env
+.env.*
+*.tgz
+.DS_Store
+coverage/

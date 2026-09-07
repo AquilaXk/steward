@@ -1,0 +1,41 @@
+{
+  "command": "npm run demo",
+  "exitCode": 0,
+  "collectedAt": "2026-09-07T12:15:37.062980+00:00",
+  "result": {
+    "pass": true,
+    "isolated": true,
+    "syntheticFixture": true,
+    "promptRulesPrepared": [
+      "finish-the-task",
+      "report-real-evidence"
+    ],
+    "codexAliasDenied": true,
+    "compactionFileWritten": true,
+    "checkpointRestored": true,
+    "verification": {
+      "pass": true,
+      "checks": [
+        {
+          "id": "cost-contract",
+          "status": "pass"
+        }
+      ],
+      "journalRecords": 3
+    },
+    "changedSourceRejected": true,
+    "audit": {
+      "receipts": 4,
+      "denied": 1,
+      "emitted": {
+        "finish-the-task": 1,
+        "report-real-evidence": 1
+      },
+      "stage": "prepared",
+      "hostAcknowledged": false
+    },
+    "liveHostInvoked": false,
+    "modelApiCalls": 0
+  },
+  "rawOutput": "\n> steward@0.1.1 demo\n> node scripts/demo.mjs\n\n{\n  \"pass\": true,\n  \"isolated\": true,\n  \"syntheticFixture\": true,\n  \"promptRulesPrepared\": [\n    \"finish-the-task\",\n    \"report-real-evidence\"\n  ],\n  \"codexAliasDenied\": true,\n  \"compactionFileWritten\": true,\n  \"checkpointRestored\": true,\n  \"verification\": {\n    \"pass\": true,\n    \"checks\": [\n      {\n        \"id\": \"cost-contract\",\n        \"status\": \"pass\"\n      }\n    ],\n    \"journalRecords\": 3\n  },\n  \"changedSourceRejected\": true,\n  \"audit\": {\n    \"receipts\": 4,\n    \"denied\": 1,\n    \"emitted\": {\n      \"finish-the-task\": 1,\n      \"report-real-evidence\": 1\n    },\n    \"stage\": \"prepared\",\n    \"hostAcknowledged\": false\n  },\n  \"liveHostInvoked\": false,\n  \"modelApiCalls\": 0\n}\n"
+}

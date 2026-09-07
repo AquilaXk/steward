@@ -1,0 +1,12 @@
+{
+  "type": "goal",
+  "data": {
+    "objective": "Deliver a parser fix without changing the public contract.",
+    "acceptance": [
+      "Invalid input fails explicitly.",
+      "The existing consumer contract remains valid."
+    ],
+    "status": "active",
+    "evidence": []
+  }
+}

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:steward:event:v1",
+  "title": "Steward generic hook event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "event": {
+      "enum": [
+        "prompt",
+        "tool",
+        "session",
+        "compact"
+      ]
+    },
+    "text": {
+      "type": "string",
+      "maxLength": 262144
+    },
+    "tool": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 256
+    },
+    "paths": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 2048,
+        "pattern": "\\S"
+      },
+      "minItems": 0,
+      "maxItems": 500,
+      "uniqueItems": true
+    },
+    "sessionId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "maxLength": 256
+    }
+  },
+  "required": [
+    "event",
+    "text",
+    "tool",
+    "paths",
+    "sessionId"
+  ],
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "event": {
+            "const": "tool"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "tool": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "pattern": "\\S"
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "tool": {
+            "type": "null"
+          }
+        }
+      }
+    }
+  ]
+}

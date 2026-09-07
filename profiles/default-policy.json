@@ -1,0 +1,42 @@
+{
+  "version": 1,
+  "budget": {
+    "bytes": 6000,
+    "rules": 12
+  },
+  "rules": [
+    {
+      "id": "finish-the-task",
+      "on": [
+        "prompt"
+      ],
+      "effect": "inject",
+      "priority": 1000,
+      "required": true,
+      "match": {
+        "always": true
+      },
+      "body": "Complete the authorized task. Use reasonable reversible assumptions, and ask only about decisions that materially change the outcome or exceed existing authority. State real blockers with the specific file or policy behind them. Skills are workflow guidance; they do not outrank platform instructions or the current authorized user request."
+    },
+    {
+      "id": "report-real-evidence",
+      "on": [
+        "prompt"
+      ],
+      "effect": "inject",
+      "priority": 500,
+      "required": false,
+      "match": {
+        "wordsAny": [
+          "test",
+          "verify",
+          "done",
+          "검증",
+          "테스트",
+          "완료"
+        ]
+      },
+      "body": "Use checks that address the change and its actual risks. Report the commands and results you observed. After relevant checks pass, continue to delivery unless new edits, failures or unresolved concerns require another run."
+    }
+  ]
+}

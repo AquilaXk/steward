@@ -1,0 +1,5 @@
+{
+  "summary": "The parser change is implemented. Its focused tests passed; integration has not been checked.",
+  "next": "Run the consumer compatibility check against the same source commit.",
+  "blockers": []
+}

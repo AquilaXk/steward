@@ -1,0 +1,71 @@
+{
+  "package": "steward",
+  "version": "0.1.1",
+  "revision": "public source preparation",
+  "collectedAt": "2026-09-07T12:15:37.062980+00:00",
+  "environment": {
+    "os": "macOS",
+    "architecture": "arm64",
+    "node": "v22.16.0",
+    "npm": "10.9.2"
+  },
+  "commands": [
+    {
+      "command": "npm run check",
+      "exitCode": 0
+    },
+    {
+      "command": "npm test",
+      "exitCode": 0
+    },
+    {
+      "command": "npm run demo",
+      "exitCode": 0
+    }
+  ],
+  "tests": {
+    "tests": 136,
+    "pass": 136,
+    "fail": 0,
+    "cancelled": 0,
+    "skipped": 0,
+    "todo": 0
+  },
+  "skills": [
+    {
+      "skill": "steward-checkpoint",
+      "valid": true
+    },
+    {
+      "skill": "steward-decisions",
+      "valid": true
+    },
+    {
+      "skill": "steward-delegate",
+      "valid": true
+    },
+    {
+      "skill": "steward-policy",
+      "valid": true
+    },
+    {
+      "skill": "steward-recall",
+      "valid": true
+    },
+    {
+      "skill": "steward-schedule",
+      "valid": true
+    },
+    {
+      "skill": "steward-verify",
+      "valid": true
+    },
+    {
+      "skill": "steward-work",
+      "valid": true
+    }
+  ],
+  "independentReview": "read-only skill/runtime scenario inspection; not a live model evaluation",
+  "liveHostVerified": false,
+  "modelApiCalls": 0
+}

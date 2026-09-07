@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "status": "not_run",
+  "runAt": null,
+  "host": null,
+  "hostVersion": null,
+  "modelId": null,
+  "toolkitVersion": "0.1.1",
+  "configuration": "baseline or configured",
+  "instructionHashes": [],
+  "toolAvailability": [],
+  "cases": [],
+  "notes": "Record observed outputs and failures. Null values are unmeasured, not passing scores."
+}
