@@ -78,7 +78,10 @@ test('plugin setup configures the runner without duplicate project skills', t =>
         assert.equal(fs.existsSync(path.join(root, '.agents/skills')), false);
         assert.equal(JSON.parse(cli(root, ['doctor', '--host', host]).stdout).localHealthy, true);
     }
-    assert(fs.readFileSync(path.join(root, '.steward/USAGE.md'), 'utf8').includes('bin/steward.mjs'));
+    const usage = fs.readFileSync(path.join(root, '.steward/USAGE.md'), 'utf8');
+    const script = /^CLI script: (.+)$/m.exec(usage);
+    assert(script, 'Usage must identify the executable CLI script.');
+    assert.equal(JSON.parse(script[1]), path.join(PACKAGE, 'bin', 'steward.mjs'));
 });
 
 test('report identifies unused and budget-omitted rules within the current bundle', t => {
