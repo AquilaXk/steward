@@ -1,8 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
-import { runVerification, completionGate } from '../src/verify.mjs';
+import { runVerification, completionGate, resolveCommand } from '../src/verify.mjs';
 import { appendEntry } from '../src/journal.mjs';
 import { sandbox, plan, write } from './helpers.mjs';
 test('successful checks produce current evidence and allow the local gate', async (t) => { const { root } = sandbox(t, { plan: plan() }); const r = await runVerification(root); assert.equal(r.allPassed, true); assert.equal(completionGate(root).evidence, r.evidence); });
@@ -29,3 +30,37 @@ test('excessive child output is failed, not silently accepted', async (t) => { c
 test('complete goal can reference the unchanged passing snapshot', async (t) => { const { root } = sandbox(t, { plan: plan() }); const r = await runVerification(root); await appendEntry(root, { type: 'goal', data: { objective: 'Fixture complete', acceptance: ['Focused fixture check passed'], status: 'complete', evidence: [r.evidence] } }); assert.equal(completionGate(root).pass, true); });
 test('edited verification stdout invalidates the evidence', async (t) => { const { root } = sandbox(t, { plan: plan('console.log("observed")') }); const r = await runVerification(root); write(root, r.checks[0].stdout.path, 'forged output'); assert.throws(() => completionGate(root), { code: 'OUTPUT_CHANGED' }); });
 test('deleted verification output invalidates the evidence', async (t) => { const { root } = sandbox(t, { plan: plan() }); const r = await runVerification(root); fs.unlinkSync(path.join(root, r.checks[0].stderr.path)); assert.throws(() => completionGate(root), { code: 'OUTPUT_CHANGED' }); });
+test('resolveCommand resolves node and preserves custom binaries', () => {
+    assert.equal(resolveCommand('node', {}), process.execPath);
+    assert.equal(resolveCommand('custom-binary-xyz', {}), 'custom-binary-xyz');
+});
+test('resolveCommand simulates Windows .cmd resolution', t => {
+    const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-win-'));
+    t.after(() => fs.rmSync(temp, { recursive: true, force: true }));
+    fs.writeFileSync(path.join(temp, 'tool.cmd'), '@echo off\n');
+    const originalPlatform = process.platform;
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    t.after(() => Object.defineProperty(process, 'platform', { value: originalPlatform }));
+    const resolved = resolveCommand('tool', { PATH: temp, PATHEXT: '.COM;.EXE;.BAT;.CMD' });
+    assert.equal(resolved.toLowerCase(), path.join(temp, 'tool.cmd').toLowerCase());
+});
+test('verification plan exclude allows build artifacts without invalidating source', async t => {
+    const { root } = sandbox(t, {
+        plan: {
+            version: 1,
+            maxAgeSeconds: 3600,
+            exclude: ['dist'],
+            checks: [{
+                id: 'build-check',
+                description: 'Build outputs to dist',
+                argv: ['node', '-e', "require('fs').mkdirSync('dist', {recursive:true}); require('fs').writeFileSync('dist/bundle.js', 'out');"],
+                timeoutMs: 2000
+            }]
+        }
+    });
+    const r = await runVerification(root);
+    assert.equal(r.checks[0].status, 'pass');
+    assert.equal(r.sourceUnchanged, true);
+    assert.equal(r.allPassed, true);
+    assert.equal(completionGate(root).pass, true);
+});

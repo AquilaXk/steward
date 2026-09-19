@@ -1,3 +1,5 @@
+import * as fs from 'node:fs';
+import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { requireTrust, loadBundle } from './trust.mjs';
@@ -13,13 +15,33 @@ function cleanEnvironment() {
     env.NO_COLOR = '1';
     return env;
 }
+export function resolveCommand(cmd, env = {}) {
+    if (cmd === 'node') return process.execPath;
+    if (process.platform === 'win32' && !path.extname(cmd) && !cmd.includes('/') && !cmd.includes('\\')) {
+        const pathext = (env.PATHEXT || process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';');
+        const pathDirs = (env.PATH || process.env.PATH || '').split(path.delimiter);
+        for (const dir of pathDirs) {
+            for (const rawExt of pathext) {
+                if (!rawExt) continue;
+                for (const ext of new Set([rawExt, rawExt.toLowerCase(), rawExt.toUpperCase()])) {
+                    const candidate = path.join(dir, cmd + ext);
+                    try {
+                        if (fs.existsSync(candidate)) return candidate;
+                    } catch {}
+                }
+            }
+        }
+    }
+    return cmd;
+}
 export async function runVerification(root) {
-    const { plan, hash: bundleHash } = requireTrust(root), before = snapshot(root);
+    const { plan, hash: bundleHash } = requireTrust(root), before = snapshot(root, plan.exclude || []);
     const id = randomUUID(), checks = [];
+    const env = cleanEnvironment();
     for (const check of plan.checks) {
         const start = Date.now();
-        const command = check.argv[0] === 'node' ? process.execPath : check.argv[0];
-        const child = spawnSync(command, check.argv.slice(1), { cwd: root, env: cleanEnvironment(), encoding: 'utf8', shell: false, timeout: check.timeoutMs, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024, windowsHide: true });
+        const command = resolveCommand(check.argv[0], env);
+        const child = spawnSync(command, check.argv.slice(1), { cwd: root, env, encoding: 'utf8', shell: false, timeout: check.timeoutMs, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024, windowsHide: true });
         let status = 'pass', error = null;
         if (child.error) {
             error = child.error.code || 'SPAWN_ERROR';
@@ -36,7 +58,7 @@ export async function runVerification(root) {
         checks.push({ id: check.id, status, error, exitCode: child.status, signal: child.signal || null, durationMs: Date.now() - start,
             stdout: { path: prefix + '.stdout.txt', sha256: sha256(stdout) }, stderr: { path: prefix + '.stderr.txt', sha256: sha256(stderr) } });
     }
-    const after = snapshot(root), unchanged = before.hash === after.hash;
+    const after = snapshot(root, plan.exclude || []), unchanged = before.hash === after.hash;
     const report = { version: 1, runId: id, bundleHash, planHash: sha256(canonical(plan)), workspace: before, workspaceAfter: after.hash,
         sourceUnchanged: unchanged, runtime: { node: process.version, platform: process.platform, arch: process.arch }, checks,
         allPassed: unchanged && checks.every(c => c.status === 'pass'), limitations: ['Commands execute with local user privileges.', 'Recorded output may contain sensitive test data.', 'node_modules and external services are outside the source snapshot.'] };
@@ -68,6 +90,6 @@ export function completionGate(root, evidence = null) {
     insist(r.runtime.node === process.version && r.runtime.platform === process.platform && r.runtime.arch === process.arch, 'STALE_RUNTIME', 'Runtime differs from the verified runtime.');
     const age = (Date.now() - Date.parse(row.time)) / 1000;
     insist(Number.isFinite(age) && age >= 0 && age <= bundle.plan.maxAgeSeconds, 'STALE_EVIDENCE', 'Verification is outside the plan freshness window.');
-    insist(snapshot(root).hash === r.workspace.hash, 'STALE_SOURCE', 'Source files changed after verification.');
+    insist(snapshot(root, bundle.plan.exclude || []).hash === r.workspace.hash, 'STALE_SOURCE', 'Source files changed after verification.');
     return { pass: true, evidence: row.hash, scope: 'Approved local checks on this source snapshot and runtime. Not deployment or semantic proof.', workspace: r.workspace.hash };
 }

@@ -135,7 +135,14 @@ export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
     visit(root);
     return result;
 }
-export function snapshot(root) {
-    const files = walk(root, { exclude: (p) => p === '.git' || p === 'node_modules' || p === '.steward/state' || p.startsWith('.steward/install-') });
-    return { hash: sha256(canonical(files)), files: files.length, excluded: ['.git/', 'node_modules/', '.steward/state/', '.steward/install-*'] };
+export function snapshot(root, extraExcludes = []) {
+    const files = walk(root, {
+        exclude: (p, entry) =>
+            entry.name === '.git' ||
+            entry.name === 'node_modules' ||
+            p === '.steward/state' ||
+            p.startsWith('.steward/install-') ||
+            extraExcludes.some(x => p === x || p.startsWith(x + '/'))
+    });
+    return { hash: sha256(canonical(files)), files: files.length, excluded: ['.git/', 'node_modules/', '.steward/state/', '.steward/install-*', ...extraExcludes] };
 }

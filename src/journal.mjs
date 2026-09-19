@@ -9,6 +9,7 @@ export function readJournal(root, { anchor = null } = {}) {
     let names = [];
     try {
         names = fs.readdirSync(dir).filter(n => !n.startsWith('.tmp-')).sort();
+        names = names.filter(n => !n.startsWith('.') && n !== 'Thumbs.db' && n !== 'desktop.ini');
     }
     catch (e) {
         if (e.code !== 'ENOENT')

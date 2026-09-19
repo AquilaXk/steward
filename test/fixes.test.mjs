@@ -6,7 +6,7 @@ import { syncBuiltinESMExports } from 'node:module';
 import { sandbox, plan, checkpoint, write, cli } from './helpers.mjs';
 import { runVerification, completionGate } from '../src/verify.mjs';
 import { appendEntry, readJournal, saveCompaction } from '../src/journal.mjs';
-import { sha256, canonical } from '../src/fs.mjs';
+import { sha256, canonical, snapshot } from '../src/fs.mjs';
 import { handleHook } from '../src/service.mjs';
 import { installHooks } from '../src/setup.mjs';
 import { loadBundle, trustBundle, requireTrust } from '../src/trust.mjs';
@@ -66,6 +66,16 @@ test('journal rejects malformed internal verification data before gate consumpti
     assert.throws(() => readJournal(root), { code: 'JOURNAL_CORRUPT' });
 });
 
+test('journal gracefully ignores OS metadata files like .DS_Store and Thumbs.db', async t => {
+    const { root } = sandbox(t);
+    await appendEntry(root, checkpoint);
+    fs.writeFileSync(path.join(root, '.steward/state/journal/.DS_Store'), 'finder metadata');
+    fs.writeFileSync(path.join(root, '.steward/state/journal/Thumbs.db'), 'windows thumbnails');
+    const rows = readJournal(root);
+    assert.equal(rows.length, 1);
+    assert.equal(rows[0].type, 'checkpoint');
+});
+
 test('session restore and compaction select only the matching checkpoint', async t => {
     const { root } = sandbox(t);
     for (const session of ['A', 'B'])
@@ -122,4 +132,14 @@ test('installation rolls back earlier writes if a later file write fails', t => 
     assert.throws(() => installHooks(root, 'claude'), { code: 'INSTALL_FAILED' });
     assert.equal(fs.readFileSync(path.join(root, '.claude/settings.local.json'), 'utf8'), original);
     assert.equal(fs.existsSync(path.join(root, '.steward/install-claude.json')), false);
+});
+
+test('snapshot excludes nested node_modules and git submodules', t => {
+    const { root } = sandbox(t);
+    const before = snapshot(root).files;
+    write(root, 'packages/core/src/index.js', 'console.log(1);\n');
+    write(root, 'packages/core/node_modules/dep/index.js', 'console.log(2);\n');
+    write(root, 'submodules/foo/.git/config', '[core]\n');
+    const s = snapshot(root);
+    assert.equal(s.files, before + 1);
 });

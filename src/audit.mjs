@@ -71,3 +71,32 @@ export function report(root) {
             neverEmitted: rules.filter(r => r.effect === 'inject' && r.emitted === 0).map(r => r.id) },
         retention: { limit: AUDIT_LIMIT, remaining: Math.max(0, AUDIT_LIMIT - entries) } };
 }
+export function pruneAudit(root, { keep = 5000 } = {}) {
+    insist(Number.isInteger(keep) && keep >= 0, 'USAGE', 'keep must be a non-negative integer.');
+    const dir = safePath(root, '.steward/state/audit');
+    let names = [];
+    try {
+        names = fs.readdirSync(dir).filter(n => n.endsWith('.json'));
+    }
+    catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+        return { deleted: 0, remaining: 0 };
+    }
+    if (names.length <= keep)
+        return { deleted: 0, remaining: names.length };
+    const filesWithStats = names.map(name => {
+        const filePath = safePath(root, `.steward/state/audit/${name}`);
+        let mtime = 0;
+        try { mtime = fs.statSync(filePath).mtimeMs; } catch {}
+        return { name, filePath, mtime };
+    }).sort((a, b) => a.mtime - b.mtime);
+    const toDelete = filesWithStats.slice(0, filesWithStats.length - keep);
+    let deleted = 0;
+    for (const item of toDelete) {
+        try {
+            fs.unlinkSync(item.filePath);
+            deleted++;
+        } catch {}
+    }
+    return { deleted, remaining: names.length - deleted };
+}
