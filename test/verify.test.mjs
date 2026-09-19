@@ -32,7 +32,7 @@ test('edited verification stdout invalidates the evidence', async (t) => { const
 test('deleted verification output invalidates the evidence', async (t) => { const { root } = sandbox(t, { plan: plan() }); const r = await runVerification(root); fs.unlinkSync(path.join(root, r.checks[0].stderr.path)); assert.throws(() => completionGate(root), { code: 'OUTPUT_CHANGED' }); });
 test('resolveCommand resolves node and preserves custom binaries', () => {
     assert.equal(resolveCommand('node', {}), process.execPath);
-    assert.equal(resolveCommand('git', {}), 'git');
+    assert.equal(resolveCommand('custom-binary-xyz', {}), 'custom-binary-xyz');
 });
 test('resolveCommand simulates Windows .cmd resolution', t => {
     const temp = fs.mkdtempSync(path.join(os.tmpdir(), 'test-win-'));

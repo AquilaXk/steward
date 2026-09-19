@@ -15,17 +15,20 @@ function cleanEnvironment() {
     env.NO_COLOR = '1';
     return env;
 }
-export function resolveCommand(cmd, env) {
+export function resolveCommand(cmd, env = {}) {
     if (cmd === 'node') return process.execPath;
     if (process.platform === 'win32' && !path.extname(cmd) && !cmd.includes('/') && !cmd.includes('\\')) {
         const pathext = (env.PATHEXT || process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';');
         const pathDirs = (env.PATH || process.env.PATH || '').split(path.delimiter);
         for (const dir of pathDirs) {
-            for (const ext of pathext) {
-                const candidate = path.join(dir, cmd + ext);
-                try {
-                    if (fs.existsSync(candidate)) return candidate;
-                } catch {}
+            for (const rawExt of pathext) {
+                if (!rawExt) continue;
+                for (const ext of new Set([rawExt, rawExt.toLowerCase(), rawExt.toUpperCase()])) {
+                    const candidate = path.join(dir, cmd + ext);
+                    try {
+                        if (fs.existsSync(candidate)) return candidate;
+                    } catch {}
+                }
             }
         }
     }
