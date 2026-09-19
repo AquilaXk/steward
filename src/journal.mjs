@@ -1,19 +1,15 @@
 import * as fs from 'node:fs';
-import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { safePath, mkdir, readJSON, sha256, canonical, atomicWrite, withLock } from './fs.mjs';
 import { validateEntry, validateJournalRow, RECORD_TYPES } from './schema.mjs';
-import { insist, StewardError } from './errors.mjs';
+import { insist } from './errors.mjs';
 const DIRECTORY = '.steward/state/journal';
 export function readJournal(root, { anchor = null } = {}) {
-    const resolvedRoot = path.resolve(root);
     const dir = safePath(root, DIRECTORY);
-    if (!dir.startsWith(resolvedRoot)) {
-        throw new StewardError('PATH_ESCAPE', 'Path leaves the selected root.');
-    }
     let names = [];
     try {
-        names = fs.readdirSync(dir).filter(n => !n.startsWith('.') && n !== 'Thumbs.db' && n !== 'desktop.ini').sort();
+        names = fs.readdirSync(dir).filter(n => !n.startsWith('.tmp-')).sort();
+        names = names.filter(n => !n.startsWith('.') && n !== 'Thumbs.db' && n !== 'desktop.ini');
     }
     catch (e) {
         if (e.code !== 'ENOENT')
