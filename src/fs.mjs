@@ -19,7 +19,11 @@ export function rootOf(project) {
 // This is a cooperative local-file boundary, not protection against hostile TOCTOU races.
 export function safePath(root, relative) {
     insist(typeof relative === 'string' && relative && !path.isAbsolute(relative), 'BAD_PATH', 'Expected a relative control path.');
+    const resolvedRoot = path.resolve(root);
     const target = path.resolve(root, relative);
+    if (!target.startsWith(resolvedRoot)) {
+        throw new StewardError('PATH_ESCAPE', 'Path leaves the selected root.');
+    }
     const rel = path.relative(root, target);
     insist(rel !== '..' && !rel.startsWith('..' + path.sep) && !path.isAbsolute(rel), 'PATH_ESCAPE', 'Path leaves the selected root.');
     let cursor = root;
