@@ -2,7 +2,7 @@
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { rootOf, parseJSON, readText, readJSON, sha256 } from '../src/fs.mjs';
-import { insist, publicError } from '../src/errors.mjs';
+import { insist, publicError, StewardError } from '../src/errors.mjs';
 import { loadBundle, trustBundle } from '../src/trust.mjs';
 import { handleHook } from '../src/service.mjs';
 import { encode, eventKind, normalizeInput } from '../src/adapters.mjs';
@@ -10,7 +10,7 @@ import { evaluate } from '../src/engine.mjs';
 import { appendEntry, readJournal, journalHead, queryJournal } from '../src/journal.mjs';
 import { VERSION } from '../src/version.mjs';
 import { runVerification, completionGate } from '../src/verify.mjs';
-import { report } from '../src/audit.mjs';
+import { report, pruneAudit } from '../src/audit.mjs';
 import { auditInstructions } from '../src/instructions.mjs';
 import { initProject, installHooks } from '../src/setup.mjs';
 import { doctor } from '../src/doctor.mjs';
@@ -35,11 +35,12 @@ checkpoint --file F    Persist {summary,next,blockers}; --session-id binds recov
 verify                 Run the exact trusted verification commands
 gate                   Check latest evidence against current source and plan
 report                 Count context prepared, never pretend host receipt
+audit prune [--keep N] Prune older audit receipts to recover retention capacity
 instructions-audit     Inventory agent files and flag common instruction conflicts
 doctor                 Check trust and local wiring; --host codex or claude
 
 Options: --host --project --input --file --approve --event --evidence --plugin
-         --anchor-file --session-id --help
+         --anchor-file --session-id --keep --help
 No network calls, provider routing, daemon, automatic publishing or API keys.
 `;
 let command = process.argv[2] || 'help', opts = {}, positionals = [];
@@ -56,13 +57,13 @@ async function input() {
     return new Promise((resolve, reject) => {
         let size = 0;
         const chunks = [];
-        const timer = setTimeout(() => { process.stdin.destroy(); reject(new Error('stdin timed out')); }, 3000);
+        const timer = setTimeout(() => { process.stdin.destroy(); reject(new StewardError('STDIN_TIMEOUT', 'stdin timed out')); }, 3000);
         process.stdin.on('data', chunk => {
             size += chunk.length;
             if (size > 1024 * 1024) {
                 clearTimeout(timer);
                 process.stdin.destroy();
-                reject(new Error('input too large'));
+                reject(new StewardError('INPUT_TOO_LARGE', 'input exceeds 1 MiB limit'));
             }
             else
                 chunks.push(chunk);
@@ -80,7 +81,7 @@ async function input() {
     });
 }
 try {
-    const parsed = parseArgs({ allowPositionals: true, options: Object.fromEntries(['host', 'project', 'input', 'file', 'approve', 'event', 'evidence', 'anchor-file', 'session-id', 'type', 'text', 'limit', 'record-id'].map(k => [k, { type: 'string' }]).concat([['help', { type: 'boolean' }], ['plugin', { type: 'boolean' }], ['history', { type: 'boolean' }], ['version', { type: 'boolean' }]])) });
+    const parsed = parseArgs({ allowPositionals: true, options: Object.fromEntries(['host', 'project', 'input', 'file', 'approve', 'event', 'evidence', 'anchor-file', 'session-id', 'type', 'text', 'limit', 'record-id', 'keep'].map(k => [k, { type: 'string' }]).concat([['help', { type: 'boolean' }], ['plugin', { type: 'boolean' }], ['history', { type: 'boolean' }], ['version', { type: 'boolean' }]])) });
     opts = parsed.values;
     positionals = parsed.positionals;
     command = positionals[0] || 'help';
@@ -154,6 +155,17 @@ try {
         }
         else if (command === 'gate')
             output(completionGate(root, opts.evidence || null));
+        else if (command === 'audit') {
+            const sub = positionals[1] || 'report';
+            if (sub === 'prune') {
+                const keep = opts.keep === undefined ? 5000 : Number(opts.keep);
+                output(pruneAudit(root, { keep }));
+            }
+            else if (sub === 'report')
+                output(report(root));
+            else
+                insist(false, 'USAGE', 'Unknown audit subcommand. Use prune or report.');
+        }
         else if (command === 'report')
             output(report(root));
         else if (command === 'instructions-audit')

@@ -47,7 +47,7 @@ export function normalizeInput(host, raw, root, expectedEvent = null) {
             const lines = patch.replaceAll('\r\n', '\n').trim().split('\n');
             insist(lines[0] === '*** Begin Patch' && lines.at(-1) === '*** End Patch', 'BAD_PATCH', 'Unsupported patch envelope.');
             for (const line of lines) {
-                const m = /^\*\*\* (?:Add File|Update File|Delete File|Move to): (.+)$/.exec(line);
+                const m = /^\*\*\* (?:Add File|Update File|Delete File|Move from|Move to): (.+)$/.exec(line);
                 if (m)
                     result.paths.push(relativePath(root, m[1], cwd));
             }

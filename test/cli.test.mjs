@@ -33,3 +33,17 @@ test('malformed UTF-8 on stdin cannot be silently repaired into an accepted requ
     assert.equal(child.status, 2);
     assert.equal(JSON.parse(child.stdout).decision, 'deny');
 });
+test('CLI audit prune removes older receipts to keep retention capacity', t => {
+    const { root } = sandbox(t);
+    for (let i = 0; i < 5; i++) {
+        cli(root, ['hook', '--host', 'generic'], event('step ' + i));
+    }
+    const auditDir = path.join(root, '.steward/state/audit');
+    assert.equal(fs.readdirSync(auditDir).filter(f => f.endsWith('.json')).length, 5);
+    const res = cli(root, ['audit', 'prune', '--keep', '2']);
+    assert.equal(res.status, 0, res.stderr);
+    const out = JSON.parse(res.stdout);
+    assert.equal(out.deleted, 3);
+    assert.equal(out.remaining, 2);
+    assert.equal(fs.readdirSync(auditDir).filter(f => f.endsWith('.json')).length, 2);
+});

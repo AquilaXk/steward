@@ -59,9 +59,14 @@ export function validatePolicy(p) {
     return p;
 }
 export function validatePlan(p) {
-    object(p, ['version', 'maxAgeSeconds', 'checks'], 'verification plan');
+    object(p, ['version', 'maxAgeSeconds', 'checks', 'exclude'], 'verification plan');
     insist(p.version === 1, 'SCHEMA', 'Unsupported plan version.');
     integer(p.maxAgeSeconds, 1, 604800, 'maxAgeSeconds');
+    if (p.exclude !== undefined) {
+        strings(p.exclude, 'plan.exclude', { empty: true, max: 32 });
+        for (const v of p.exclude)
+            insist(!v.startsWith('/') && !v.includes('\\') && !v.split('/').some(s => s === '..' || s === '.') && !v.includes(':'), 'SCHEMA', 'exclude must be project-relative literal path prefixes.');
+    }
     insist(Array.isArray(p.checks) && p.checks.length > 0 && p.checks.length <= 32, 'SCHEMA', 'Plan needs 1..32 checks.');
     const ids = new Set();
     for (const c of p.checks) {
