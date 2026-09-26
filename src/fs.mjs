@@ -88,6 +88,20 @@ export function atomicWrite(root, relative, text, { replace = false } = {}) {
         }
     }
 }
+function removeLockDir(lock) {
+    const maxRetries = process.platform === 'win32' ? 5 : 1;
+    for (let retry = 0; retry < maxRetries; retry++) {
+        try {
+            fs.rmdirSync(lock);
+            return;
+        }
+        catch (e) {
+            if (e.code === 'ENOENT')
+                return;
+        }
+    }
+}
+
 export async function withLock(root, relative, fn, timeoutMs = 5000) {
     const lock = safePath(root, relative);
     mkdir(root, path.relative(root, path.dirname(lock)) || '.');
@@ -109,22 +123,7 @@ export async function withLock(root, relative, fn, timeoutMs = 5000) {
         return await fn();
     }
     finally {
-        try {
-            fs.rmdirSync(lock);
-        }
-        catch (e) {
-            if (process.platform === 'win32' && (e.code === 'EPERM' || e.code === 'EBUSY' || e.code === 'EACCES')) {
-                for (let retry = 0; retry < 5; retry++) {
-                    try {
-                        fs.rmdirSync(lock);
-                        break;
-                    }
-                    catch {}
-                }
-            } else if (e.code !== 'ENOENT') {
-                throw e;
-            }
-        }
+        removeLockDir(lock);
     }
 }
 export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
