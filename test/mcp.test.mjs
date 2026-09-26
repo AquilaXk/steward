@@ -145,3 +145,60 @@ test('startMcpServer executes stream communication end-to-end', async (t) => {
     assert.equal(response.id, 10);
     assert.equal(response.result.serverInfo.name, 'steward');
 });
+
+test('MCP tools/call steward_schedule_manage handles initial milestone with id', async (t) => {
+    const { root } = sandbox(t);
+
+    const schedRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 20,
+        method: 'tools/call',
+        params: {
+            name: 'steward_schedule_manage',
+            arguments: {
+                title: 'Initial Sprint',
+                dueAt: '2026-10-01T00:00:00Z',
+                status: 'planned',
+                id: 'sprint-1'
+            }
+        }
+    });
+    assert.equal(schedRes.result.isError, false);
+    const schedData = JSON.parse(schedRes.result.content[0].text);
+    assert.equal(schedData.type, 'schedule');
+    assert.equal(schedData.data.id, 'sprint-1');
+    assert.equal(schedData.data.supersedes, null);
+});
+
+test('startMcpServer handles message without trailing newline before EOF', async (t) => {
+    const { root } = sandbox(t);
+    const inStream = new PassThrough();
+    const outStream = new PassThrough();
+
+    let output = '';
+    outStream.on('data', chunk => {
+        output += chunk.toString();
+    });
+
+    const serverPromise = startMcpServer(root, { inStream, outStream });
+    // Write request without trailing newline and end stream
+    inStream.write(JSON.stringify({ jsonrpc: '2.0', id: 30, method: 'ping' }));
+    inStream.end();
+
+    await serverPromise;
+    const response = JSON.parse(output.trim());
+    assert.equal(response.id, 30);
+});
+
+test('startMcpServer resolves cleanly on stream error', async (t) => {
+    const { root } = sandbox(t);
+    const inStream = new PassThrough();
+    const outStream = new PassThrough();
+
+    const serverPromise = startMcpServer(root, { inStream, outStream });
+    inStream.destroy(new Error('client abruptly disconnected'));
+
+    await assert.doesNotReject(async () => {
+        await serverPromise;
+    });
+});

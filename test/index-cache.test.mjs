@@ -54,4 +54,17 @@ test('journal index cache populates and accelerates queries', async (t) => {
     invalidateJournalCache(root);
     const freshRows = readJournal(root, { fresh: true });
     assert.equal(freshRows.length, 3);
+
+    // Query non-existent type returns 0 matches cleanly
+    const goalQuery = queryJournal(root, { type: 'goal' });
+    assert.equal(goalQuery.total, 0);
+    assert.equal(goalQuery.rows.length, 0);
+
+    // Timestamp filtering: since & until
+    const now = Date.now();
+    const futureQuery = queryJournal(root, { since: now + 10000 });
+    assert.equal(futureQuery.total, 0);
+
+    const pastQuery = queryJournal(root, { until: now + 10000 });
+    assert.equal(pastQuery.total, 3);
 });

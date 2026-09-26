@@ -12,17 +12,6 @@ const DIRECTORY = '.steward/state/journal';
 const caches = new Map();
 
 /**
- * Extracts searchable lowercase tokens from an object for in-memory text indexing.
- * @param {object} obj
- * @returns {string[]}
- */
-function extractTokens(obj) {
-    if (!obj) return [];
-    const text = typeof obj === 'string' ? obj : JSON.stringify(obj);
-    return (text.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}_-]+/gu) || []);
-}
-
-/**
  * Creates an empty journal cache structure.
  */
 function createEmptyCache() {
@@ -30,10 +19,12 @@ function createEmptyCache() {
         files: [],
         rows: [],
         mtimes: new Map(),
+        sizes: new Map(),
         index: {
             byType: new Map(),
             byRecordId: new Map(),
             bySession: new Map(),
+            byTag: new Map(),
             supersededHashes: new Set()
         }
     };
@@ -60,6 +51,17 @@ function indexRow(index, row) {
             index.bySession.set(row.data.session, []);
         }
         index.bySession.get(row.data.session).push(row);
+    }
+
+    // Index by tags if present
+    if (row.data) {
+        const tags = Array.isArray(row.data.tags) ? row.data.tags : (row.data.tag ? [row.data.tag] : []);
+        for (const tag of tags) {
+            if (typeof tag === 'string') {
+                if (!index.byTag.has(tag)) index.byTag.set(tag, []);
+                index.byTag.get(tag).push(row);
+            }
+        }
     }
 
     // Index superseded hashes
@@ -100,7 +102,7 @@ export function syncJournalCache(root) {
             }
             try {
                 const stat = fs.statSync(safePath(root, `${DIRECTORY}/${names[i]}`));
-                if (stat.mtimeMs !== cache.mtimes.get(names[i])) {
+                if (stat.mtimeMs !== cache.mtimes.get(names[i]) || stat.size !== cache.sizes.get(names[i])) {
                     match = false;
                     break;
                 }
@@ -139,6 +141,7 @@ export function syncJournalCache(root) {
         cache.files.push(name);
         cache.rows.push(row);
         cache.mtimes.set(name, stat.mtimeMs);
+        cache.sizes.set(name, stat.size);
         indexRow(cache.index, row);
         previous = hash;
     }
@@ -156,12 +159,13 @@ export function invalidateJournalCache(root) {
 
 /**
  * Queries the journal using in-memory metadata indexing for fast filtering.
+ * Supports filtering by type, tag, timestamp bounds (since/until), session, and text.
  *
  * @param {string} root - Project root.
  * @param {object} options - Query options.
  * @returns {object} Query results matching schema.
  */
-export function queryJournalIndexed(root, { type, text = '', limit = 20, history = false, recordId, sessionId, now = Date.now() } = {}) {
+export function queryJournalIndexed(root, { type, text = '', limit = 20, history = false, recordId, sessionId, tag, since, until, now = Date.now() } = {}) {
     insist(type === undefined || [...RECORD_TYPES, 'verification'].includes(type), 'BAD_QUERY', 'Unknown record type.');
     insist(Number.isInteger(limit) && limit >= 1 && limit <= 100, 'BAD_QUERY', 'limit must be an integer from 1 to 100.');
     insist(typeof text === 'string' && text.length <= 256, 'BAD_QUERY', 'Query text exceeds 256 characters.');
@@ -174,8 +178,12 @@ export function queryJournalIndexed(root, { type, text = '', limit = 20, history
 
     // Narrow candidate pool using in-memory indices when possible
     let candidates = rows;
-    if (type !== undefined && cache.index.byType.has(type)) {
-        candidates = cache.index.byType.get(type);
+    if (type !== undefined) {
+        candidates = cache.index.byType.get(type) || [];
+    } else if (tag !== undefined && cache.index.byTag.has(tag)) {
+        candidates = cache.index.byTag.get(tag) || [];
+    } else if (sessionId !== undefined && cache.index.bySession.has(session)) {
+        candidates = cache.index.bySession.get(session) || [];
     }
 
     const matches = candidates.map(row => ({
@@ -187,7 +195,10 @@ export function queryJournalIndexed(root, { type, text = '', limit = 20, history
         (type === undefined || row.type === type) &&
         (recordId === undefined || row.data.id === recordId) &&
         (session === undefined || (row.type === 'checkpoint' && row.data.session === session)) &&
-        (!needle || JSON.stringify(row.data).toLocaleLowerCase('en-US').includes(needle))
+        (!needle || JSON.stringify(row.data).toLocaleLowerCase('en-US').includes(needle)) &&
+        (since === undefined || Date.parse(row.time) >= (typeof since === 'number' ? since : Date.parse(since))) &&
+        (until === undefined || Date.parse(row.time) <= (typeof until === 'number' ? until : Date.parse(until))) &&
+        (tag === undefined || (Array.isArray(row.data?.tags) ? row.data.tags.includes(tag) : row.data?.tag === tag))
     ).reverse();
 
     const head = { count: rows.length, head: rows.at(-1)?.hash || null };

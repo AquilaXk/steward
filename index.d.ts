@@ -191,6 +191,9 @@ export interface JournalQueryOptions {
     history?: boolean;
     recordId?: string;
     sessionId?: string;
+    tag?: string;
+    since?: string | number;
+    until?: string | number;
     now?: number;
 }
 

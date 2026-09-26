@@ -130,7 +130,7 @@ export const STEWARD_TOOLS = [
                 status: { type: 'string', enum: ['planned', 'staged', 'completed', 'cancelled'] },
                 members: { type: 'array', items: { type: 'string' }, description: 'Responsible agents or users.' },
                 id: { type: 'string', description: 'Optional stable identifier for schedule tracking.' },
-                supersedes: { type: 'string', description: 'Optional SHA-256 hash of previous schedule version.' }
+                supersedes: { type: ['string', 'null'], description: 'Optional SHA-256 hash of previous schedule version being replaced, or null.' }
             },
             required: ['title', 'dueAt', 'status']
         }
@@ -228,8 +228,12 @@ export async function executeTool(root, name, args = {}) {
                 status: args.status,
                 members: Array.isArray(args.members) ? args.members : []
             };
-            if (args.id) schedData.id = args.id;
-            if (args.supersedes) schedData.supersedes = args.supersedes;
+            if (args.id) {
+                schedData.id = args.id;
+                schedData.supersedes = args.supersedes ?? null;
+            } else if (args.supersedes) {
+                schedData.supersedes = args.supersedes;
+            }
             return await appendEntry(root, {
                 type: 'schedule',
                 data: schedData
@@ -451,35 +455,66 @@ export function startMcpServer(root, { inStream = process.stdin, outStream = pro
     let buffer = '';
 
     return new Promise((resolve) => {
+        let isClosed = false;
+        let queue = Promise.resolve();
+
+        const close = () => {
+            if (!isClosed) {
+                isClosed = true;
+                resolve();
+            }
+        };
+
+        inStream.on('error', close);
+        outStream.on('error', close);
+
         inStream.setEncoding('utf8');
 
-        inStream.on('data', async (chunk) => {
+        async function processLine(line) {
+            const trimmed = line.trim();
+            if (!trimmed || isClosed) return;
+
+            let message;
+            try {
+                message = JSON.parse(trimmed);
+            } catch {
+                const parseErr = { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } };
+                if (!isClosed && !outStream.destroyed) {
+                    outStream.write(JSON.stringify(parseErr) + '\n');
+                }
+                return;
+            }
+
+            try {
+                const response = await handleMcpMessage(root, message);
+                if (response !== null && !isClosed && !outStream.destroyed) {
+                    outStream.write(JSON.stringify(response) + '\n');
+                }
+            } catch (err) {
+                const internalErr = { jsonrpc: '2.0', id: message?.id ?? null, error: { code: -32603, message: `Internal error: ${err.message}` } };
+                if (!isClosed && !outStream.destroyed) {
+                    outStream.write(JSON.stringify(internalErr) + '\n');
+                }
+            }
+        }
+
+        inStream.on('data', (chunk) => {
             buffer += chunk;
             const lines = buffer.split('\n');
             buffer = lines.pop(); // Retain remainder in buffer
 
             for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed) continue;
-
-                let message;
-                try {
-                    message = JSON.parse(trimmed);
-                } catch {
-                    const parseErr = { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } };
-                    outStream.write(JSON.stringify(parseErr) + '\n');
-                    continue;
-                }
-
-                const response = await handleMcpMessage(root, message);
-                if (response !== null) {
-                    outStream.write(JSON.stringify(response) + '\n');
-                }
+                queue = queue.then(() => processLine(line)).catch(() => {});
             }
         });
 
         inStream.on('end', () => {
-            resolve();
+            if (buffer.trim()) {
+                const remaining = buffer;
+                buffer = '';
+                queue = queue.then(() => processLine(remaining)).catch(() => {});
+            }
+            queue.then(close).catch(close);
         });
     });
 }

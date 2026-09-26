@@ -68,3 +68,15 @@ test('Ed25519 verification evidence signing and verifier gate', async (t) => {
     assert.equal(verified.valid, true);
     assert.equal(verified.evidenceHash, report.evidence);
 });
+
+test('Ed25519 verification throws NO_SIGNATURE when signature file is missing', async (t) => {
+    const { root } = sandbox(t, { plan: plan() });
+    const keyPair = generateSigningKeyPair();
+
+    // Bundle not signed yet
+    assert.throws(() => verifyBundleSignature(root, keyPair.publicKeyPem), { code: 'NO_SIGNATURE' });
+
+    // Run verification without signing evidence
+    const report = await runVerification(root);
+    assert.throws(() => verifyVerificationEvidence(root, report.evidence, keyPair.publicKeyPem), { code: 'NO_SIGNATURE' });
+});

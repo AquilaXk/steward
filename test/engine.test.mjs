@@ -68,4 +68,18 @@ test('globsAny supports character classes and escapes safely', () => {
 test('schema rejects malformed pattern brackets', () => {
     assert.throws(() => validatePolicy(policy([rule({ match: { patternsAny: ['[unclosed'] } })])), { code: 'SCHEMA' });
 });
+test('schema rejects dangling trailing backslash in pattern', () => {
+    assert.throws(() => validatePolicy(policy([rule({ match: { patternsAny: ['trailing\\'] } })])), { code: 'SCHEMA' });
+});
+test('matcher handles escaped brackets in character classes and Unicode code points', async () => {
+    const { matchGlob, tokenizeCommand } = await import('../src/matcher.mjs');
+    assert.equal(matchGlob(String.raw`[a\]b]`, ']'), true);
+    assert.equal(matchGlob(String.raw`[a\]b]`, 'b'), true);
+    assert.equal(matchGlob(String.raw`[a\]b]`, 'ab]'), false);
+    assert.equal(matchGlob('[🎉]', '🎉'), true);
+    assert.equal(matchGlob('?', '🎉'), true);
+    assert.equal(matchGlob('*🎉*', 'hello 🎉 world'), true);
+    assert.deepEqual(tokenizeCommand('git commit -m ""'), ['git', 'commit', '-m', '']);
+    assert.deepEqual(tokenizeCommand("echo '' 'second'"), ['echo', '', 'second']);
+});
 

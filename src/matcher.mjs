@@ -11,6 +11,15 @@ export function isSafePattern(pattern) {
     if (typeof pattern !== 'string' || !pattern.trim() || Buffer.byteLength(pattern) > 512) {
         return false;
     }
+    // Reject odd number of trailing backslashes (dangling escape)
+    let trailingBackslashes = 0;
+    for (let i = pattern.length - 1; i >= 0 && pattern[i] === '\\'; i--) {
+        trailingBackslashes++;
+    }
+    if (trailingBackslashes % 2 !== 0) {
+        return false;
+    }
+
     let inClass = false;
     for (let i = 0; i < pattern.length; i++) {
         const c = pattern[i];
@@ -31,7 +40,8 @@ export function isSafePattern(pattern) {
 
 /**
  * Compiles a character class into a matcher predicate.
- * Supports exact characters, ranges (a-z, 0-9), and negation ([!...] or [^...]).
+ * Supports exact characters, ranges (a-z, 0-9), negation ([!...] or [^...]),
+ * and full Unicode code points with proper escaping (\-, \], \\).
  */
 function compileCharClass(content, caseSensitive) {
     let negated = false;
@@ -40,28 +50,42 @@ function compileCharClass(content, caseSensitive) {
         negated = true;
         chars = chars.slice(1);
     }
-    const targetChars = caseSensitive ? chars : chars.toLowerCase();
+
+    const codeUnits = Array.from(chars);
+    const elements = [];
+    let i = 0;
+    while (i < codeUnits.length) {
+        let ch = codeUnits[i];
+        if (ch === '\\' && i + 1 < codeUnits.length) {
+            i++;
+            ch = codeUnits[i];
+            elements.push({ type: 'char', value: caseSensitive ? ch : ch.toLowerCase() });
+            i++;
+            continue;
+        }
+        if (i + 2 < codeUnits.length && codeUnits[i + 1] === '-' && codeUnits[i + 2] !== '\\') {
+            const start = (caseSensitive ? ch : ch.toLowerCase()).codePointAt(0);
+            const endCh = caseSensitive ? codeUnits[i + 2] : codeUnits[i + 2].toLowerCase();
+            const end = endCh.codePointAt(0);
+            elements.push({ type: 'range', min: Math.min(start, end), max: Math.max(start, end) });
+            i += 3;
+            continue;
+        }
+        elements.push({ type: 'char', value: caseSensitive ? ch : ch.toLowerCase() });
+        i++;
+    }
 
     return (ch) => {
         const c = caseSensitive ? ch : ch.toLowerCase();
+        const code = c.codePointAt(0);
         let matched = false;
-        let i = 0;
-        while (i < targetChars.length) {
-            if (i + 2 < targetChars.length && targetChars[i + 1] === '-') {
-                const start = targetChars.charCodeAt(i);
-                const end = targetChars.charCodeAt(i + 2);
-                const code = c.charCodeAt(0);
-                if (code >= Math.min(start, end) && code <= Math.max(start, end)) {
-                    matched = true;
-                    break;
-                }
-                i += 3;
-            } else {
-                if (c === targetChars[i]) {
-                    matched = true;
-                    break;
-                }
-                i++;
+        for (const el of elements) {
+            if (el.type === 'char' && el.value === c) {
+                matched = true;
+                break;
+            } else if (el.type === 'range' && code >= el.min && code <= el.max) {
+                matched = true;
+                break;
             }
         }
         return negated ? !matched : matched;
@@ -71,21 +95,22 @@ function compileCharClass(content, caseSensitive) {
 /**
  * Parses a glob pattern into a linear list of match tokens:
  * - { type: 'star' }
- * - { type: 'any' } (? wildcard)
+ * - { type: 'any' } (? wildcard matching 1 Unicode code point)
  * - { type: 'char', char } (literal char)
  * - { type: 'class', match } (compiled character class)
  */
 function parseTokens(pattern, caseSensitive) {
+    const chars = Array.from(pattern);
     const tokens = [];
     let i = 0;
-    while (i < pattern.length) {
-        const c = pattern[i];
+    while (i < chars.length) {
+        const c = chars[i];
         if (c === '\\') {
             i++;
-            if (i < pattern.length) {
-                tokens.push({ type: 'char', char: caseSensitive ? pattern[i] : pattern[i].toLowerCase() });
+            if (i < chars.length) {
+                tokens.push({ type: 'char', char: caseSensitive ? chars[i] : chars[i].toLowerCase() });
+                i++;
             }
-            i++;
         } else if (c === '*') {
             // Collapse multiple consecutive stars into a single star
             if (tokens.length === 0 || tokens[tokens.length - 1].type !== 'star') {
@@ -96,13 +121,25 @@ function parseTokens(pattern, caseSensitive) {
             tokens.push({ type: 'any' });
             i++;
         } else if (c === '[') {
-            const closeIdx = pattern.indexOf(']', i + 1);
+            let closeIdx = -1;
+            let j = i + 1;
+            while (j < chars.length) {
+                if (chars[j] === '\\') {
+                    j += 2;
+                    continue;
+                }
+                if (chars[j] === ']') {
+                    closeIdx = j;
+                    break;
+                }
+                j++;
+            }
             if (closeIdx === -1) {
                 // Malformed bracket, treat as literal
-                tokens.push({ type: 'char', char: caseSensitive ? '[' : '[' });
+                tokens.push({ type: 'char', char: '[' });
                 i++;
             } else {
-                const classContent = pattern.slice(i + 1, closeIdx);
+                const classContent = chars.slice(i + 1, closeIdx).join('');
                 tokens.push({ type: 'class', match: compileCharClass(classContent, caseSensitive) });
                 i = closeIdx + 1;
             }
@@ -132,7 +169,7 @@ export function matchGlob(pattern, text, { caseSensitive = false, maxSteps = 100
     if (pattern === text) return true;
 
     const tokens = parseTokens(pattern, caseSensitive);
-    const target = caseSensitive ? text : text.toLowerCase();
+    const targetChars = Array.from(caseSensitive ? text : text.toLowerCase());
 
     let pIdx = 0;
     let tIdx = 0;
@@ -140,7 +177,7 @@ export function matchGlob(pattern, text, { caseSensitive = false, maxSteps = 100
     let starTIdx = -1;
     let steps = 0;
 
-    while (tIdx < target.length) {
+    while (tIdx < targetChars.length) {
         if (++steps > maxSteps) {
             // Exceeded execution budget; fail-closed
             return false;
@@ -154,7 +191,7 @@ export function matchGlob(pattern, text, { caseSensitive = false, maxSteps = 100
                 pIdx++;
                 continue;
             }
-            if (tok.type === 'any' || (tok.type === 'char' && tok.char === target[tIdx]) || (tok.type === 'class' && tok.match(target[tIdx]))) {
+            if (tok.type === 'any' || (tok.type === 'char' && tok.char === targetChars[tIdx]) || (tok.type === 'class' && tok.match(targetChars[tIdx]))) {
                 pIdx++;
                 tIdx++;
                 continue;
@@ -182,7 +219,7 @@ export function matchGlob(pattern, text, { caseSensitive = false, maxSteps = 100
 
 /**
  * Safely tokenizes a command-line string into distinct argument tokens without shell evaluation.
- * Handles double and single quotes cleanly.
+ * Handles double and single quotes cleanly, preserving empty quoted arguments.
  *
  * @param {string} text - Command line string.
  * @returns {string[]} Parsed arguments.
@@ -193,14 +230,17 @@ export function tokenizeCommand(text) {
     let current = '';
     let inQuotes = null;
     let escaped = false;
+    let hasToken = false;
 
     for (let i = 0; i < text.length; i++) {
         const c = text[i];
         if (escaped) {
             current += c;
+            hasToken = true;
             escaped = false;
         } else if (c === '\\') {
             escaped = true;
+            hasToken = true;
         } else if (inQuotes) {
             if (c === inQuotes) {
                 inQuotes = null;
@@ -209,16 +249,19 @@ export function tokenizeCommand(text) {
             }
         } else if (c === '"' || c === "'") {
             inQuotes = c;
+            hasToken = true;
         } else if (/\s/.test(c)) {
-            if (current.length > 0) {
+            if (hasToken || current.length > 0) {
                 args.push(current);
                 current = '';
+                hasToken = false;
             }
         } else {
             current += c;
+            hasToken = true;
         }
     }
-    if (current.length > 0) {
+    if (hasToken || current.length > 0) {
         args.push(current);
     }
     return args;

@@ -139,7 +139,9 @@ export function signBundle(root, privateKeyPem) {
 export function verifyBundleSignature(root, publicKeyInput, sigRecord = null) {
     const bundle = loadBundle(root);
     const pubPem = resolveKeyPem(publicKeyInput);
-    const record = sigRecord || parseJSON(readText(safePath(root, '.steward/state/bundle.sig.json')), 'bundle signature');
+    const sigPath = safePath(root, '.steward/state/bundle.sig.json');
+    insist(sigRecord || fs.existsSync(sigPath), 'NO_SIGNATURE', 'Bundle signature not found.');
+    const record = sigRecord || parseJSON(readText(sigPath), 'bundle signature');
 
     insist(record.version === 1 && record.target === 'bundle' && record.alg === 'ed25519', 'CRYPTO_ERROR', 'Invalid signature envelope.');
     insist(record.bundleHash === bundle.hash, 'APPROVAL_MISMATCH', 'Signed bundle hash differs from current bundle.');
@@ -210,7 +212,9 @@ export function verifyVerificationEvidence(root, evidenceHash, publicKeyInput, s
     insist(row, 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
 
     const pubPem = resolveKeyPem(publicKeyInput);
-    const record = sigRecord || parseJSON(readText(safePath(root, `.steward/state/checks/${row.data.runId}/evidence.sig.json`)), 'evidence signature');
+    const sigPath = safePath(root, `.steward/state/checks/${row.data.runId}/evidence.sig.json`);
+    insist(sigRecord || fs.existsSync(sigPath), 'NO_SIGNATURE', `Evidence signature not found for run ${row.data.runId}.`);
+    const record = sigRecord || parseJSON(readText(sigPath), 'evidence signature');
 
     insist(record.version === 1 && record.target === 'evidence' && record.alg === 'ed25519', 'CRYPTO_ERROR', 'Invalid evidence signature record.');
     insist(record.evidenceHash === evidenceHash, 'APPROVAL_MISMATCH', 'Signature record evidence hash mismatch.');
