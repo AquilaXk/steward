@@ -183,6 +183,22 @@ function matchesToken(tok, char) {
 }
 
 /**
+ * Evaluates the next step for a single token match attempt.
+ *
+ * @param {Array<object>} tokens
+ * @param {Array<string>} targetChars
+ * @param {number} pIdx
+ * @param {number} tIdx
+ * @returns {'star' | 'advance' | 'mismatch'}
+ */
+function matchStep(tokens, targetChars, pIdx, tIdx) {
+    if (pIdx >= tokens.length) return 'mismatch';
+    const tok = tokens[pIdx];
+    if (tok.type === 'star') return 'star';
+    return matchesToken(tok, targetChars[tIdx]) ? 'advance' : 'mismatch';
+}
+
+/**
  * Deterministic linear-time glob matching.
  * Guarantees O(N * M) worst-case time complexity without exponential backtracking (ReDoS safe).
  * Includes an execution step budget to prevent excessive resource consumption.
@@ -194,13 +210,6 @@ function matchesToken(tok, char) {
  * @param {number} [options.maxSteps=100000] - Hard execution step limit.
  * @returns {boolean} True if text matches pattern.
  */
-function matchStep(tokens, targetChars, pIdx, tIdx) {
-    if (pIdx >= tokens.length) return 'mismatch';
-    const tok = tokens[pIdx];
-    if (tok.type === 'star') return 'star';
-    return matchesToken(tok, targetChars[tIdx]) ? 'advance' : 'mismatch';
-}
-
 export function matchGlob(pattern, text, { caseSensitive = false, maxSteps = 100000 } = {}) {
     if (typeof pattern !== 'string' || typeof text !== 'string') return false;
     if (pattern === '*') return true;
