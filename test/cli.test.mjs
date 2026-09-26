@@ -47,3 +47,39 @@ test('CLI audit prune removes older receipts to keep retention capacity', t => {
     assert.equal(out.remaining, 2);
     assert.equal(fs.readdirSync(auditDir).filter(f => f.endsWith('.json')).length, 2);
 });
+test('CLI keygen generates Ed25519 keypair and writes files with --out', (t) => {
+    const { root, temp } = sandbox(t);
+    const outDir = path.join(temp, 'keys');
+    const res = cli(root, ['keygen', '--out', outDir]);
+    assert.equal(res.status, 0, res.stderr);
+    const out = JSON.parse(res.stdout);
+    assert.equal(out.generated, true);
+    assert.equal(fs.existsSync(path.join(outDir, 'steward-ed25519.priv.pem')), true);
+    assert.equal(fs.existsSync(path.join(outDir, 'steward-ed25519.pub.pem')), true);
+});
+test('CLI mcp --config outputs configuration for specified host', (t) => {
+    const { root } = sandbox(t);
+    const res = cli(root, ['mcp', '--config', '--host', 'cursor']);
+    assert.equal(res.status, 0, res.stderr);
+    const out = JSON.parse(res.stdout);
+    assert.ok(out.mcpServers.steward);
+    assert(out.mcpServers.steward.args.includes('mcp'));
+});
+test('CLI sign-bundle and verify-bundle authenticate trust bundle', (t) => {
+    const { root, temp } = sandbox(t);
+    const keyDir = path.join(temp, 'keys');
+    cli(root, ['keygen', '--out', keyDir]);
+    const privPath = path.join(keyDir, 'steward-ed25519.priv.pem');
+    const pubPath = path.join(keyDir, 'steward-ed25519.pub.pem');
+
+    const signRes = cli(root, ['sign-bundle', '--key', privPath]);
+    assert.equal(signRes.status, 0, signRes.stderr);
+    const signData = JSON.parse(signRes.stdout);
+    assert.equal(signData.alg, 'ed25519');
+
+    const verifyRes = cli(root, ['verify-bundle', '--verifier', pubPath]);
+    assert.equal(verifyRes.status, 0, verifyRes.stderr);
+    const verifyData = JSON.parse(verifyRes.stdout);
+    assert.equal(verifyData.valid, true);
+});
+

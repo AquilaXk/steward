@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import * as fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { rootOf, parseJSON, readText, readJSON, sha256 } from '../src/fs.mjs';
@@ -14,6 +15,8 @@ import { report, pruneAudit } from '../src/audit.mjs';
 import { auditInstructions } from '../src/instructions.mjs';
 import { initProject, installHooks } from '../src/setup.mjs';
 import { doctor } from '../src/doctor.mjs';
+import { startMcpServer, formatMcpConfig } from '../src/adapters/mcp.mjs';
+import { generateSigningKeyPair, signBundle, verifyBundleSignature, signVerificationEvidence, verifyVerificationEvidence } from '../src/crypto.mjs';
 const HELP = `Steward ${VERSION} — local agent policy and evidence toolkit
 Usage: node bin/steward.mjs <command> [--project <directory>] [options]
 
@@ -38,9 +41,16 @@ report                 Count context prepared, never pretend host receipt
 audit prune [--keep N] Prune older audit receipts to recover retention capacity
 instructions-audit     Inventory agent files and flag common instruction conflicts
 doctor                 Check trust and local wiring; --host codex or claude
+mcp                    Run JSON-RPC 2.0 stdio MCP server for agent integration
+mcp --config           Print MCP client configuration; --host claude, cursor or antigravity
+keygen                 Generate an Ed25519 asymmetric key pair
+sign-bundle            Sign trust bundle with --key FILE
+verify-bundle          Verify signed bundle with --verifier FILE
+sign-evidence          Sign verification run with --evidence HASH --key FILE
+verify-evidence        Verify signed evidence with --evidence HASH --verifier FILE
 
 Options: --host --project --input --file --approve --event --evidence --plugin
-         --anchor-file --session-id --keep --help
+         --anchor-file --session-id --keep --key --verifier --out --config --help
 No network calls, provider routing, daemon, automatic publishing or API keys.
 `;
 let command = process.argv[2] || 'help', opts = {}, positionals = [];
@@ -81,7 +91,7 @@ async function input() {
     });
 }
 try {
-    const parsed = parseArgs({ allowPositionals: true, options: Object.fromEntries(['host', 'project', 'input', 'file', 'approve', 'event', 'evidence', 'anchor-file', 'session-id', 'type', 'text', 'limit', 'record-id', 'keep'].map(k => [k, { type: 'string' }]).concat([['help', { type: 'boolean' }], ['plugin', { type: 'boolean' }], ['history', { type: 'boolean' }], ['version', { type: 'boolean' }]])) });
+    const parsed = parseArgs({ allowPositionals: true, options: Object.fromEntries(['host', 'project', 'input', 'file', 'approve', 'event', 'evidence', 'anchor-file', 'session-id', 'type', 'text', 'limit', 'record-id', 'keep', 'key', 'verifier', 'out'].map(k => [k, { type: 'string' }]).concat([['help', { type: 'boolean' }], ['plugin', { type: 'boolean' }], ['history', { type: 'boolean' }], ['version', { type: 'boolean' }], ['config', { type: 'boolean' }]])) });
     opts = parsed.values;
     positionals = parsed.positionals;
     command = positionals[0] || 'help';
@@ -92,9 +102,46 @@ try {
     else if (command === 'init') {
         output(initProject(opts.project || process.cwd(), { plugin: opts.plugin }));
     }
+    else if (command === 'keygen') {
+        const keys = generateSigningKeyPair();
+        if (opts.out) {
+            const outDir = path.resolve(opts.out);
+            fs.mkdirSync(outDir, { recursive: true, mode: 0o700 });
+            fs.writeFileSync(path.join(outDir, 'steward-ed25519.priv.pem'), keys.privateKeyPem, { mode: 0o600 });
+            fs.writeFileSync(path.join(outDir, 'steward-ed25519.pub.pem'), keys.publicKeyPem, { mode: 0o644 });
+            output({ generated: true, out: outDir, keyId: keys.keyId });
+        } else {
+            output(keys);
+        }
+    }
     else {
         const root = rootOf(opts.project || process.cwd());
-        if (command === 'trust') {
+        if (command === 'mcp') {
+            if (opts.config) {
+                output(formatMcpConfig({ host: opts.host || 'claude', project: root }));
+            } else {
+                await startMcpServer(root);
+            }
+        }
+        else if (command === 'sign-bundle') {
+            insist(opts.key, 'USAGE', '--key is required.');
+            output(signBundle(root, opts.key));
+        }
+        else if (command === 'verify-bundle') {
+            insist(opts.verifier, 'USAGE', '--verifier is required.');
+            output(verifyBundleSignature(root, opts.verifier));
+        }
+        else if (command === 'sign-evidence') {
+            insist(opts.evidence, 'USAGE', '--evidence is required.');
+            insist(opts.key, 'USAGE', '--key is required.');
+            output(signVerificationEvidence(root, opts.evidence, opts.key));
+        }
+        else if (command === 'verify-evidence') {
+            insist(opts.evidence, 'USAGE', '--evidence is required.');
+            insist(opts.verifier, 'USAGE', '--verifier is required.');
+            output(verifyVerificationEvidence(root, opts.evidence, opts.verifier));
+        }
+        else if (command === 'trust') {
             const bundle = loadBundle(root);
             output(opts.approve ? trustBundle(root, opts.approve) : { trusted: false, review: { hash: bundle.hash, policy: bundle.policy, verification: bundle.plan }, next: 'Review these rules and executable commands, then rerun trust --approve with the displayed hash.' });
         }
