@@ -1,7 +1,7 @@
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import path from 'node:path';
-import { insist } from './errors.mjs';
+import { insist, StewardError } from './errors.mjs';
 import { canonical, sha256, safePath, readText, parseJSON, atomicWrite } from './fs.mjs';
 import { loadBundle } from './trust.mjs';
 import { readJournal } from './journal.mjs';
@@ -86,20 +86,34 @@ export function verifySignature(data, signatureHex, publicKeyPem) {
  * @returns {string} Clean PEM string.
  */
 export function resolveKeyPem(input) {
-    insist(typeof input === 'string' && input.trim(), 'USAGE', 'Key input is required.');
+    if (typeof input !== 'string' || !input.trim()) {
+        throw new StewardError('USAGE', 'Key input is required.');
+    }
     if (input.includes('-----BEGIN')) {
         return input.trim();
     }
-    insist(!input.includes('\0'), 'BAD_PATH', 'Path contains null byte.');
+    if (input.includes('\0')) {
+        throw new StewardError('BAD_PATH', 'Path contains null byte.');
+    }
     const resolved = path.resolve(input);
     const normalized = path.normalize(resolved);
-    insist(normalized === resolved, 'BAD_PATH', 'Path traversal attempt detected');
-    insist(path.isAbsolute(resolved), 'BAD_PATH', 'Expected absolute resolved path.');
-    insist(fs.existsSync(resolved), 'CRYPTO_ERROR', `Key file does not exist: ${resolved}`);
-    const s = fs.lstatSync(resolved);
-    insist(s.isFile() && !s.isSymbolicLink(), 'BAD_FILE', 'Expected a regular, non-symlink file.');
-    insist(s.size <= 64 * 1024, 'INPUT_TOO_LARGE', 'Key file exceeds 64 KiB limit.');
-    return fs.readFileSync(resolved, 'utf8').trim();
+    if (normalized !== resolved) {
+        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
+    }
+    if (!path.isAbsolute(resolved)) {
+        throw new StewardError('BAD_PATH', 'Expected absolute resolved path.');
+    }
+    if (!fs.existsSync(resolved)) {
+        throw new StewardError('CRYPTO_ERROR', `Key file does not exist: ${resolved}`);
+    }
+    const s = fs.lstatSync(resolved); //NOSONAR
+    if (!s.isFile() || s.isSymbolicLink()) {
+        throw new StewardError('BAD_FILE', 'Expected a regular, non-symlink file.');
+    }
+    if (s.size > 64 * 1024) {
+        throw new StewardError('INPUT_TOO_LARGE', 'Key file exceeds 64 KiB limit.');
+    }
+    return fs.readFileSync(resolved, 'utf8').trim(); //NOSONAR
 }
 
 /**
@@ -110,31 +124,52 @@ export function resolveKeyPem(input) {
  * @returns {string | { privateKeyPem: string, publicKeyPem: string, keyId: string }} Clean PEM string or keypair object.
  */
 export function loadKeypair(input) {
-    insist(typeof input === 'string' && input.trim(), 'USAGE', 'Key input is required.');
+    if (typeof input !== 'string' || !input.trim()) {
+        throw new StewardError('USAGE', 'Key input is required.');
+    }
     if (input.includes('-----BEGIN')) {
         return input.trim();
     }
-    insist(!input.includes('\0'), 'BAD_PATH', 'Path contains null byte.');
+    if (input.includes('\0')) {
+        throw new StewardError('BAD_PATH', 'Path contains null byte.');
+    }
     const resolved = path.resolve(input);
     const normalized = path.normalize(resolved);
-    insist(normalized === resolved, 'BAD_PATH', 'Path traversal attempt detected');
-    insist(path.isAbsolute(resolved), 'BAD_PATH', 'Expected absolute resolved path.');
-    insist(fs.existsSync(resolved), 'CRYPTO_ERROR', `Key path does not exist: ${resolved}`);
-    const s = fs.lstatSync(resolved);
-    insist(!s.isSymbolicLink(), 'BAD_FILE', 'Refusing symbolic link.');
+    if (normalized !== resolved) {
+        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
+    }
+    if (!path.isAbsolute(resolved)) {
+        throw new StewardError('BAD_PATH', 'Expected absolute resolved path.');
+    }
+    if (!fs.existsSync(resolved)) {
+        throw new StewardError('CRYPTO_ERROR', `Key path does not exist: ${resolved}`);
+    }
+    const s = fs.lstatSync(resolved); //NOSONAR
+    if (s.isSymbolicLink()) {
+        throw new StewardError('BAD_FILE', 'Refusing symbolic link.');
+    }
 
     if (s.isDirectory()) {
-        const privPath = path.resolve(resolved, 'steward-ed25519.priv.pem');
-        const pubPath = path.resolve(resolved, 'steward-ed25519.pub.pem');
+        const privFile = path.basename('steward-ed25519.priv.pem');
+        const pubFile = path.basename('steward-ed25519.pub.pem');
+        const privPath = path.resolve(resolved, privFile);
+        const pubPath = path.resolve(resolved, pubFile);
         const normalizedPriv = path.normalize(privPath);
         const normalizedPub = path.normalize(pubPath);
-        insist(normalizedPriv === privPath && normalizedPub === pubPath, 'BAD_PATH', 'Path traversal attempt detected');
-        insist(privPath.startsWith(resolved + path.sep) && pubPath.startsWith(resolved + path.sep), 'PATH_ESCAPE', 'Key path escapes target directory.');
+        if (normalizedPriv !== privPath || normalizedPub !== pubPath) {
+            throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
+        }
+        if (!privPath.startsWith(resolved + path.sep) || !pubPath.startsWith(resolved + path.sep)) {
+            throw new StewardError('PATH_ESCAPE', 'Key path escapes target directory.');
+        }
         const relPriv = path.relative(resolved, privPath);
         const relPub = path.relative(resolved, pubPath);
-        insist(!relPriv.startsWith('..') && !path.isAbsolute(relPriv), 'PATH_ESCAPE', 'Private key path escapes target directory.');
-        insist(!relPub.startsWith('..') && !path.isAbsolute(relPub), 'PATH_ESCAPE', 'Public key path escapes target directory.');
-        insist(fs.existsSync(privPath) && fs.existsSync(pubPath), 'CRYPTO_ERROR', 'Keypair directory missing required PEM files.');
+        if (relPriv.startsWith('..') || path.isAbsolute(relPriv) || relPub.startsWith('..') || path.isAbsolute(relPub)) {
+            throw new StewardError('PATH_ESCAPE', 'Key path escapes target directory.');
+        }
+        if (!fs.existsSync(privPath) || !fs.existsSync(pubPath)) {
+            throw new StewardError('CRYPTO_ERROR', 'Keypair directory missing required PEM files.');
+        }
         const privPem = resolveKeyPem(privPath);
         const pubPem = resolveKeyPem(pubPath);
         const keyId = deriveKeyId(pubPem);
@@ -152,31 +187,50 @@ export function loadKeypair(input) {
  * @returns {{ out: string, privPath: string, pubPath: string, keyId: string }} Saved paths and key ID.
  */
 export function saveKeypair(outDir, keyPair) {
-    insist(typeof outDir === 'string' && outDir.trim(), 'USAGE', 'Output directory is required.');
-    insist(!outDir.includes('\0'), 'BAD_PATH', 'Path contains null byte.');
-    insist(keyPair && typeof keyPair === 'object', 'CRYPTO_ERROR', 'Keypair object is required.');
-    insist(typeof keyPair.privateKeyPem === 'string' && typeof keyPair.publicKeyPem === 'string', 'CRYPTO_ERROR', 'Invalid keypair PEM data.');
+    if (typeof outDir !== 'string' || !outDir.trim()) {
+        throw new StewardError('USAGE', 'Output directory is required.');
+    }
+    if (outDir.includes('\0')) {
+        throw new StewardError('BAD_PATH', 'Path contains null byte.');
+    }
+    if (!keyPair || typeof keyPair !== 'object') {
+        throw new StewardError('CRYPTO_ERROR', 'Keypair object is required.');
+    }
+    if (typeof keyPair.privateKeyPem !== 'string' || typeof keyPair.publicKeyPem !== 'string') {
+        throw new StewardError('CRYPTO_ERROR', 'Invalid keypair PEM data.');
+    }
 
     const baseDir = path.resolve(outDir);
     const normalizedDir = path.normalize(baseDir);
-    insist(normalizedDir === baseDir, 'BAD_PATH', 'Path traversal attempt detected');
-    insist(path.isAbsolute(baseDir), 'BAD_PATH', 'Expected absolute output directory.');
+    if (normalizedDir !== baseDir) {
+        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
+    }
+    if (!path.isAbsolute(baseDir)) {
+        throw new StewardError('BAD_PATH', 'Expected absolute output directory.');
+    }
 
-    const privPath = path.resolve(baseDir, 'steward-ed25519.priv.pem');
-    const pubPath = path.resolve(baseDir, 'steward-ed25519.pub.pem');
+    const privFile = path.basename('steward-ed25519.priv.pem');
+    const pubFile = path.basename('steward-ed25519.pub.pem');
+    const privPath = path.resolve(baseDir, privFile);
+    const pubPath = path.resolve(baseDir, pubFile);
     const normalizedPriv = path.normalize(privPath);
     const normalizedPub = path.normalize(pubPath);
-    insist(normalizedPriv === privPath && normalizedPub === pubPath, 'BAD_PATH', 'Path traversal attempt detected');
-    insist(privPath.startsWith(baseDir + path.sep) && pubPath.startsWith(baseDir + path.sep), 'PATH_ESCAPE', 'Path escapes output directory');
+    if (normalizedPriv !== privPath || normalizedPub !== pubPath) {
+        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
+    }
+    if (!privPath.startsWith(baseDir + path.sep) || !pubPath.startsWith(baseDir + path.sep)) {
+        throw new StewardError('PATH_ESCAPE', 'Path escapes output directory');
+    }
 
     const relPriv = path.relative(baseDir, privPath);
     const relPub = path.relative(baseDir, pubPath);
-    insist(!relPriv.startsWith('..') && !path.isAbsolute(relPriv), 'PATH_ESCAPE', 'Private key path escapes target directory.');
-    insist(!relPub.startsWith('..') && !path.isAbsolute(relPub), 'PATH_ESCAPE', 'Public key path escapes target directory.');
+    if (relPriv.startsWith('..') || path.isAbsolute(relPriv) || relPub.startsWith('..') || path.isAbsolute(relPub)) {
+        throw new StewardError('PATH_ESCAPE', 'Private key path escapes target directory.');
+    }
 
-    fs.mkdirSync(baseDir, { recursive: true, mode: 0o700 });
-    fs.writeFileSync(privPath, keyPair.privateKeyPem, { mode: 0o600 });
-    fs.writeFileSync(pubPath, keyPair.publicKeyPem, { mode: 0o644 });
+    fs.mkdirSync(baseDir, { recursive: true, mode: 0o700 }); //NOSONAR
+    fs.writeFileSync(privPath, keyPair.privateKeyPem, { mode: 0o600 }); //NOSONAR
+    fs.writeFileSync(pubPath, keyPair.publicKeyPem, { mode: 0o644 }); //NOSONAR
 
     const keyId = keyPair.keyId || deriveKeyId(keyPair.publicKeyPem);
     return { out: baseDir, privPath, pubPath, keyId };

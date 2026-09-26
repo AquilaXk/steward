@@ -11,6 +11,36 @@ const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
 
 console.log(`Preparing release verification for ${pkg.name}@${pkg.version}...`);
 
+function findCoLocatedNpm(nodeDir, npmCmd) {
+    const npmCliCandidate = path.join(nodeDir, 'node_modules/npm/bin/npm-cli.js');
+    if (fs.existsSync(npmCliCandidate)) {
+        return { file: process.execPath, prefixArgs: [npmCliCandidate] };
+    }
+    const npmCliAlt = path.join(nodeDir, '../lib/node_modules/npm/bin/npm-cli.js');
+    if (fs.existsSync(npmCliAlt)) {
+        return { file: process.execPath, prefixArgs: [npmCliAlt] };
+    }
+    const coLocatedNpm = path.join(nodeDir, npmCmd);
+    if (fs.existsSync(coLocatedNpm)) {
+        return { file: coLocatedNpm, prefixArgs: [] };
+    }
+    return null;
+}
+
+function findPathNpm(npmCmd) {
+    const pathDirs = (process.env.PATH || '').split(path.delimiter);
+    for (const dir of pathDirs) {
+        if (!dir) continue;
+        const candidate = path.resolve(dir, npmCmd);
+        try {
+            if (fs.existsSync(candidate) && path.isAbsolute(candidate)) {
+                return { file: candidate, prefixArgs: [] };
+            }
+        } catch {}
+    }
+    return null;
+}
+
 /**
  * Resolves the npm CLI executable path with fixed resolution to prevent unrestricted PATH lookups.
  */
@@ -19,25 +49,14 @@ function resolveNpm() {
         return { file: process.execPath, prefixArgs: [process.env.npm_execpath] };
     }
     const nodeDir = path.dirname(process.execPath);
-    const npmCliCandidate = path.join(nodeDir, 'node_modules/npm/bin/npm-cli.js');
-    const npmCliAlt = path.join(nodeDir, '../lib/node_modules/npm/bin/npm-cli.js');
-    if (fs.existsSync(npmCliCandidate)) {
-        return { file: process.execPath, prefixArgs: [npmCliCandidate] };
-    }
-    if (fs.existsSync(npmCliAlt)) {
-        return { file: process.execPath, prefixArgs: [npmCliAlt] };
-    }
-
     const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const coLocatedNpm = path.join(nodeDir, npmCmd);
-    if (fs.existsSync(coLocatedNpm)) {
-        return { file: coLocatedNpm, prefixArgs: [] };
-    }
+    const coLocated = findCoLocatedNpm(nodeDir, npmCmd);
+    if (coLocated) return coLocated;
 
     const fixedCandidates = process.platform === 'win32'
         ? [
-            'C:\\Program Files\\nodejs\\npm.cmd',
-            'C:\\Program Files (x86)\\nodejs\\npm.cmd'
+            String.raw`C:\Program Files\nodejs\npm.cmd`,
+            String.raw`C:\Program Files (x86)\nodejs\npm.cmd`
         ]
         : [
             '/usr/local/bin/npm',
@@ -52,16 +71,9 @@ function resolveNpm() {
         } catch {}
     }
 
-    const pathDirs = (process.env.PATH || '').split(path.delimiter);
-    for (const dir of pathDirs) {
-        if (!dir) continue;
-        const candidate = path.resolve(dir, npmCmd);
-        try {
-            if (fs.existsSync(candidate) && path.isAbsolute(candidate)) {
-                return { file: candidate, prefixArgs: [] };
-            }
-        } catch {}
-    }
+    const fromPath = findPathNpm(npmCmd);
+    if (fromPath) return fromPath;
+
     throw new Error('Could not resolve npm executable at a fixed or trusted path.');
 }
 

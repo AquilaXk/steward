@@ -63,10 +63,20 @@ for (const key of ['host', 'event']) {
 function output(value) { process.stdout.write(JSON.stringify(value, null, 2) + '\n'); }
 
 function resolveSafePath(filePath) {
-    insist(typeof filePath === 'string' && filePath.trim(), 'USAGE', 'File path is required.');
-    insist(!filePath.includes('\0'), 'BAD_PATH', 'Path contains null bytes.');
+    if (typeof filePath !== 'string' || !filePath.trim()) {
+        throw new StewardError('USAGE', 'File path is required.');
+    }
+    if (filePath.includes('\0')) {
+        throw new StewardError('BAD_PATH', 'Path contains null bytes.');
+    }
     const resolved = path.resolve(filePath);
-    insist(path.isAbsolute(resolved), 'BAD_PATH', 'Path must resolve to an absolute path.');
+    const normalized = path.normalize(resolved);
+    if (normalized !== resolved) {
+        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
+    }
+    if (!path.isAbsolute(resolved)) {
+        throw new StewardError('BAD_PATH', 'Path must resolve to an absolute path.');
+    }
     return resolved;
 }
 
@@ -104,12 +114,19 @@ try {
     opts = parsed.values;
     positionals = parsed.positionals;
     command = positionals[0] || 'help';
-    const keyArg = opts['key-file']
-        ? resolveSafePath(opts['key-file'])
-        : (opts.key && !opts.key.includes('-----BEGIN') ? resolveSafePath(opts.key) : opts.key);
-    const verifierArg = opts['public-key']
-        ? resolveSafePath(opts['public-key'])
-        : (opts.verifier && !opts.verifier.includes('-----BEGIN') ? resolveSafePath(opts.verifier) : opts.verifier);
+    let keyArg = opts.key;
+    if (opts['key-file']) {
+        keyArg = resolveSafePath(opts['key-file']);
+    } else if (opts.key && !opts.key.includes('-----BEGIN')) {
+        keyArg = resolveSafePath(opts.key);
+    }
+
+    let verifierArg = opts.verifier;
+    if (opts['public-key']) {
+        verifierArg = resolveSafePath(opts['public-key']);
+    } else if (opts.verifier && !opts.verifier.includes('-----BEGIN')) {
+        verifierArg = resolveSafePath(opts.verifier);
+    }
     if (opts.version || command === 'version') output({ version: VERSION });
     else if (opts.help || command === 'help') {
         console.log(HELP);

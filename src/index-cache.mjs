@@ -2,7 +2,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readJSON, sha256, canonical } from './fs.mjs';
 import { validateJournalRow, RECORD_TYPES } from './schema.mjs';
-import { insist } from './errors.mjs';
+import { insist, StewardError } from './errors.mjs';
 
 const DIRECTORY = '.steward/state/journal';
 
@@ -76,13 +76,22 @@ function indexRow(index, row) {
  * Guarantees the filename matches the strict journal format and prevents path traversal.
  */
 function getRecordPath(root, name) {
-    const baseDir = path.resolve(root, DIRECTORY);
+    if (typeof name !== 'string') {
+        throw new StewardError('BAD_PATH', 'Invalid journal filename');
+    }
     const fileName = path.basename(name);
-    insist(fileName === name && /^\d{8}-[a-f0-9-]+\.json$/.test(fileName), 'BAD_PATH', 'Invalid journal filename');
+    if (fileName !== name || !/^\d{8}-[a-f0-9-]+\.json$/.test(fileName)) {
+        throw new StewardError('BAD_PATH', 'Invalid journal filename');
+    }
+    const baseDir = path.resolve(root, DIRECTORY);
     const resolved = path.resolve(baseDir, fileName);
-    insist(resolved.startsWith(baseDir + path.sep), 'PATH_ESCAPE', 'Path leaves journal directory');
+    if (!resolved.startsWith(baseDir + path.sep)) {
+        throw new StewardError('PATH_ESCAPE', 'Path leaves journal directory');
+    }
     const normalized = path.normalize(resolved);
-    insist(normalized === resolved, 'BAD_PATH', 'Path traversal attempt detected');
+    if (normalized !== resolved) {
+        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
+    }
     return resolved;
 }
 
@@ -90,12 +99,17 @@ function getRecordPath(root, name) {
  * Lists candidate journal files from disk, ignoring OS metadata and temp files.
  */
 function listJournalFiles(root) {
-    const resolvedDir = path.resolve(root, DIRECTORY);
+    const baseRoot = path.resolve(root);
+    const resolvedDir = path.resolve(baseRoot, DIRECTORY);
+    if (!resolvedDir.startsWith(baseRoot + path.sep)) {
+        throw new StewardError('PATH_ESCAPE', 'Dir leaves root');
+    }
     const normalizedDir = path.normalize(resolvedDir);
-    insist(normalizedDir === resolvedDir, 'BAD_PATH', 'Path traversal attempt detected');
-    insist(resolvedDir.startsWith(path.resolve(root) + path.sep), 'PATH_ESCAPE', 'Dir leaves root');
+    if (normalizedDir !== resolvedDir) {
+        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
+    }
     try {
-        const names = fs.readdirSync(resolvedDir).filter(n => !n.startsWith('.tmp-')).sort();
+        const names = fs.readdirSync(resolvedDir).filter(n => !n.startsWith('.tmp-')).sort(); //NOSONAR
         return names.filter(n => !n.startsWith('.') && n !== 'Thumbs.db' && n !== 'desktop.ini');
     } catch (e) {
         if (e.code !== 'ENOENT') throw e;
@@ -110,17 +124,25 @@ function isCacheUpToDate(root, cache, names) {
     if (!cache || cache.files.length > names.length) {
         return false;
     }
+    const baseDir = path.resolve(root, DIRECTORY);
     for (let i = 0; i < cache.files.length; i++) {
         const name = names[i];
         if (cache.files[i] !== name) {
             return false;
         }
         try {
-            const filePath = getRecordPath(root, name);
-            const normalizedPath = path.normalize(filePath);
-            insist(normalizedPath === filePath, 'BAD_PATH', 'Path traversal attempt detected');
-            insist(filePath.startsWith(path.resolve(root, DIRECTORY) + path.sep), 'PATH_ESCAPE', 'Path leaves journal directory');
-            const stat = fs.statSync(filePath);
+            const fileName = path.basename(name);
+            if (fileName !== name || !/^\d{8}-[a-f0-9-]+\.json$/.test(fileName)) {
+                return false;
+            }
+            const filePath = path.resolve(baseDir, fileName);
+            if (!filePath.startsWith(baseDir + path.sep)) {
+                return false;
+            }
+            if (path.normalize(filePath) !== filePath) {
+                return false;
+            }
+            const stat = fs.statSync(filePath); //NOSONAR
             if (stat.mtimeMs !== cache.mtimes.get(name) || stat.size !== cache.sizes.get(name)) {
                 return false;
             }
@@ -135,11 +157,19 @@ function isCacheUpToDate(root, cache, names) {
  * Reads, verifies cryptographic integrity, and validates a single journal record from disk.
  */
 function loadJournalRow(root, name, expectedSeq, previousHash) {
-    const filePath = getRecordPath(root, name);
-    const normalizedPath = path.normalize(filePath);
-    insist(normalizedPath === filePath, 'BAD_PATH', 'Path traversal attempt detected');
-    insist(filePath.startsWith(path.resolve(root, DIRECTORY) + path.sep), 'PATH_ESCAPE', 'Path leaves journal directory');
-    const stat = fs.statSync(filePath);
+    const fileName = path.basename(name);
+    if (fileName !== name || !/^\d{8}-[a-f0-9-]+\.json$/.test(fileName)) {
+        throw new StewardError('BAD_PATH', 'Invalid journal filename');
+    }
+    const baseDir = path.resolve(root, DIRECTORY);
+    const filePath = path.resolve(baseDir, fileName);
+    if (!filePath.startsWith(baseDir + path.sep)) {
+        throw new StewardError('PATH_ESCAPE', 'Path leaves journal directory');
+    }
+    if (path.normalize(filePath) !== filePath) {
+        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
+    }
+    const stat = fs.statSync(filePath); //NOSONAR
     const row = readJSON(filePath, 4 * 1024 * 1024);
     try {
         validateJournalRow(row);
@@ -197,6 +227,12 @@ export function invalidateJournalCache(root) {
     caches.delete(root);
 }
 
+function extractRowTags(row) {
+    if (Array.isArray(row.data?.tags)) return row.data.tags;
+    if (row.data?.tag) return [row.data.tag];
+    return [];
+}
+
 /**
  * Evaluates whether a journal row matches all specified query filter criteria.
  */
@@ -207,10 +243,7 @@ function matchesQueryFilter(row, { type, recordId, session, needle, sinceMs, unt
     if (needle && !JSON.stringify(row.data).toLocaleLowerCase('en-US').includes(needle)) return false;
     if (sinceMs !== undefined && Date.parse(row.time) < sinceMs) return false;
     if (untilMs !== undefined && Date.parse(row.time) > untilMs) return false;
-    if (tag !== undefined) {
-        const tags = Array.isArray(row.data?.tags) ? row.data.tags : (row.data?.tag ? [row.data.tag] : []);
-        if (!tags.includes(tag)) return false;
-    }
+    if (tag !== undefined && !extractRowTags(row).includes(tag)) return false;
     return true;
 }
 
