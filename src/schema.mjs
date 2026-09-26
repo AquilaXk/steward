@@ -1,4 +1,5 @@
 import { insist } from './errors.mjs';
+import { isSafePattern } from './matcher.mjs';
 export const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
 export function object(x, keys, label) {
     insist(isObject(x), 'SCHEMA', `${label} must be an object.`);
@@ -35,19 +36,26 @@ export function validatePolicy(p) {
         insist(!(r.effect === 'deny' && r.required), 'SCHEMA', 'Deny rules do not have a context budget; required must be false.');
         insist(!(r.effect === 'deny' && r.on.includes('session')), 'SCHEMA', 'Session rules can only inject.');
         const m = r.match;
-        object(m, ['always', 'tools', 'textAny', 'wordsAny', 'pathPrefixes'], 'rule.match');
+        object(m, ['always', 'tools', 'textAny', 'wordsAny', 'patternsAny', 'globsAny', 'pathPrefixes'], 'rule.match');
         if (m.always !== undefined)
             insist(m.always === true, 'SCHEMA', 'always, when provided, must be true.');
-        for (const key of ['tools', 'textAny', 'wordsAny', 'pathPrefixes'])
+        for (const key of ['tools', 'textAny', 'wordsAny', 'patternsAny', 'globsAny', 'pathPrefixes'])
             if (m[key] !== undefined)
                 strings(m[key], `match.${key}`);
         if (m.wordsAny)
             for (const term of m.wordsAny)
                 insist(/[\p{L}\p{N}_-]/u.test(term), 'SCHEMA', 'wordsAny must contain a searchable token.');
+        for (const key of ['patternsAny', 'globsAny']) {
+            if (m[key]) {
+                for (const pat of m[key]) {
+                    insist(isSafePattern(pat), 'SCHEMA', `${key} contains an unsafe or malformed pattern.`);
+                }
+            }
+        }
         if (m.tools)
             for (const tool of m.tools)
                 insist(!tool.includes('*'), 'SCHEMA', 'Tool wildcards are not supported; omit tools to match all tools.');
-        const content = ['textAny', 'wordsAny', 'pathPrefixes'].filter(k => m[k] !== undefined);
+        const content = ['textAny', 'wordsAny', 'patternsAny', 'globsAny', 'pathPrefixes'].filter(k => m[k] !== undefined);
         insist(m.always === true || content.length > 0, 'SCHEMA', 'A match needs always:true or a content predicate.');
         insist(!(m.always && content.length), 'SCHEMA', 'always cannot be mixed with content predicates.');
         if (m.tools || m.pathPrefixes)

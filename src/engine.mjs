@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { insist } from './errors.mjs';
 import { validatePolicy, object, text, strings } from './schema.mjs';
+import { matchArgGlob } from './matcher.mjs';
 const aliases = { bash: 'shell', shell_command: 'shell', exec_command: 'shell', shell: 'shell', edit: 'file.write', write: 'file.write', apply_patch: 'file.write', read: 'file.read', read_file: 'file.read' };
 export const normalizeTool = (name) => aliases[name.toLowerCase()] || name.toLowerCase();
 export function validateEvent(e) {
@@ -36,6 +37,10 @@ export function matches(r, e, words = null) {
     if (m.textAny && !m.textAny.some(t => e.text.toLowerCase().includes(t.toLowerCase())))
         return false;
     if (m.wordsAny && !m.wordsAny.some(t => wordMatch(t, words ?? normalizedWords(e.text))))
+        return false;
+    if (m.patternsAny && !matchArgGlob(m.patternsAny, e.text))
+        return false;
+    if (m.globsAny && !matchArgGlob(m.globsAny, e.text))
         return false;
     if (m.pathPrefixes && !m.pathPrefixes.some(prefix => e.paths.some(p => p === prefix.replace(/\/$/, '') || p.startsWith(prefix.replace(/\/$/, '') + '/'))))
         return false;
