@@ -1,5 +1,6 @@
 import * as fs from 'node:fs';
-import { safePath, readJSON, sha256, canonical } from './fs.mjs';
+import * as path from 'node:path';
+import { readJSON, sha256, canonical } from './fs.mjs';
 import { validateJournalRow, RECORD_TYPES } from './schema.mjs';
 import { insist } from './errors.mjs';
 
@@ -75,17 +76,26 @@ function indexRow(index, row) {
  * Guarantees the filename matches the strict journal format and prevents path traversal.
  */
 function getRecordPath(root, name) {
-    insist(typeof name === 'string' && /^\d{8}-[a-f0-9-]+\.json$/.test(name), 'JOURNAL_CORRUPT', 'Unexpected file in journal.');
-    return safePath(root, `${DIRECTORY}/${name}`);
+    const baseDir = path.resolve(root, DIRECTORY);
+    const fileName = path.basename(name);
+    insist(fileName === name && /^\d{8}-[a-f0-9-]+\.json$/.test(fileName), 'BAD_PATH', 'Invalid journal filename');
+    const resolved = path.resolve(baseDir, fileName);
+    insist(resolved.startsWith(baseDir + path.sep), 'PATH_ESCAPE', 'Path leaves journal directory');
+    const normalized = path.normalize(resolved);
+    insist(normalized === resolved, 'BAD_PATH', 'Path traversal attempt detected');
+    return resolved;
 }
 
 /**
  * Lists candidate journal files from disk, ignoring OS metadata and temp files.
  */
 function listJournalFiles(root) {
-    const dir = safePath(root, DIRECTORY);
+    const resolvedDir = path.resolve(root, DIRECTORY);
+    const normalizedDir = path.normalize(resolvedDir);
+    insist(normalizedDir === resolvedDir, 'BAD_PATH', 'Path traversal attempt detected');
+    insist(resolvedDir.startsWith(path.resolve(root) + path.sep), 'PATH_ESCAPE', 'Dir leaves root');
     try {
-        const names = fs.readdirSync(dir).filter(n => !n.startsWith('.tmp-')).sort();
+        const names = fs.readdirSync(resolvedDir).filter(n => !n.startsWith('.tmp-')).sort();
         return names.filter(n => !n.startsWith('.') && n !== 'Thumbs.db' && n !== 'desktop.ini');
     } catch (e) {
         if (e.code !== 'ENOENT') throw e;
@@ -107,6 +117,9 @@ function isCacheUpToDate(root, cache, names) {
         }
         try {
             const filePath = getRecordPath(root, name);
+            const normalizedPath = path.normalize(filePath);
+            insist(normalizedPath === filePath, 'BAD_PATH', 'Path traversal attempt detected');
+            insist(filePath.startsWith(path.resolve(root, DIRECTORY) + path.sep), 'PATH_ESCAPE', 'Path leaves journal directory');
             const stat = fs.statSync(filePath);
             if (stat.mtimeMs !== cache.mtimes.get(name) || stat.size !== cache.sizes.get(name)) {
                 return false;
@@ -123,6 +136,9 @@ function isCacheUpToDate(root, cache, names) {
  */
 function loadJournalRow(root, name, expectedSeq, previousHash) {
     const filePath = getRecordPath(root, name);
+    const normalizedPath = path.normalize(filePath);
+    insist(normalizedPath === filePath, 'BAD_PATH', 'Path traversal attempt detected');
+    insist(filePath.startsWith(path.resolve(root, DIRECTORY) + path.sep), 'PATH_ESCAPE', 'Path leaves journal directory');
     const stat = fs.statSync(filePath);
     const row = readJSON(filePath, 4 * 1024 * 1024);
     try {

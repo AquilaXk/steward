@@ -92,6 +92,8 @@ export function resolveKeyPem(input) {
     }
     insist(!input.includes('\0'), 'BAD_PATH', 'Path contains null byte.');
     const resolved = path.resolve(input);
+    const normalized = path.normalize(resolved);
+    insist(normalized === resolved, 'BAD_PATH', 'Path traversal attempt detected');
     insist(path.isAbsolute(resolved), 'BAD_PATH', 'Expected absolute resolved path.');
     insist(fs.existsSync(resolved), 'CRYPTO_ERROR', `Key file does not exist: ${resolved}`);
     const s = fs.lstatSync(resolved);
@@ -114,6 +116,8 @@ export function loadKeypair(input) {
     }
     insist(!input.includes('\0'), 'BAD_PATH', 'Path contains null byte.');
     const resolved = path.resolve(input);
+    const normalized = path.normalize(resolved);
+    insist(normalized === resolved, 'BAD_PATH', 'Path traversal attempt detected');
     insist(path.isAbsolute(resolved), 'BAD_PATH', 'Expected absolute resolved path.');
     insist(fs.existsSync(resolved), 'CRYPTO_ERROR', `Key path does not exist: ${resolved}`);
     const s = fs.lstatSync(resolved);
@@ -122,6 +126,10 @@ export function loadKeypair(input) {
     if (s.isDirectory()) {
         const privPath = path.resolve(resolved, 'steward-ed25519.priv.pem');
         const pubPath = path.resolve(resolved, 'steward-ed25519.pub.pem');
+        const normalizedPriv = path.normalize(privPath);
+        const normalizedPub = path.normalize(pubPath);
+        insist(normalizedPriv === privPath && normalizedPub === pubPath, 'BAD_PATH', 'Path traversal attempt detected');
+        insist(privPath.startsWith(resolved + path.sep) && pubPath.startsWith(resolved + path.sep), 'PATH_ESCAPE', 'Key path escapes target directory.');
         const relPriv = path.relative(resolved, privPath);
         const relPub = path.relative(resolved, pubPath);
         insist(!relPriv.startsWith('..') && !path.isAbsolute(relPriv), 'PATH_ESCAPE', 'Private key path escapes target directory.');
@@ -149,22 +157,29 @@ export function saveKeypair(outDir, keyPair) {
     insist(keyPair && typeof keyPair === 'object', 'CRYPTO_ERROR', 'Keypair object is required.');
     insist(typeof keyPair.privateKeyPem === 'string' && typeof keyPair.publicKeyPem === 'string', 'CRYPTO_ERROR', 'Invalid keypair PEM data.');
 
-    const resolvedDir = path.resolve(outDir);
-    fs.mkdirSync(resolvedDir, { recursive: true, mode: 0o700 });
+    const baseDir = path.resolve(outDir);
+    const normalizedDir = path.normalize(baseDir);
+    insist(normalizedDir === baseDir, 'BAD_PATH', 'Path traversal attempt detected');
+    insist(path.isAbsolute(baseDir), 'BAD_PATH', 'Expected absolute output directory.');
 
-    const privPath = path.resolve(resolvedDir, 'steward-ed25519.priv.pem');
-    const pubPath = path.resolve(resolvedDir, 'steward-ed25519.pub.pem');
+    const privPath = path.resolve(baseDir, 'steward-ed25519.priv.pem');
+    const pubPath = path.resolve(baseDir, 'steward-ed25519.pub.pem');
+    const normalizedPriv = path.normalize(privPath);
+    const normalizedPub = path.normalize(pubPath);
+    insist(normalizedPriv === privPath && normalizedPub === pubPath, 'BAD_PATH', 'Path traversal attempt detected');
+    insist(privPath.startsWith(baseDir + path.sep) && pubPath.startsWith(baseDir + path.sep), 'PATH_ESCAPE', 'Path escapes output directory');
 
-    const relPriv = path.relative(resolvedDir, privPath);
-    const relPub = path.relative(resolvedDir, pubPath);
+    const relPriv = path.relative(baseDir, privPath);
+    const relPub = path.relative(baseDir, pubPath);
     insist(!relPriv.startsWith('..') && !path.isAbsolute(relPriv), 'PATH_ESCAPE', 'Private key path escapes target directory.');
     insist(!relPub.startsWith('..') && !path.isAbsolute(relPub), 'PATH_ESCAPE', 'Public key path escapes target directory.');
 
+    fs.mkdirSync(baseDir, { recursive: true, mode: 0o700 });
     fs.writeFileSync(privPath, keyPair.privateKeyPem, { mode: 0o600 });
     fs.writeFileSync(pubPath, keyPair.publicKeyPem, { mode: 0o644 });
 
     const keyId = keyPair.keyId || deriveKeyId(keyPair.publicKeyPem);
-    return { out: resolvedDir, privPath, pubPath, keyId };
+    return { out: baseDir, privPath, pubPath, keyId };
 }
 
 /**
