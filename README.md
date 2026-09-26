@@ -55,9 +55,10 @@ if you are working from a clone.
 4. [Set up a project](#4-set-up-a-project)
 5. [Choose a skill](#5-choose-a-skill)
 6. [Understand the evidence](#6-understand-the-evidence)
-7. [Repository map](#7-repository-map)
-8. [Contribute and follow the project](#8-contribute-and-follow-the-project)
-9. [References and attribution](#9-references-and-attribution)
+7. [Ecosystem, MCP and Developer Experience](#7-ecosystem-mcp-and-developer-experience)
+8. [Repository map](#8-repository-map)
+9. [Contribute and follow the project](#9-contribute-and-follow-the-project)
+10. [References and attribution](#10-references-and-attribution)
 
 ## 1. Why Steward exists
 
@@ -231,7 +232,52 @@ or authenticated journal authorship. Retain an external journal anchor to detect
 suffix removal. See [security](SECURITY.md), [memory](docs/MEMORY.md) and
 [verification](docs/VERIFICATION.md) for the precise boundaries.
 
-## 7. Repository map
+## 7. Ecosystem, MCP and Developer Experience
+
+### Model Context Protocol (MCP) Server
+
+Steward provides a native, zero-dependency MCP server adapter running over stdio JSON-RPC 2.0.
+It exposes Steward's eight core capabilities as standard MCP Tools and Resources:
+
+```sh
+node bin/steward.mjs mcp --project /absolute/path/to/project
+```
+
+Print ready-to-use client configuration for Claude Desktop, Cursor, or Antigravity:
+
+```sh
+node bin/steward.mjs mcp --config --host claude
+```
+
+Exposed MCP Tools: `steward_policy_eval`, `steward_recall`, `steward_record_decision`, `steward_checkpoint`, `steward_verify`, `steward_completion_gate`, `steward_record_knowledge`, `steward_schedule_manage`.
+
+### Programmatic TypeScript & Node.js API
+
+Import the pure core engine directly into your external TypeScript or Node.js codebase with full type safety:
+
+```ts
+import { evaluate, appendEntry, runVerification, completionGate } from 'steward';
+```
+
+Bundled `index.d.ts` declarations provide autocomplete and compile-time type validation for all policy, event, memory, and verification structures.
+
+### Safe CLI Argument Pattern Matching
+
+Policy rules optionally support linear-time safe glob matching (`patternsAny`, `globsAny`) to enforce fine-grained CLI argument boundaries without ReDoS risk.
+
+### Ed25519 Asymmetric Digital Signatures
+
+Sign policy bundles and verification evidence to defend against local device compromise:
+
+```sh
+node bin/steward.mjs keygen --out ./keys
+node bin/steward.mjs sign-bundle --key ./keys/steward-ed25519.priv.pem
+node bin/steward.mjs verify-bundle --verifier ./keys/steward-ed25519.pub.pem
+node bin/steward.mjs sign-evidence --evidence EVIDENCE_HASH --key ./keys/steward-ed25519.priv.pem
+node bin/steward.mjs verify-evidence --evidence EVIDENCE_HASH --verifier ./keys/steward-ed25519.pub.pem
+```
+
+## 8. Repository map
 
 ```text
 steward/
@@ -239,12 +285,12 @@ steward/
 ├── .claude-plugin/ # Claude plugin and marketplace
 ├── .agents/plugins/ # Codex marketplace
 ├── bin/           # CLI entrypoint
-├── src/           # Policy, trust, state, verification and host adapters
+├── src/           # Policy, trust, state, verification, crypto, mcp and host adapters
 ├── schemas/       # Editor schemas; runtime enforces further invariants
 ├── profiles/      # Default policy, initial checks and working agreement
 ├── procedures/    # Eight canonical skill sources
 ├── examples/      # Synthetic JSON inputs
-├── test/          # Unit, filesystem-boundary and CLI process tests
+├── test/          # Unit, filesystem-boundary, index and CLI process tests
 ├── scripts/       # Static checks, test runner and isolated demo
 ├── docs/          # Contracts, host setup and model guidance
 ├── evals/         # Supervised behavioral cases; no fabricated live scores
@@ -260,7 +306,7 @@ steward/
 | Completion claims | [Verification contract](docs/VERIFICATION.md) |
 | Skill adoption | [Skill scopes](docs/SKILLS.md) and [model guidance](docs/MODEL-GUIDANCE.md) |
 
-## 8. Contribute and follow the project
+## 9. Contribute and follow the project
 
 Use [issues](https://github.com/AquilaXk/steward/issues) for reproducible bugs and
 focused proposals, and [discussions](https://github.com/AquilaXk/steward/discussions)
@@ -275,7 +321,7 @@ CI exercises Linux, macOS and Windows on Node 22 and 24 with read-only workflow
 permissions and commit-pinned actions. The npm package remains `private: true`;
 publishing the source repository does not publish an npm package.
 
-## 9. References and attribution
+## 10. References and attribution
 
 - [OpenAI GPT model guidance](https://developers.openai.com/api/docs/guides/latest-model)
   and [Codex skills](https://developers.openai.com/codex/skills/).

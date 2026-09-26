@@ -18,6 +18,14 @@
   "bin": {
     "steward": "./bin/steward.mjs"
   },
+  "main": "./src/index.mjs",
+  "types": "./index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./index.d.ts",
+      "import": "./src/index.mjs"
+    }
+  },
   "scripts": {
     "build:skills": "node scripts/build-skills.mjs",
     "test": "node scripts/test.mjs",
@@ -26,6 +34,7 @@
     "verify": "npm run check && npm test"
   },
   "files": [
+    "index.d.ts",
     "bin",
     "src",
     "schemas",

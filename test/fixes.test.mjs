@@ -19,8 +19,13 @@ test('project aliases use one trust identity and host cwd boundary', t => {
     trustBundle(alias, loadBundle(root).hash);
     assert.equal(requireTrust(alias).hash, requireTrust(root).hash);
     assert.equal(fs.readdirSync(path.join(process.env.STEWARD_TRUST_HOME, 'trust')).length, 1);
-    process.env.STEWARD_TRUST_HOME = path.join(alias, 'inside-trust');
-    assert.throws(() => trustBundle(alias, loadBundle(root).hash), { code: 'TRUST_LOCATION' });
+    const prevTrustHome = process.env.STEWARD_TRUST_HOME;
+    try {
+        process.env.STEWARD_TRUST_HOME = path.join(alias, 'inside-trust');
+        assert.throws(() => trustBundle(alias, loadBundle(root).hash), { code: 'TRUST_LOCATION' });
+    } finally {
+        process.env.STEWARD_TRUST_HOME = prevTrustHome;
+    }
     const event = normalizeInput('claude', { hook_event_name: 'PreToolUse', cwd: alias,
         tool_name: 'Write', tool_input: { file_path: 'memory/note.md' } }, root);
     assert.deepEqual(event.paths, ['memory/note.md']);
@@ -36,7 +41,7 @@ function rewriteLast(root, mutate) {
 }
 
 test('removing executable permission invalidates previously passing evidence', { skip: process.platform === 'win32' }, async t => {
-    const { root } = sandbox(t, { plan: plan('', { argv: ['./check.sh'] }) });
+    const { root } = sandbox(t, { plan: plan('', { argv: ['./check.sh'], timeoutMs: 10000 }) });
     write(root, 'check.sh', '#!/bin/sh\nexit 0\n');
     fs.chmodSync(path.join(root, 'check.sh'), 0o755);
     await runVerification(root);

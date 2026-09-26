@@ -47,3 +47,39 @@ test('repeated command arguments are accepted without shell interpretation', () 
 test('oversized event fails validation', () => assert.throws(() => validateEvent(event('x'.repeat(262145))), { code: 'BAD_EVENT' }));
 test('punctuation-only word predicates are rejected as dead rules', () => assert.throws(() => validatePolicy(policy([rule({ match: { wordsAny: ['!!!'] } })])), { code: 'SCHEMA' }));
 test('literal tool wildcard is rejected instead of silently never matching', () => assert.throws(() => validatePolicy(policy([rule({ on: ['tool'], match: { tools: ['*'], always: true } })])), { code: 'SCHEMA' }));
+test('safe glob patterns match command line and CLI flags', () => {
+    const p = policy([rule({ on: ['tool'], match: { tools: ['shell'], patternsAny: ['*--force*'] } })]);
+    const e = { ...event('git push --force origin main'), event: 'tool', tool: 'shell' };
+    assert.equal(evaluate(p, e).emitted.length, 1);
+    assert.equal(evaluate(p, { ...e, text: 'git push --dry-run origin main' }).emitted.length, 0);
+});
+test('patternsAny matches individual token arguments cleanly', () => {
+    const p = policy([rule({ on: ['tool'], match: { tools: ['shell'], patternsAny: ['-f', '--force'] } })]);
+    const e = { ...event('git push -f origin main'), event: 'tool', tool: 'shell' };
+    assert.equal(evaluate(p, e).emitted.length, 1);
+    assert.equal(evaluate(p, { ...e, text: 'git push -v origin main' }).emitted.length, 0);
+});
+test('globsAny supports character classes and escapes safely', () => {
+    const p = policy([rule({ on: ['tool'], match: { tools: ['shell'], globsAny: ['rm -[rf]*'] } })]);
+    const e = { ...event('rm -rf /tmp/data'), event: 'tool', tool: 'shell' };
+    assert.equal(evaluate(p, e).emitted.length, 1);
+    assert.equal(evaluate(p, { ...e, text: 'rm -p /tmp/data' }).emitted.length, 0);
+});
+test('schema rejects malformed pattern brackets', () => {
+    assert.throws(() => validatePolicy(policy([rule({ match: { patternsAny: ['[unclosed'] } })])), { code: 'SCHEMA' });
+});
+test('schema rejects dangling trailing backslash in pattern', () => {
+    assert.throws(() => validatePolicy(policy([rule({ match: { patternsAny: ['trailing\\'] } })])), { code: 'SCHEMA' });
+});
+test('matcher handles escaped brackets in character classes and Unicode code points', async () => {
+    const { matchGlob, tokenizeCommand } = await import('../src/matcher.mjs');
+    assert.equal(matchGlob(String.raw`[a\]b]`, ']'), true);
+    assert.equal(matchGlob(String.raw`[a\]b]`, 'b'), true);
+    assert.equal(matchGlob(String.raw`[a\]b]`, 'ab]'), false);
+    assert.equal(matchGlob('[🎉]', '🎉'), true);
+    assert.equal(matchGlob('?', '🎉'), true);
+    assert.equal(matchGlob('*🎉*', 'hello 🎉 world'), true);
+    assert.deepEqual(tokenizeCommand('git commit -m ""'), ['git', 'commit', '-m', '']);
+    assert.deepEqual(tokenizeCommand("echo '' 'second'"), ['echo', '', 'second']);
+});
+
