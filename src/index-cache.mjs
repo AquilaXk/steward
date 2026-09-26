@@ -124,24 +124,13 @@ function isCacheUpToDate(root, cache, names) {
     if (!cache || cache.files.length > names.length) {
         return false;
     }
-    const baseDir = path.resolve(root, DIRECTORY);
     for (let i = 0; i < cache.files.length; i++) {
         const name = names[i];
         if (cache.files[i] !== name) {
             return false;
         }
         try {
-            const fileName = path.basename(name);
-            if (fileName !== name || !/^\d{8}-[a-f0-9-]+\.json$/.test(fileName)) {
-                return false;
-            }
-            const filePath = path.resolve(baseDir, fileName);
-            if (!filePath.startsWith(baseDir + path.sep)) {
-                return false;
-            }
-            if (path.normalize(filePath) !== filePath) {
-                return false;
-            }
+            const filePath = getRecordPath(root, name);
             const stat = fs.statSync(filePath); //NOSONAR
             if (stat.mtimeMs !== cache.mtimes.get(name) || stat.size !== cache.sizes.get(name)) {
                 return false;
@@ -157,18 +146,7 @@ function isCacheUpToDate(root, cache, names) {
  * Reads, verifies cryptographic integrity, and validates a single journal record from disk.
  */
 function loadJournalRow(root, name, expectedSeq, previousHash) {
-    const fileName = path.basename(name);
-    if (fileName !== name || !/^\d{8}-[a-f0-9-]+\.json$/.test(fileName)) {
-        throw new StewardError('BAD_PATH', 'Invalid journal filename');
-    }
-    const baseDir = path.resolve(root, DIRECTORY);
-    const filePath = path.resolve(baseDir, fileName);
-    if (!filePath.startsWith(baseDir + path.sep)) {
-        throw new StewardError('PATH_ESCAPE', 'Path leaves journal directory');
-    }
-    if (path.normalize(filePath) !== filePath) {
-        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
-    }
+    const filePath = getRecordPath(root, name);
     const stat = fs.statSync(filePath); //NOSONAR
     const row = readJSON(filePath, 4 * 1024 * 1024);
     try {

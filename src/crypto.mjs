@@ -116,6 +116,27 @@ export function resolveKeyPem(input) {
     return fs.readFileSync(resolved, 'utf8').trim(); //NOSONAR
 }
 
+function resolveKeypairPaths(dir) {
+    const privFile = path.basename('steward-ed25519.priv.pem');
+    const pubFile = path.basename('steward-ed25519.pub.pem');
+    const privPath = path.resolve(dir, privFile);
+    const pubPath = path.resolve(dir, pubFile);
+    const normalizedPriv = path.normalize(privPath);
+    const normalizedPub = path.normalize(pubPath);
+    if (normalizedPriv !== privPath || normalizedPub !== pubPath) {
+        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
+    }
+    if (!privPath.startsWith(dir + path.sep) || !pubPath.startsWith(dir + path.sep)) {
+        throw new StewardError('PATH_ESCAPE', 'Key path escapes target directory.');
+    }
+    const relPriv = path.relative(dir, privPath);
+    const relPub = path.relative(dir, pubPath);
+    if (relPriv.startsWith('..') || path.isAbsolute(relPriv) || relPub.startsWith('..') || path.isAbsolute(relPub)) {
+        throw new StewardError('PATH_ESCAPE', 'Key path escapes target directory.');
+    }
+    return { privPath, pubPath };
+}
+
 /**
  * Safely loads a PEM key from a file or inline string, or a keypair from a directory,
  * protecting against directory traversal and symlink manipulation.
@@ -150,23 +171,7 @@ export function loadKeypair(input) {
     }
 
     if (s.isDirectory()) {
-        const privFile = path.basename('steward-ed25519.priv.pem');
-        const pubFile = path.basename('steward-ed25519.pub.pem');
-        const privPath = path.resolve(resolved, privFile);
-        const pubPath = path.resolve(resolved, pubFile);
-        const normalizedPriv = path.normalize(privPath);
-        const normalizedPub = path.normalize(pubPath);
-        if (normalizedPriv !== privPath || normalizedPub !== pubPath) {
-            throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
-        }
-        if (!privPath.startsWith(resolved + path.sep) || !pubPath.startsWith(resolved + path.sep)) {
-            throw new StewardError('PATH_ESCAPE', 'Key path escapes target directory.');
-        }
-        const relPriv = path.relative(resolved, privPath);
-        const relPub = path.relative(resolved, pubPath);
-        if (relPriv.startsWith('..') || path.isAbsolute(relPriv) || relPub.startsWith('..') || path.isAbsolute(relPub)) {
-            throw new StewardError('PATH_ESCAPE', 'Key path escapes target directory.');
-        }
+        const { privPath, pubPath } = resolveKeypairPaths(resolved);
         if (!fs.existsSync(privPath) || !fs.existsSync(pubPath)) {
             throw new StewardError('CRYPTO_ERROR', 'Keypair directory missing required PEM files.');
         }
@@ -209,24 +214,7 @@ export function saveKeypair(outDir, keyPair) {
         throw new StewardError('BAD_PATH', 'Expected absolute output directory.');
     }
 
-    const privFile = path.basename('steward-ed25519.priv.pem');
-    const pubFile = path.basename('steward-ed25519.pub.pem');
-    const privPath = path.resolve(baseDir, privFile);
-    const pubPath = path.resolve(baseDir, pubFile);
-    const normalizedPriv = path.normalize(privPath);
-    const normalizedPub = path.normalize(pubPath);
-    if (normalizedPriv !== privPath || normalizedPub !== pubPath) {
-        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
-    }
-    if (!privPath.startsWith(baseDir + path.sep) || !pubPath.startsWith(baseDir + path.sep)) {
-        throw new StewardError('PATH_ESCAPE', 'Path escapes output directory');
-    }
-
-    const relPriv = path.relative(baseDir, privPath);
-    const relPub = path.relative(baseDir, pubPath);
-    if (relPriv.startsWith('..') || path.isAbsolute(relPriv) || relPub.startsWith('..') || path.isAbsolute(relPub)) {
-        throw new StewardError('PATH_ESCAPE', 'Private key path escapes target directory.');
-    }
+    const { privPath, pubPath } = resolveKeypairPaths(baseDir);
 
     fs.mkdirSync(baseDir, { recursive: true, mode: 0o700 }); //NOSONAR
     fs.writeFileSync(privPath, keyPair.privateKeyPem, { mode: 0o600 }); //NOSONAR
