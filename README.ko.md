@@ -52,9 +52,10 @@ codex plugin add steward@steward
 4. [프로젝트 설정](#4-프로젝트-설정)
 5. [스킬 선택](#5-스킬-선택)
 6. [검증 근거 이해하기](#6-검증-근거-이해하기)
-7. [저장소 구성](#7-저장소-구성)
-8. [기여와 프로젝트 참여](#8-기여와-프로젝트-참여)
-9. [참고 자료와 출처](#9-참고-자료와-출처)
+7. [생태계 확장, MCP 및 개발자 경험](#7-생태계-확장-mcp-및-개발자-경험)
+8. [저장소 구성](#8-저장소-구성)
+9. [기여와 프로젝트 참여](#9-기여와-프로젝트-참여)
+10. [참고 자료와 출처](#10-참고-자료와-출처)
 
 ## 1. Steward가 필요한 이유
 
@@ -229,7 +230,52 @@ node bin/steward.mjs checkpoint --project /absolute/path/to/project \
 정확한 범위는 [보안](SECURITY.md), [기억](docs/MEMORY.md),
 [검증](docs/VERIFICATION.md) 문서에 있습니다.
 
-## 7. 저장소 구성
+## 7. 생태계 확장, MCP 및 개발자 경험
+
+### 모델 컨텍스트 프로토콜 (MCP) 서버 어댑터
+
+Steward는 런타임 서드파티 의존성 없이 표준 stdio JSON-RPC 2.0 기반 MCP 서버를 내장 제공합니다.
+8대 핵심 기능이 표준 MCP 도구(Tools) 및 리소스(Resources)로 노출됩니다:
+
+```sh
+node bin/steward.mjs mcp --project /absolute/path/to/project
+```
+
+Claude Desktop, Cursor, Antigravity 등 환경에 바로 붙여넣을 수 있는 원클릭 연동 설정을 출력합니다:
+
+```sh
+node bin/steward.mjs mcp --config --host claude
+```
+
+제공 도구: `steward_policy_eval`, `steward_recall`, `steward_record_decision`, `steward_checkpoint`, `steward_verify`, `steward_completion_gate`, `steward_record_knowledge`, `steward_schedule_manage`.
+
+### 프로그래밍 방식 라이브러리 연동 및 TypeScript (`index.d.ts`)
+
+외부 TypeScript 또는 Node.js 프로젝트에서 순수 코어 엔진을 직접 라이브러리로 임포트할 수 있습니다:
+
+```ts
+import { evaluate, appendEntry, runVerification, completionGate } from 'steward';
+```
+
+번들된 `index.d.ts` 타입 선언을 통해 모든 정책, 이벤트, 메모리, 검증 구조에 대한 컴파일 타임 타입 검사와 자동완성을 지원합니다.
+
+### 안전한 CLI 인자 패턴 매칭 (Linear-Time Glob)
+
+정책 엔진은 ReDoS(정규식 서비스 거부 공격) 위험이 없는 선형 시간 글롭 매칭(`patternsAny`, `globsAny`)을 지원하여 세밀한 CLI 플래그 및 명령 제어를 지원합니다.
+
+### Ed25519 기반 비대칭 전자서명
+
+로컬 디바이스 탈취 및 과거 기록 위변조를 방지하기 위해 비대칭 키체인 서명 및 외부 검증을 제공합니다:
+
+```sh
+node bin/steward.mjs keygen --out ./keys
+node bin/steward.mjs sign-bundle --key ./keys/steward-ed25519.priv.pem
+node bin/steward.mjs verify-bundle --verifier ./keys/steward-ed25519.pub.pem
+node bin/steward.mjs sign-evidence --evidence EVIDENCE_HASH --key ./keys/steward-ed25519.priv.pem
+node bin/steward.mjs verify-evidence --evidence EVIDENCE_HASH --verifier ./keys/steward-ed25519.pub.pem
+```
+
+## 8. 저장소 구성
 
 ```text
 steward/
@@ -237,13 +283,13 @@ steward/
 ├── .claude-plugin/ # Claude 플러그인과 마켓플레이스
 ├── .agents/plugins/ # Codex 마켓플레이스
 ├── bin/           # CLI 진입점
-├── src/           # 정책, 신뢰, 상태, 검증, 호스트 어댑터
+├── src/           # 정책, 신뢰, 상태, 검증, 암호화, MCP 및 호스트 어댑터
 ├── schemas/       # 편집기 스키마; 추가 불변식은 런타임에서 검사
 ├── profiles/      # 기본 정책, 초기 검사, 공통 작업 지침
 ├── procedures/    # 스킬 8개의 원본
 ├── examples/      # 합성 JSON 입력
-├── test/          # 단위, 파일시스템 경계, CLI 프로세스 검사
-├── scripts/       # 정적 검사, 테스트 실행기, 격리 데모
+├── test/          # 단위, 파일시스템 경계, 색인 캐시, CLI 프로세스 검사
+├── scripts/       # 정적 검사, 테스트 실행기, 릴리즈 준비, 격리 데모
 ├── docs/          # 계약, 호스트 설정, 모델 지침
 ├── evals/         # 지도형 행동 평가 사례; 허구의 실측 점수 없음
 ├── evidence/      # 로컬 실행 결과와 무결성 매니페스트
@@ -258,7 +304,7 @@ steward/
 | 완료 판단 | [검증 계약](docs/VERIFICATION.md) |
 | 스킬 적용 | [스킬 범위](docs/SKILLS.md), [모델 지침](docs/MODEL-GUIDANCE.md) |
 
-## 8. 기여와 프로젝트 참여
+## 9. 기여와 프로젝트 참여
 
 재현 가능한 버그와 구체적인 제안은 [Issues](https://github.com/AquilaXk/steward/issues),
 설정 질문과 실제 사용 경험은 [Discussions](https://github.com/AquilaXk/steward/discussions)를
@@ -272,7 +318,7 @@ CI는 Node 22·24에서 Linux·macOS·Windows를 검사하고,
 워크플로 권한은 읽기 전용이며 Actions는 커밋에 고정합니다.
 npm 패키지는 `private: true`를 유지합니다. 소스 저장소 공개는 npm 배포가 아닙니다.
 
-## 9. 참고 자료와 출처
+## 10. 참고 자료와 출처
 
 - [OpenAI GPT 모델 지침](https://developers.openai.com/api/docs/guides/latest-model),
   [Codex 스킬](https://developers.openai.com/codex/skills/).
