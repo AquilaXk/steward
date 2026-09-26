@@ -42,12 +42,12 @@ function indexRow(index, row) {
     index.byType.get(row.type).push(row);
 
     // Index by record ID
-    if (row.data && row.data.id) {
+    if (row.data?.id) {
         index.byRecordId.set(row.data.id, row);
     }
 
     // Index by checkpoint session
-    if (row.type === 'checkpoint' && row.data && row.data.session) {
+    if (row.type === 'checkpoint' && row.data?.session) {
         if (!index.bySession.has(row.data.session)) {
             index.bySession.set(row.data.session, []);
         }
@@ -66,7 +66,7 @@ function indexRow(index, row) {
     }
 
     // Index superseded hashes
-    if (row.data && row.data.supersedes) {
+    if (row.data?.supersedes) {
         index.supersededHashes.add(row.data.supersedes);
     }
 }

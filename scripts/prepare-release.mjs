@@ -89,12 +89,12 @@ const packStdout = execFileSync(npm.file, [...npm.prefixArgs, 'pack', '--dry-run
 const packInfo = JSON.parse(packStdout)[0];
 console.log(`Package tarball: ${packInfo.filename} (${packInfo.size} bytes, ${packInfo.entryCount} files)`);
 
-const bundledFiles = packInfo.files.map(f => f.path);
-assert(bundledFiles.includes('index.d.ts'), 'index.d.ts missing from tarball');
-assert(bundledFiles.includes('src/index.mjs'), 'src/index.mjs missing from tarball');
-assert(bundledFiles.includes('src/adapters/mcp.mjs'), 'src/adapters/mcp.mjs missing from tarball');
-assert(bundledFiles.includes('src/matcher.mjs'), 'src/matcher.mjs missing from tarball');
-assert(bundledFiles.includes('src/crypto.mjs'), 'src/crypto.mjs missing from tarball');
-assert(bundledFiles.includes('bin/steward.mjs'), 'bin/steward.mjs missing from tarball');
+const bundledFiles = new Set(packInfo.files.map(f => f.path));
+assert(bundledFiles.has('index.d.ts'), 'index.d.ts missing from tarball');
+assert(bundledFiles.has('src/index.mjs'), 'src/index.mjs missing from tarball');
+assert(bundledFiles.has('src/adapters/mcp.mjs'), 'src/adapters/mcp.mjs missing from tarball');
+assert(bundledFiles.has('src/matcher.mjs'), 'src/matcher.mjs missing from tarball');
+assert(bundledFiles.has('src/crypto.mjs'), 'src/crypto.mjs missing from tarball');
+assert(bundledFiles.has('bin/steward.mjs'), 'bin/steward.mjs missing from tarball');
 
 console.log('Release package contents verified successfully.');

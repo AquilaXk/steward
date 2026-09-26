@@ -78,19 +78,12 @@ export function verifySignature(data, signatureHex, publicKeyPem) {
     }
 }
 
-/**
- * Loads a public or private key from a file path or direct PEM string.
- * Validates against null bytes, path traversal, and file size limits.
- *
- * @param {string} input - File path or PEM content.
- * @returns {string} Clean PEM string.
- */
-export function resolveKeyPem(input) {
+function validateSafeKeyInput(input, label = 'Key') {
     if (typeof input !== 'string' || !input.trim()) {
         throw new StewardError('USAGE', 'Key input is required.');
     }
     if (input.includes('-----BEGIN')) {
-        return input.trim();
+        return { isInline: true, pem: input.trim() };
     }
     if (input.includes('\0')) {
         throw new StewardError('BAD_PATH', 'Path contains null byte.');
@@ -104,8 +97,24 @@ export function resolveKeyPem(input) {
         throw new StewardError('BAD_PATH', 'Expected absolute resolved path.');
     }
     if (!fs.existsSync(resolved)) {
-        throw new StewardError('CRYPTO_ERROR', `Key file does not exist: ${resolved}`);
+        throw new StewardError('CRYPTO_ERROR', `${label} does not exist: ${resolved}`);
     }
+    return { isInline: false, resolved };
+}
+
+/**
+ * Loads a public or private key from a file path or direct PEM string.
+ * Validates against null bytes, path traversal, and file size limits.
+ *
+ * @param {string} input - File path or PEM content.
+ * @returns {string} Clean PEM string.
+ */
+export function resolveKeyPem(input) {
+    const checked = validateSafeKeyInput(input, 'Key file');
+    if (checked.isInline) {
+        return checked.pem;
+    }
+    const resolved = checked.resolved;
     const s = fs.lstatSync(resolved); //NOSONAR
     if (!s.isFile() || s.isSymbolicLink()) {
         throw new StewardError('BAD_FILE', 'Expected a regular, non-symlink file.');
@@ -145,26 +154,11 @@ function resolveKeypairPaths(dir) {
  * @returns {string | { privateKeyPem: string, publicKeyPem: string, keyId: string }} Clean PEM string or keypair object.
  */
 export function loadKeypair(input) {
-    if (typeof input !== 'string' || !input.trim()) {
-        throw new StewardError('USAGE', 'Key input is required.');
+    const checked = validateSafeKeyInput(input, 'Key path');
+    if (checked.isInline) {
+        return checked.pem;
     }
-    if (input.includes('-----BEGIN')) {
-        return input.trim();
-    }
-    if (input.includes('\0')) {
-        throw new StewardError('BAD_PATH', 'Path contains null byte.');
-    }
-    const resolved = path.resolve(input);
-    const normalized = path.normalize(resolved);
-    if (normalized !== resolved) {
-        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
-    }
-    if (!path.isAbsolute(resolved)) {
-        throw new StewardError('BAD_PATH', 'Expected absolute resolved path.');
-    }
-    if (!fs.existsSync(resolved)) {
-        throw new StewardError('CRYPTO_ERROR', `Key path does not exist: ${resolved}`);
-    }
+    const resolved = checked.resolved;
     const s = fs.lstatSync(resolved); //NOSONAR
     if (s.isSymbolicLink()) {
         throw new StewardError('BAD_FILE', 'Refusing symbolic link.');
@@ -181,8 +175,9 @@ export function loadKeypair(input) {
         return { privateKeyPem: privPem, publicKeyPem: pubPem, keyId };
     }
 
-    return resolveKeyPem(input);
+    return resolveKeyPem(resolved);
 }
+
 
 /**
  * Safely saves an Ed25519 keypair to an output directory, protecting against directory traversal.

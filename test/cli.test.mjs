@@ -65,40 +65,34 @@ test('CLI mcp --config outputs configuration for specified host', (t) => {
     assert.ok(out.mcpServers.steward);
     assert(out.mcpServers.steward.args.includes('mcp'));
 });
-test('CLI sign-bundle and verify-bundle authenticate trust bundle', (t) => {
-    const { root, temp } = sandbox(t);
-    const keyDir = path.join(temp, 'keys');
-    cli(root, ['keygen', '--out', keyDir]);
+function verifySignAndVerify(root, keyDir, keyFlag, verifierFlag) {
     const privPath = path.join(keyDir, 'steward-ed25519.priv.pem');
     const pubPath = path.join(keyDir, 'steward-ed25519.pub.pem');
 
-    const signRes = cli(root, ['sign-bundle', '--key', privPath]);
+    const signRes = cli(root, ['sign-bundle', keyFlag, privPath]);
     assert.equal(signRes.status, 0, signRes.stderr);
     const signData = JSON.parse(signRes.stdout);
     assert.equal(signData.alg, 'ed25519');
 
-    const verifyRes = cli(root, ['verify-bundle', '--verifier', pubPath]);
+    const verifyRes = cli(root, ['verify-bundle', verifierFlag, pubPath]);
     assert.equal(verifyRes.status, 0, verifyRes.stderr);
     const verifyData = JSON.parse(verifyRes.stdout);
     assert.equal(verifyData.valid, true);
+    return { privPath, pubPath };
+}
+
+test('CLI sign-bundle and verify-bundle authenticate trust bundle', (t) => {
+    const { root, temp } = sandbox(t);
+    const keyDir = path.join(temp, 'keys');
+    cli(root, ['keygen', '--out', keyDir]);
+    verifySignAndVerify(root, keyDir, '--key', '--verifier');
 });
 
 test('CLI sign-bundle and verify-bundle accept --key-file and --public-key aliases', (t) => {
     const { root, temp } = sandbox(t);
     const keyDir = path.join(temp, 'keys');
     cli(root, ['keygen', '--out', keyDir]);
-    const privPath = path.join(keyDir, 'steward-ed25519.priv.pem');
-    const pubPath = path.join(keyDir, 'steward-ed25519.pub.pem');
-
-    const signRes = cli(root, ['sign-bundle', '--key-file', privPath]);
-    assert.equal(signRes.status, 0, signRes.stderr);
-    const signData = JSON.parse(signRes.stdout);
-    assert.equal(signData.alg, 'ed25519');
-
-    const verifyRes = cli(root, ['verify-bundle', '--public-key', pubPath]);
-    assert.equal(verifyRes.status, 0, verifyRes.stderr);
-    const verifyData = JSON.parse(verifyRes.stdout);
-    assert.equal(verifyData.valid, true);
+    const { privPath } = verifySignAndVerify(root, keyDir, '--key-file', '--public-key');
 
     // Nonexistent or invalid key file paths are rejected cleanly
     const badSign = cli(root, ['sign-bundle', '--key-file', path.join(keyDir, 'nonexistent.pem')]);

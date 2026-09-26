@@ -12,7 +12,16 @@ test('untrusted project cannot activate its rules', t => { const { root } = sand
 test('policy edits invalidate trust', t => { const { root } = sandbox(t); const b = loadBundle(root); b.policy.rules[0].body = 'Different'; write(root, '.steward/policy.json', b.policy); assert.throws(() => requireTrust(root), { code: 'TRUST_CHANGED' }); });
 test('command edits invalidate trust', t => { const { root } = sandbox(t); const b = loadBundle(root); b.plan.checks[0].argv = ['node', '-e', '1']; write(root, '.steward/verify.json', b.plan); assert.throws(() => requireTrust(root), { code: 'TRUST_CHANGED' }); });
 test('approval must match exact reviewed bundle', t => { const { root } = sandbox(t, { trusted: false }); assert.throws(() => trustBundle(root, 'a'.repeat(64)), { code: 'APPROVAL_MISMATCH' }); });
-test('trust record cannot live inside project', t => { const { root } = sandbox(t, { trusted: false }); process.env.STEWARD_TRUST_HOME = path.join(root, 'trust'); assert.throws(() => trustBundle(root, loadBundle(root).hash), { code: 'TRUST_LOCATION' }); });
+test('trust record cannot live inside project', t => {
+    const { root } = sandbox(t, { trusted: false });
+    const prev = process.env.STEWARD_TRUST_HOME;
+    try {
+        process.env.STEWARD_TRUST_HOME = path.join(root, 'trust');
+        assert.throws(() => trustBundle(root, loadBundle(root).hash), { code: 'TRUST_LOCATION' });
+    } finally {
+        process.env.STEWARD_TRUST_HOME = prev;
+    }
+});
 test('broken JSON is not replaced with an empty policy', t => { const { root } = sandbox(t); write(root, '.steward/policy.json', '{broken'); assert.throws(() => requireTrust(root), { code: 'INVALID_JSON' }); });
 test('missing catalog is an error, not an implicit empty policy', t => { const { root } = sandbox(t); fs.unlinkSync(path.join(root, '.steward/policy.json')); assert.throws(() => requireTrust(root), { code: 'ENOENT' }); });
 test('journal entries have a verifiable chain', async (t) => { const { root } = sandbox(t); const a = await appendEntry(root, decision()), b = await appendEntry(root, checkpoint); const rows = readJournal(root); assert.equal(rows.length, 2); assert.equal(b.previous, a.hash); assert.deepEqual(journalHead(rows), { count: 2, head: b.hash }); });
@@ -42,7 +51,16 @@ test('symlink control path is rejected', t => {
     assert.throws(() => safePath(root, 'linked/x'), { code: 'SYMLINK' });
 });
 test('abandoned lock is reported, never silently removed', async (t) => { const { root } = sandbox(t); write(root, 'lock-parent/keep', 'x'); fs.mkdirSync(path.join(root, 'lock-parent/lock')); await assert.rejects(() => withLock(root, 'lock-parent/lock', () => { }, 30), { code: 'LOCKED' }); assert.ok(fs.existsSync(path.join(root, 'lock-parent/lock'))); });
-test('trust reads also reject a project-local trust home', t => { const { root } = sandbox(t); process.env.STEWARD_TRUST_HOME = path.join(root, 'trust'); assert.throws(() => requireTrust(root), { code: 'TRUST_LOCATION' }); });
+test('trust reads also reject a project-local trust home', t => {
+    const { root } = sandbox(t);
+    const prev = process.env.STEWARD_TRUST_HOME;
+    try {
+        process.env.STEWARD_TRUST_HOME = path.join(root, 'trust');
+        assert.throws(() => requireTrust(root), { code: 'TRUST_LOCATION' });
+    } finally {
+        process.env.STEWARD_TRUST_HOME = prev;
+    }
+});
 test('independent CLI processes append to one journal without lost records', async (t) => {
     const { root } = sandbox(t);
     write(root, 'checkpoint-entry.json', checkpoint);

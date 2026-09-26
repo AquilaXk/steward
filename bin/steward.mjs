@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-import * as fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { rootOf, parseJSON, readText, readJSON, sha256 } from '../src/fs.mjs';

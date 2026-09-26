@@ -241,8 +241,7 @@ export function tokenizeCommand(text) {
     let escaped = false;
     let hasToken = false;
 
-    for (let i = 0; i < text.length; i++) {
-        const c = text[i];
+    for (const c of text) {
         if (escaped) {
             current += c;
             hasToken = true;
