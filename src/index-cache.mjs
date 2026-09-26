@@ -31,6 +31,30 @@ function createEmptyCache() {
     };
 }
 
+function extractRowTags(row) {
+    if (Array.isArray(row.data?.tags)) return row.data.tags;
+    if (row.data?.tag) return [row.data.tag];
+    return [];
+}
+
+function indexRowSession(index, row) {
+    if (row.type === 'checkpoint' && row.data?.session) {
+        if (!index.bySession.has(row.data.session)) {
+            index.bySession.set(row.data.session, []);
+        }
+        index.bySession.get(row.data.session).push(row);
+    }
+}
+
+function indexRowTags(index, row) {
+    for (const tag of extractRowTags(row)) {
+        if (typeof tag === 'string') {
+            if (!index.byTag.has(tag)) index.byTag.set(tag, []);
+            index.byTag.get(tag).push(row);
+        }
+    }
+}
+
 /**
  * Indexes a single journal row into the in-memory index structures.
  */
@@ -46,24 +70,8 @@ function indexRow(index, row) {
         index.byRecordId.set(row.data.id, row);
     }
 
-    // Index by checkpoint session
-    if (row.type === 'checkpoint' && row.data?.session) {
-        if (!index.bySession.has(row.data.session)) {
-            index.bySession.set(row.data.session, []);
-        }
-        index.bySession.get(row.data.session).push(row);
-    }
-
-    // Index by tags if present
-    if (row.data) {
-        const tags = Array.isArray(row.data.tags) ? row.data.tags : (row.data.tag ? [row.data.tag] : []);
-        for (const tag of tags) {
-            if (typeof tag === 'string') {
-                if (!index.byTag.has(tag)) index.byTag.set(tag, []);
-                index.byTag.get(tag).push(row);
-            }
-        }
-    }
+    indexRowSession(index, row);
+    indexRowTags(index, row);
 
     // Index superseded hashes
     if (row.data?.supersedes) {
@@ -205,12 +213,6 @@ export function invalidateJournalCache(root) {
     caches.delete(root);
 }
 
-function extractRowTags(row) {
-    if (Array.isArray(row.data?.tags)) return row.data.tags;
-    if (row.data?.tag) return [row.data.tag];
-    return [];
-}
-
 /**
  * Evaluates whether a journal row matches all specified query filter criteria.
  */
@@ -243,8 +245,14 @@ export function queryJournalIndexed(root, { type, text = '', limit = 20, history
     const { rows, cache } = syncJournalCache(root);
     const session = sessionId === undefined ? undefined : sha256(sessionId);
     const needle = text.toLocaleLowerCase('en-US');
-    const sinceMs = since === undefined ? undefined : (typeof since === 'number' ? since : Date.parse(since));
-    const untilMs = until === undefined ? undefined : (typeof until === 'number' ? until : Date.parse(until));
+    let sinceMs;
+    if (since !== undefined) {
+        sinceMs = typeof since === 'number' ? since : Date.parse(since);
+    }
+    let untilMs;
+    if (until !== undefined) {
+        untilMs = typeof until === 'number' ? until : Date.parse(until);
+    }
 
     // Narrow candidate pool using in-memory indices when possible
     let candidates = rows;

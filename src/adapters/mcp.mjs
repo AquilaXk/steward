@@ -448,14 +448,6 @@ export function formatMcpConfig({ host = 'claude', project = process.cwd(), runn
     };
 
     switch (host.toLowerCase()) {
-        case 'cursor':
-        case 'claude':
-        default:
-            return {
-                mcpServers: {
-                    steward: serverDef
-                }
-            };
         case 'antigravity':
             return {
                 servers: {
@@ -464,6 +456,14 @@ export function formatMcpConfig({ host = 'claude', project = process.cwd(), runn
                         command: serverDef.command,
                         args: serverDef.args
                     }
+                }
+            };
+        case 'cursor':
+        case 'claude':
+        default:
+            return {
+                mcpServers: {
+                    steward: serverDef
                 }
             };
     }
