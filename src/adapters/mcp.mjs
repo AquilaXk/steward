@@ -362,9 +362,6 @@ export async function handleMcpMessage(root, req) {
 
     // Notifications require no response
     if (id === undefined || id === null) {
-        if (method === 'notifications/initialized') {
-            return null;
-        }
         return null;
     }
 

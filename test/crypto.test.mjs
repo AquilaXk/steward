@@ -100,7 +100,19 @@ test('saveKeypair and loadKeypair safely store and retrieve keys with path valid
     assert.equal(loadedPriv, keyPair.privateKeyPem.trim());
     assert.equal(loadedPub, keyPair.publicKeyPem.trim());
 
+    // Directory-based keypair loading
+    const loadedPair = loadKeypair(outDir);
+    assert.equal(typeof loadedPair, 'object');
+    assert.equal(loadedPair.privateKeyPem, keyPair.privateKeyPem.trim());
+    assert.equal(loadedPair.publicKeyPem, keyPair.publicKeyPem.trim());
+    assert.equal(loadedPair.keyId, keyPair.keyId);
+
     // Path with null byte rejected
     assert.throws(() => saveKeypair(outDir + '\0bad', keyPair), { code: 'BAD_PATH' });
     assert.throws(() => loadKeypair(saved.privPath + '\0bad'), { code: 'BAD_PATH' });
+
+    // Empty directory missing PEM files rejected
+    const emptyDir = path.join(root, 'empty-keys');
+    fs.mkdirSync(emptyDir);
+    assert.throws(() => loadKeypair(emptyDir), { code: 'CRYPTO_ERROR' });
 });

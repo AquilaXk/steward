@@ -18,24 +18,59 @@ function resolveNpm() {
     if (process.env.npm_execpath && fs.existsSync(process.env.npm_execpath)) {
         return { file: process.execPath, prefixArgs: [process.env.npm_execpath] };
     }
+    const nodeDir = path.dirname(process.execPath);
+    const npmCliCandidate = path.join(nodeDir, 'node_modules/npm/bin/npm-cli.js');
+    const npmCliAlt = path.join(nodeDir, '../lib/node_modules/npm/bin/npm-cli.js');
+    if (fs.existsSync(npmCliCandidate)) {
+        return { file: process.execPath, prefixArgs: [npmCliCandidate] };
+    }
+    if (fs.existsSync(npmCliAlt)) {
+        return { file: process.execPath, prefixArgs: [npmCliAlt] };
+    }
+
     const npmCmd = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const pathDirs = (process.env.PATH || '').split(path.delimiter);
-    for (const dir of pathDirs) {
-        if (!dir) continue;
-        const candidate = path.resolve(dir, npmCmd);
+    const coLocatedNpm = path.join(nodeDir, npmCmd);
+    if (fs.existsSync(coLocatedNpm)) {
+        return { file: coLocatedNpm, prefixArgs: [] };
+    }
+
+    const fixedCandidates = process.platform === 'win32'
+        ? [
+            'C:\\Program Files\\nodejs\\npm.cmd',
+            'C:\\Program Files (x86)\\nodejs\\npm.cmd'
+        ]
+        : [
+            '/usr/local/bin/npm',
+            '/usr/bin/npm',
+            '/opt/homebrew/bin/npm'
+        ];
+    for (const candidate of fixedCandidates) {
         try {
             if (fs.existsSync(candidate)) {
                 return { file: candidate, prefixArgs: [] };
             }
         } catch {}
     }
-    return { file: npmCmd, prefixArgs: [] };
+
+    const pathDirs = (process.env.PATH || '').split(path.delimiter);
+    for (const dir of pathDirs) {
+        if (!dir) continue;
+        const candidate = path.resolve(dir, npmCmd);
+        try {
+            if (fs.existsSync(candidate) && path.isAbsolute(candidate)) {
+                return { file: candidate, prefixArgs: [] };
+            }
+        } catch {}
+    }
+    throw new Error('Could not resolve npm executable at a fixed or trusted path.');
 }
 
 const npm = resolveNpm();
+assert(path.isAbsolute(npm.file), 'npm executable path must be absolute.');
 
-// Ensure syntax check and tests pass first
-execFileSync(npm.file, [...npm.prefixArgs, 'run', 'verify'], { cwd: root, stdio: 'inherit' });
+// Ensure syntax check and tests pass first using direct fixed Node executable
+execFileSync(process.execPath, [path.join(root, 'scripts/check.mjs')], { cwd: root, stdio: 'inherit' });
+execFileSync(process.execPath, [path.join(root, 'scripts/test.mjs')], { cwd: root, stdio: 'inherit' });
 
 // Verify npm pack dry-run output
 const packStdout = execFileSync(npm.file, [...npm.prefixArgs, 'pack', '--dry-run', '--json'], { cwd: root, encoding: 'utf8' });

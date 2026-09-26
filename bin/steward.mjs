@@ -104,8 +104,12 @@ try {
     opts = parsed.values;
     positionals = parsed.positionals;
     command = positionals[0] || 'help';
-    const keyArg = opts.key || opts['key-file'];
-    const verifierArg = opts.verifier || opts['public-key'];
+    const keyArg = opts['key-file']
+        ? resolveSafePath(opts['key-file'])
+        : (opts.key && !opts.key.includes('-----BEGIN') ? resolveSafePath(opts.key) : opts.key);
+    const verifierArg = opts['public-key']
+        ? resolveSafePath(opts['public-key'])
+        : (opts.verifier && !opts.verifier.includes('-----BEGIN') ? resolveSafePath(opts.verifier) : opts.verifier);
     if (opts.version || command === 'version') output({ version: VERSION });
     else if (opts.help || command === 'help') {
         console.log(HELP);

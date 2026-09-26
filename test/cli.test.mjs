@@ -99,5 +99,20 @@ test('CLI sign-bundle and verify-bundle accept --key-file and --public-key alias
     assert.equal(verifyRes.status, 0, verifyRes.stderr);
     const verifyData = JSON.parse(verifyRes.stdout);
     assert.equal(verifyData.valid, true);
+
+    // Nonexistent or invalid key file paths are rejected cleanly
+    const badSign = cli(root, ['sign-bundle', '--key-file', path.join(keyDir, 'nonexistent.pem')]);
+    assert.equal(badSign.status, 1);
+    assert(badSign.stderr.includes('CRYPTO_ERROR'));
+
+    const badVerify = cli(root, ['verify-bundle', '--public-key', path.join(keyDir, 'nonexistent.pem')]);
+    assert.equal(badVerify.status, 1);
+    assert(badVerify.stderr.includes('CRYPTO_ERROR'));
+
+    // Relative path works cleanly
+    const relPriv = path.relative(process.cwd(), privPath);
+    const relSign = cli(root, ['sign-bundle', '--key-file', relPriv]);
+    assert.equal(relSign.status, 0, relSign.stderr);
 });
+
 

@@ -76,6 +76,10 @@ test('library entrypoint exports all core functions and constants', () => {
     assert.equal(typeof steward.verifyBundleSignature, 'function');
     assert.equal(typeof steward.signVerificationEvidence, 'function');
     assert.equal(typeof steward.verifyVerificationEvidence, 'function');
+    assert.equal(typeof steward.saveKeypair, 'function');
+    assert.equal(typeof steward.loadKeypair, 'function');
+    assert.equal(typeof steward.deriveKeyId, 'function');
+    assert.equal(typeof steward.resolveKeyPem, 'function');
 
     // Setup & Errors
     assert.equal(typeof steward.initProject, 'function');

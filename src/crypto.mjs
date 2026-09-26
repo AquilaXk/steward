@@ -17,7 +17,7 @@ export function generateSigningKeyPair() {
         publicKeyEncoding: { type: 'spki', format: 'pem' },
         privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
     });
-    const keyId = sha256(publicKey).slice(0, 32);
+    const keyId = deriveKeyId(publicKey);
     return { privateKeyPem: privateKey, publicKeyPem: publicKey, keyId };
 }
 
@@ -101,12 +101,38 @@ export function resolveKeyPem(input) {
 }
 
 /**
- * Safely loads a PEM key from a file or inline string, protecting against directory traversal.
+ * Safely loads a PEM key from a file or inline string, or a keypair from a directory,
+ * protecting against directory traversal and symlink manipulation.
  *
- * @param {string} input - File path or PEM content.
- * @returns {string} Clean PEM string.
+ * @param {string} input - File path, directory path, or PEM content.
+ * @returns {string | { privateKeyPem: string, publicKeyPem: string, keyId: string }} Clean PEM string or keypair object.
  */
 export function loadKeypair(input) {
+    insist(typeof input === 'string' && input.trim(), 'USAGE', 'Key input is required.');
+    if (input.includes('-----BEGIN')) {
+        return input.trim();
+    }
+    insist(!input.includes('\0'), 'BAD_PATH', 'Path contains null byte.');
+    const resolved = path.resolve(input);
+    insist(path.isAbsolute(resolved), 'BAD_PATH', 'Expected absolute resolved path.');
+    insist(fs.existsSync(resolved), 'CRYPTO_ERROR', `Key path does not exist: ${resolved}`);
+    const s = fs.lstatSync(resolved);
+    insist(!s.isSymbolicLink(), 'BAD_FILE', 'Refusing symbolic link.');
+
+    if (s.isDirectory()) {
+        const privPath = path.resolve(resolved, 'steward-ed25519.priv.pem');
+        const pubPath = path.resolve(resolved, 'steward-ed25519.pub.pem');
+        const relPriv = path.relative(resolved, privPath);
+        const relPub = path.relative(resolved, pubPath);
+        insist(!relPriv.startsWith('..') && !path.isAbsolute(relPriv), 'PATH_ESCAPE', 'Private key path escapes target directory.');
+        insist(!relPub.startsWith('..') && !path.isAbsolute(relPub), 'PATH_ESCAPE', 'Public key path escapes target directory.');
+        insist(fs.existsSync(privPath) && fs.existsSync(pubPath), 'CRYPTO_ERROR', 'Keypair directory missing required PEM files.');
+        const privPem = resolveKeyPem(privPath);
+        const pubPem = resolveKeyPem(pubPath);
+        const keyId = deriveKeyId(pubPem);
+        return { privateKeyPem: privPem, publicKeyPem: pubPem, keyId };
+    }
+
     return resolveKeyPem(input);
 }
 
@@ -171,7 +197,7 @@ export function signBundle(root, privateKeyPem) {
         signature
     };
 
-    atomicWrite(root, '.steward/state/bundle.sig.json', JSON.stringify(record, null, 2) + '\n');
+    atomicWrite(root, '.steward/state/bundle.sig.json', JSON.stringify(record, null, 2) + '\n', { replace: true });
     return record;
 }
 
@@ -240,7 +266,7 @@ export function signVerificationEvidence(root, evidenceHash, privateKeyInput) {
         signature
     };
 
-    atomicWrite(root, `.steward/state/checks/${row.data.runId}/evidence.sig.json`, JSON.stringify(record, null, 2) + '\n');
+    atomicWrite(root, `.steward/state/checks/${row.data.runId}/evidence.sig.json`, JSON.stringify(record, null, 2) + '\n', { replace: true });
     return record;
 }
 
