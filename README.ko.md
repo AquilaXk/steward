@@ -9,7 +9,8 @@ Node.js 22+ · MIT · 런타임 의존성 없음 · English / 한국어
 [English](README.md) · [한국어](README.ko.md) · [CI](https://github.com/AquilaXk/steward/actions/workflows/ci.yml) · [Discussions](https://github.com/AquilaXk/steward/discussions)
 
 코딩 에이전트가 긴 작업을 수행할 때 작업 지침, 기억한 결정, 완료 근거는 서로 다른
-곳에 남기 쉽습니다. Steward는 작은 로컬 명령과 스킬 8개로 이 정보를 연결합니다.
+곳에 남기 쉽습니다. Steward는 작은 로컬 명령, 네이티브 모델 컨텍스트 프로토콜(MCP) 서버,
+프로그래밍 방식 TypeScript/Node.js API, 그리고 8개의 스킬로 이 정보를 연결합니다.
 격리된 데모부터 실행하고 파일을 살펴본 다음, 프로젝트에 필요한 절차만 적용하세요.
 
 > **검증 결과의 의미.** Steward는 정책 판단, 저장한 메모, 검토된 로컬 명령의 결과를
@@ -39,8 +40,16 @@ codex plugin add steward@steward
 새 세션에서 설치된 Steward 플러그인의 `steward-policy` 스킬을 선택하고
 현재 프로젝트에 설정해 달라고 요청하세요.
 
+**모델 컨텍스트 프로토콜 (MCP)**
+
+Claude Desktop, Cursor, Antigravity 환경을 위한 원클릭 클라이언트 설정을 생성합니다:
+
+```sh
+node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
+```
+
 에이전트가 프로젝트 검사를 구성하고, 정책과 실행 명령을 보여주고 승인받은 뒤
-프로젝트 훅을 설치합니다. 플러그인은 스킬 8개를 제공하며, 프로젝트 설정 시
+프로젝트 훅 또는 클라이언트 설정을 설치합니다. 플러그인은 스킬 8개를 제공하며, 프로젝트 설정 시
 `--plugin`으로 중복 복사를 방지합니다. 호스트 자체의 훅 신뢰·권한 설정도 적용됩니다.
 저장소를 직접 복제해 사용한다면 [수동 설정](#4-프로젝트-설정)을 따르세요.
 
@@ -67,9 +76,9 @@ Steward는 세 가지 책임을 분명하게 나눕니다.
 
 | 책임 | 로컬 구현 | 확인할 수 있는 정보 |
 |---|---|---|
-| 정책 | 검증된 규칙과 정확한 번들 승인 | 일치한 규칙 ID, 거부, 생략된 지침 |
-| 기억 | 타입이 있는 해시 연결 저널 | 결정, 질문, 목표, 인계와 세션 체크포인트 |
-| 검증 | 검토된 명령 배열과 완료 게이트 | 검사 상태, 출력 해시, 소스 식별과 최신성 |
+| 정책 | 검증된 규칙, 안전한 글롭 패턴 매칭, 정확한 번들 승인 | 일치한 규칙 ID, 거부, 주입된 지침, 생략된 지침 |
+| 기억 | 인메모리 색인 캐시가 적용된 타입 기반 해시 연결 저널 | 결정, 질문, 지식, 목표, 체크포인트, 일정, 인계 |
+| 검증 | 검토된 명령 배열, 출력 해시, 완료 게이트 | 검사 상태, 출력 해시, 소스 식별, 최신성, Ed25519 서명 |
 
 기본 정책은 작업 지침을 제공합니다. 모든 위험 명령을 막는 블랙리스트는 아닙니다.
 초기 검증 계획은 실제 검사를 설정하기 전까지 의도적으로 실패합니다.
@@ -77,11 +86,11 @@ Steward는 세 가지 책임을 분명하게 나눕니다.
 ## 2. 작업 흐름 한눈에 보기
 
 ```text
-정책·검사 검토 ──► 정확한 번들 승인 ──► 호스트 훅 설치
+정책·검사 검토 ──► 정확한 번들 승인 ──► 호스트 훅 설치 / MCP 연동
                           │
                    승인된 작업 수행
                           │
-                   중요한 결정 기록
+                중요한 결정 및 상태 기록
                           │
               검사 실행 ──► 근거 확인 ──► 완료 게이트
 ```
@@ -89,7 +98,7 @@ Steward는 세 가지 책임을 분명하게 나눕니다.
 거부 규칙은 컨텍스트 예산보다 먼저 적용됩니다. 필수 지침이 예산에 들어가지 않으면
 이벤트를 차단합니다. 선택 지침이 들어가지 않으면 생략한 이유를 보고합니다.
 
-기억은 명시적으로 기록합니다. 필요한 시점에 결정이나 체크포인트를 저장하세요.
+기억은 명시적으로 기록합니다. 필요한 시점에 결정, 지식, 일정, 체크포인트를 저장하세요.
 컨텍스트 압축은 이미 기록한 상태만 보존하며, 기록하지 않은 대화를 복구하지 않습니다.
 이름이 있는 세션은 같은 세션 해시의 체크포인트만 복원합니다.
 
@@ -111,7 +120,7 @@ node bin/steward.mjs --help
 소스 변경 후에는 기존 검증 근거를 거부합니다. 실행 후 임시 파일을 정리하며,
 실제 에이전트 앱은 실행하지 않습니다.
 
-전체 로컬 소프트웨어 테스트는 `npm test`로 실행합니다.
+전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 183개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
 실행 결과와 검증 범위는 [검증 기록](evidence/VERIFICATION.md)을 확인하세요.
 
 ## 4. 프로젝트 설정
@@ -139,10 +148,11 @@ node bin/steward.mjs doctor --project /absolute/path/to/project --host codex
 Claude Code는 설치 명령에서 `--host claude`를 사용합니다.
 훅에 의존하기 전에 호스트 자체의 신뢰·권한 검토도 완료하세요.
 
-| 호스트 | 스킬 | 훅 설정 |
+| 호스트 / 인터페이스 | 스킬 / 제공 기능 | 훅 또는 클라이언트 설정 |
 |---|---|---|
 | Codex | `.agents/skills/steward-*` | `.codex/hooks.json` |
 | Claude Code | `.claude/skills/steward-*` | `.claude/settings.local.json` |
+| MCP 클라이언트 | 8대 도구 및 5대 리소스 | `mcp --config --host <host>`의 stdio 설정 |
 | 일반 호출자 | 선택적 절차 | `hook --host generic`의 JSON 입력 |
 
 Claude 설치는 `CLAUDE.md`에서 공통 `AGENTS.md`를 가져오도록 연결합니다.
@@ -161,8 +171,45 @@ Claude 설치는 `CLAUDE.md`에서 공통 `AGENTS.md`를 가져오도록 연결�
 
 `version`으로 설치 버전을 확인하세요. 패키지·CLI·플러그인은 `0.2.0`을 공유하며,
 [변경 기록](CHANGELOG.md)에 버전 정책과 변경 내용을 정리했습니다.
-필요한 기억은 `journal query --text <검색어> --limit 20`으로 조회합니다.
-만료되거나 대체된 기록은 `--history`를 요청할 때만 포함됩니다.
+
+**운영 및 유지보수 명령:**
+
+- **저널 항목 추가 (`journal add`):** 검증된 결정, 질문, 지식, 목표, 일정, 인계 항목을 저널에 기록합니다:
+  ```sh
+  node bin/steward.mjs journal add --project /absolute/path/to/project --file /path/to/entry.json
+  ```
+- **전체 저널 목록 조회 (`journal list`):** 유효성이 검증된 전체 저널 체인 레코드를 순서대로 출력합니다:
+  ```sh
+  node bin/steward.mjs journal list --project /absolute/path/to/project
+  ```
+- **기억 조회 (`journal query`):** 타입, 텍스트, 개수, 세션 또는 레코드 ID 필터를 지정하여 활성 저널 기록을 조회합니다:
+  ```sh
+  node bin/steward.mjs journal query --project /absolute/path/to/project \
+    --type decision --text <검색어> --limit 20
+  ```
+  `--type` (`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`), `--text`, `--limit` (1–100, 기본값 20), `--record-id`, `--session-id` 필터를 지원합니다. 만료된 지식과 대체된 기록은 기본적으로 제외되며, `--history`를 함께 전달해야 과거 이력을 포함합니다.
+- **외부 무결성 앵커 (`journal anchor` & `journal verify`):** 프로젝트 외부에 저널 개수와 해시 기준점을 기록해 두고 뒤쪽 레코드 삭제를 감지합니다:
+  ```sh
+  node bin/steward.mjs journal anchor --project /absolute/path/to/project > /safe/place/project-anchor.json
+  node bin/steward.mjs journal verify --project /absolute/path/to/project --anchor-file /safe/place/project-anchor.json
+  ```
+- **정책 평가 시뮬레이션 (`eval`):** 실제 훅을 활성화하지 않고 정책에 대해 가상 이벤트를 시뮬레이션 평가합니다:
+  ```sh
+  node bin/steward.mjs eval --project /absolute/path/to/project --input /path/to/event.json
+  ```
+- **감사 및 지침 예산 보고 (`report`):** 정책 규칙별 일치·출력 횟수, 예산 초과로 생략된 규칙, 남은 감사 기록 용량을 확인합니다:
+  ```sh
+  node bin/steward.mjs report --project /absolute/path/to/project
+  ```
+- **에이전트 지침 충돌 감사 (`instructions-audit`):** `AGENTS.md`, `CLAUDE.md`, 스킬 파일 등 프로젝트 지침을 점검하여 충돌하는 프롬프트 규칙을 진단합니다:
+  ```sh
+  node bin/steward.mjs instructions-audit --project /absolute/path/to/project
+  ```
+  승인 지연(`approval-stall`), 무한 테스트 루프(`unbounded-tests`), 오류 은폐(`suppressed-failure`), 지침 우선순위 충돌(`hierarchy-conflict`), 비공개 추론 노출(`private-reasoning`) 여부를 검사합니다.
+- **감사 기록 정리 (`audit prune`):** 감사 로그는 최대 20,000건의 출력 준비 영수증을 보관합니다. 한도에 가까워지면 오래된 기록을 정리합니다:
+  ```sh
+  node bin/steward.mjs audit prune --project /absolute/path/to/project --keep 5000
+  ```
 
 ## 5. 스킬 선택
 
@@ -185,6 +232,7 @@ Claude 설치는 `CLAUDE.md`에서 공통 `AGENTS.md`를 가져오도록 연결�
 호출 제어 설정 자체가 변경 작업의 권한을 부여하지는 않습니다.
 Claude 플러그인에서는 `/steward:steward-policy`와
 `/steward:steward-schedule`을 사용하고, Codex에서는 번들 스킬을 선택하세요.
+MCP 인터페이스를 사용할 때는 이 기능들이 표준 `steward_*` 도구 및 `steward://*` 리소스와 직접 대응됩니다.
 
 설치 상태를 확인하거나 규칙을 수정하려면 `steward-policy`를 호출하고
 증상이나 수정할 내용을 설명하세요. `doctor`는 로컬 훅의 설정 완료·미설치·오류를
@@ -202,12 +250,17 @@ Claude 플러그인에서는 `/steward:steward-policy`와
 
 ```sh
 node bin/steward.mjs verify --project /absolute/path/to/project
+node bin/steward.mjs gate --project /absolute/path/to/project
+# 또는 특정 과거 검증 실행을 직접 지정:
 node bin/steward.mjs gate --project /absolute/path/to/project --evidence EVIDENCE_HASH
 ```
 
-확인한 실행 결과의 `evidence` 해시를 사용하세요. 실패·미실행·오래되거나 변경된
+`--evidence`를 생략하면 저널에 기록된 가장 최근 검증 결과를 기준으로 자동 평가합니다. 실패·미실행·오래되거나 변경된
 검증 결과는 게이트를 통과할 수 없습니다. 명령은 로컬 사용자 권한으로 실행되며,
 저장한 표준 출력과 오류 출력은 평문으로 남습니다.
+
+`.steward/verify.json`의 선택적 `exclude` 경로 접두사(예: `["dist", "coverage"]`)는
+빌드 산출물이나 테스트 캐시가 소스 코드 스냅샷 무결성을 무효화하지 않도록 보호합니다.
 
 체크포인트는 예제 내용을 실제 작업 정보로 바꾸고,
 호스트의 정확한 세션 ID를 알 때 지정합니다.
@@ -241,27 +294,86 @@ Steward는 런타임 서드파티 의존성 없이 표준 stdio JSON-RPC 2.0 기
 node bin/steward.mjs mcp --project /absolute/path/to/project
 ```
 
-Claude Desktop, Cursor, Antigravity 등 환경에 바로 붙여넣을 수 있는 원클릭 연동 설정을 출력합니다:
+Claude Desktop, Cursor, Antigravity 등 환경에 바로 연동할 수 있는 클라이언트 설정을 생성합니다:
 
 ```sh
-node bin/steward.mjs mcp --config --host claude
+node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
 ```
 
-제공 도구: `steward_policy_eval`, `steward_recall`, `steward_record_decision`, `steward_checkpoint`, `steward_verify`, `steward_completion_gate`, `steward_record_knowledge`, `steward_schedule_manage`.
+**제공 MCP 도구 (Tools):**
+
+- `steward_policy_eval`: 프롬프트, 도구 호출, 세션 이벤트를 활성 정책 규칙에 따라 평가합니다.
+- `steward_recall`: 타입, 텍스트, 세션, 최신성 필터로 저널 기록을 조회합니다.
+- `steward_record_decision`: 근거 참조 및 인용문을 포함하여 확인된 아키텍처 결정을 저널에 기록합니다.
+- `steward_checkpoint`: 세션 진행 요약, 다음 구체적 행동, 차단 요소를 체크포인트로 저장합니다.
+- `steward_verify`: 승인된 검증 계획 명령을 실행하고 실행 결과의 암호학적 증거를 캡처합니다.
+- `steward_completion_gate`: 기록된 증거가 검증 계획 및 소스 스냅샷 조건을 충족하는지 검증합니다.
+- `steward_record_knowledge`: 근거 유형 및 만료 시각을 명시하여 검증된 도메인 사실을 기록합니다.
+- `steward_schedule_manage`: 식별자를 보존하며 마일스톤 일정을 생성하거나 개정(대체)합니다.
+
+**제공 MCP 리소스 (Resources):**
+
+- `steward://policy`: 활성 정책 규칙 및 컨텍스트 예산 설정 조회.
+- `steward://verification-plan`: 승인된 검증 검사 목록 및 타임아웃 예산 조회.
+- `steward://journal/head`: 현재 저널 시퀀스 번호 및 최신 헤드 해시 조회.
+- `steward://checkpoint/latest`: 가장 최근에 저장된 세션 진행 체크포인트 조회.
+- `steward://doctor`: 헬스체크 및 로컬 신뢰 상태 보고서 조회.
+
+### 인메모리 색인 캐시 및 고속 회상
+
+Steward는 파일 수정 시각(mtime)을 추적하며 레코드를 `type`, `recordId`, `session`, `tag`, `supersededHashes`별로 인덱싱하는 인메모리 색인 캐시(`src/index-cache.mjs`)를 자동으로 유지합니다.
+반복적인 조회 시 불필요한 디스크 재탐색을 방지하면서, 새로운 쓰기 시 깨끗하게 무효화되고 엄격한 암호학적 해시 체인 무결성을 보장합니다.
 
 ### 프로그래밍 방식 라이브러리 연동 및 TypeScript (`index.d.ts`)
 
 외부 TypeScript 또는 Node.js 프로젝트에서 순수 코어 엔진을 직접 라이브러리로 임포트할 수 있습니다:
 
 ```ts
-import { evaluate, appendEntry, runVerification, completionGate } from 'steward';
+import {
+  // 정책 엔진 및 패턴 매칭
+  evaluate,
+  matchArgGlob,
+  matchGlob,
+  // 저널 및 인메모리 색인 캐시
+  appendEntry,
+  readJournal,
+  queryJournal,
+  queryJournalIndexed,
+  // 검증 및 완료 게이트
+  runVerification,
+  completionGate,
+  // 모델 컨텍스트 프로토콜 (MCP) 서버
+  startMcpServer,
+  formatMcpConfig,
+  // Ed25519 비대칭 전자서명
+  generateSigningKeyPair,
+  signBundle,
+  verifyBundleSignature,
+  signVerificationEvidence,
+  verifyVerificationEvidence
+} from 'steward';
 ```
 
 번들된 `index.d.ts` 타입 선언을 통해 모든 정책, 이벤트, 메모리, 검증 구조에 대한 컴파일 타임 타입 검사와 자동완성을 지원합니다.
 
 ### 안전한 CLI 인자 패턴 매칭 (Linear-Time Glob)
 
-정책 엔진은 ReDoS(정규식 서비스 거부 공격) 위험이 없는 선형 시간 글롭 매칭(`patternsAny`, `globsAny`)을 지원하여 세밀한 CLI 플래그 및 명령 제어를 지원합니다.
+정책 엔진은 ReDoS(정규식 서비스 거부 공격) 위험이 없는 선형 시간 글롭 매칭(`patternsAny`, `globsAny`)을 지원하여 세밀한 CLI 플래그 및 명령 제어를 지원합니다. 백트래킹 정규식 없이 문자 클래스(`[a-z]`), 와일드카드(`*`), 이스케이프 시퀀스를 안전하게 처리합니다:
+
+```json
+{
+  "id": "deny-destructive-flags",
+  "on": ["tool"],
+  "effect": "deny",
+  "priority": 900,
+  "body": "파괴적 CLI 명령 플래그를 제한합니다.",
+  "required": false,
+  "match": {
+    "tools": ["shell"],
+    "patternsAny": ["rm -r[fF]*", "*--force*"]
+  }
+}
+```
 
 ### Ed25519 기반 비대칭 전자서명
 
@@ -279,27 +391,34 @@ node bin/steward.mjs verify-evidence --evidence EVIDENCE_HASH --verifier ./keys/
 
 ```text
 steward/
-├── .codex-plugin/ # Codex 플러그인 명세
-├── .claude-plugin/ # Claude 플러그인과 마켓플레이스
-├── .agents/plugins/ # Codex 마켓플레이스
-├── bin/           # CLI 진입점
-├── src/           # 정책, 신뢰, 상태, 검증, 암호화, MCP 및 호스트 어댑터
-├── schemas/       # 편집기 스키마; 추가 불변식은 런타임에서 검사
-├── profiles/      # 기본 정책, 초기 검사, 공통 작업 지침
-├── procedures/    # 스킬 8개의 원본
-├── examples/      # 합성 JSON 입력
-├── test/          # 단위, 파일시스템 경계, 색인 캐시, CLI 프로세스 검사
-├── scripts/       # 정적 검사, 테스트 실행기, 릴리즈 준비, 격리 데모
-├── docs/          # 계약, 호스트 설정, 모델 지침
-├── evals/         # 지도형 행동 평가 사례; 허구의 실측 점수 없음
-├── evidence/      # 로컬 실행 결과와 무결성 매니페스트
-└── assets/        # 직접 제작한 프로젝트 이미지
+├── .codex-plugin/       # Codex 플러그인 명세
+├── .claude-plugin/      # Claude 플러그인과 마켓플레이스
+├── .agents/plugins/     # Codex 마켓플레이스
+├── bin/                 # CLI 진입점 (steward.mjs)
+├── index.d.ts           # 라이브러리 연동용 TypeScript 타입 선언
+├── src/                 # 코어 엔진, 신뢰, 저널, 검증, 암호화, MCP 및 어댑터
+│   ├── adapters/        # 호스트 및 MCP 프로토콜 어댑터
+│   ├── crypto.mjs       # Ed25519 비대칭 전자서명 엔진
+│   ├── index-cache.mjs  # 인메모리 저널 메타데이터 색인 캐시
+│   ├── matcher.mjs      # 선형 시간 안전 글롭 패턴 매처
+│   └── ...
+├── schemas/             # 정책, 검증, 저널 엔트리용 JSON 스키마
+├── profiles/            # 기본 정책, 초기 검사, 공통 작업 지침
+├── procedures/          # 스킬 8개의 원본
+├── examples/            # 합성 JSON 입력
+├── test/                # 단위, 파일시스템 경계, 색인 캐시, 암호화, CLI 프로세스 검사
+├── scripts/             # 정적 검사, 테스트 실행기, 릴리즈 준비, 격리 데모
+├── docs/                # 계약, 아키텍처, 에이전트 맥락, 호스트 설정, 모델 지침
+├── evals/               # 지도형 행동 평가 사례; 허구의 실측 점수 없음
+├── evidence/            # 로컬 실행 결과와 무결성 매니페스트
+└── assets/              # 직접 제작한 프로젝트 이미지
 ```
 
 | 시작점 | 이어서 볼 자료 |
 |---|---|
-| 격리된 데모 | [정책 계약](docs/POLICIES.md) |
+| 격리된 데모 | [정책 계약](docs/POLICIES.md), [아키텍처](docs/ARCHITECTURE.md) |
 | 프로젝트 초기화 | [호스트 설정](docs/HOSTS.md), [운영 안내](docs/OPERATIONS.md) |
+| 작업 맥락 및 보안 | [에이전트 컨텍스트](docs/AGENT-CONTEXT.md), [보안 경계](SECURITY.md) |
 | 결정과 체크포인트 | [기억 계약](docs/MEMORY.md) |
 | 완료 판단 | [검증 계약](docs/VERIFICATION.md) |
 | 스킬 적용 | [스킬 범위](docs/SKILLS.md), [모델 지침](docs/MODEL-GUIDANCE.md) |

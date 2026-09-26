@@ -10,7 +10,8 @@ Node.js 22+ · MIT · Zero runtime dependencies · English / 한국어
 
 Coding agents can complete long tasks, but the working agreement, remembered decisions
 and evidence of completion often live in different places. Steward connects those
-pieces through small local commands and eight focused skills. Start with an isolated
+pieces through small local commands, a native Model Context Protocol (MCP) server,
+programmatic TypeScript/Node.js APIs, and eight focused skills. Start with an isolated
 demo, inspect the files, then adopt only the procedures your project needs.
 
 > **What the evidence means.** Steward records policy decisions, saved notes and the
@@ -41,9 +42,17 @@ codex plugin add steward@steward
 Start a new session and select `steward-policy` from the installed Steward plugin,
 then ask it to set up the current project.
 
+**Model Context Protocol (MCP)**
+
+Generate ready-to-use client configuration for Claude Desktop, Cursor, or Antigravity:
+
+```sh
+node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
+```
+
 The agent configures the project's checks, shows the policy and executable commands
-for approval, and installs the project hooks. The plugin supplies eight skills;
-project setup uses `--plugin` to avoid copying them again. The native host's own
+for approval, and installs the project hooks or client configuration. The plugin supplies
+eight skills; project setup uses `--plugin` to avoid copying them again. The native host's own
 hook trust and permissions still apply. Use [manual setup](#4-set-up-a-project)
 if you are working from a clone.
 
@@ -71,9 +80,9 @@ Steward keeps three responsibilities visible:
 
 | Responsibility | Local mechanism | What you can inspect |
 |---|---|---|
-| Policy | Validated rules and exact bundle approval | Matching rule IDs, denials and omitted guidance |
-| Memory | Typed, hash-linked journal | Decisions, questions, goals, handoffs and session checkpoints |
-| Verification | Reviewed command arrays and a completion gate | Check status, output hashes, source identity and freshness |
+| Policy | Validated rules, safe glob matchers, and exact bundle approval | Matching rule IDs, denials, injected context, and omitted guidance |
+| Memory | Typed, hash-linked journal with in-memory index cache | Decisions, questions, knowledge, goals, checkpoints, schedules, and handoffs |
+| Verification | Reviewed command arrays, output hashes, and a completion gate | Check status, output hashes, source identity, freshness, and Ed25519 signatures |
 
 The default policy provides working guidance. It is not a universal command blacklist.
 The initial verification plan deliberately fails until you configure real checks.
@@ -81,11 +90,11 @@ The initial verification plan deliberately fails until you configure real checks
 ## 2. The workflow at a glance
 
 ```text
-Review policy + checks ──► Approve the exact bundle ──► Install host hooks
+Review policy + checks ──► Approve the exact bundle ──► Install host hooks / MCP
                                      │
                           Work within the authorized task
                                      │
-                           Record material decisions
+                         Record material decisions & state
                                      │
                        Run checks ──► Inspect evidence ──► Gate
 ```
@@ -93,9 +102,9 @@ Review policy + checks ──► Approve the exact bundle ──► Install host
 Denials are applied before context budgets. Required guidance that cannot fit blocks
 the event. Optional guidance that does not fit is reported as omitted.
 
-Memory is explicit: append a decision or checkpoint when it matters. Compaction saves
-already recorded state; it does not recover unrecorded conversation. A named session
-restores only its own checkpoint digest.
+Memory is explicit: append a decision, knowledge claim, schedule, or checkpoint when it
+matters. Compaction saves already recorded state; it does not recover unrecorded conversation.
+A named session restores only its own checkpoint digest.
 
 ## 3. Try the isolated demo
 
@@ -115,8 +124,10 @@ The demo creates a temporary project, runs three synthetic arithmetic tests, rec
 and restores a checkpoint, and rejects evidence after a source change. It removes its
 fixture afterward and does not launch a native agent application.
 
-For the full local software suite, run `npm test`. See the
-[verification record](evidence/VERIFICATION.md) for observed results and their scope.
+For the full local software suite (183 tests covering engine, journal, index cache,
+MCP server, Ed25519 crypto, pattern matcher, and CLI integration), run `npm run verify`
+(or `npm test`). See the [verification record](evidence/VERIFICATION.md) for observed results
+and their scope.
 
 ## 4. Set up a project
 
@@ -143,10 +154,11 @@ node bin/steward.mjs doctor --project /absolute/path/to/project --host codex
 For Claude Code, use `--host claude` in the installation command. Complete the host's
 own trust and permission review before relying on its hooks.
 
-| Host | Skills | Hook configuration |
+| Host / Interface | Skills / Capabilities | Hook or Client Configuration |
 |---|---|---|
 | Codex | `.agents/skills/steward-*` | `.codex/hooks.json` |
 | Claude Code | `.claude/skills/steward-*` | `.claude/settings.local.json` |
+| MCP Client | 8 Tools & 5 Resources | Stdio JSON-RPC via `mcp --config --host <host>` |
 | Generic caller | Optional procedures | JSON via `hook --host generic` |
 
 Claude installation also imports the shared `AGENTS.md` from `CLAUDE.md`.
@@ -163,8 +175,45 @@ migrated. Read [operations](docs/OPERATIONS.md) and the
 
 Run `version` to inspect the installed version. Package, CLI and plugins share
 `0.2.0`; [release notes](CHANGELOG.md) explain the versioning policy and changes.
-For bounded recall, use `journal query --text <term> --limit 20`. Expired and
-superseded records are excluded unless `--history` is requested.
+
+**Operational and maintenance commands:**
+
+- **Adding journal records:** Append a typed record (`decision`, `question`, `knowledge`, `goal`, `schedule`, `handoff`):
+  ```sh
+  node bin/steward.mjs journal add --project /absolute/path/to/project --file /path/to/entry.json
+  ```
+- **Listing the validated journal:** Read and display the complete, verified journal sequence:
+  ```sh
+  node bin/steward.mjs journal list --project /absolute/path/to/project
+  ```
+- **Querying memory:** Recall active journal records with type, text, limit, session, or record filters:
+  ```sh
+  node bin/steward.mjs journal query --project /absolute/path/to/project \
+    --type decision --text <term> --limit 20
+  ```
+  Filter by `--type` (`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`), `--text`, `--limit` (1–100, default 20), `--record-id`, or `--session-id`. Expired knowledge and superseded records are excluded by default; pass `--history` to inspect past revisions.
+- **External integrity anchor:** Prevent journal suffix deletion by recording an anchor outside the project:
+  ```sh
+  node bin/steward.mjs journal anchor --project /absolute/path/to/project > /safe/place/project-anchor.json
+  node bin/steward.mjs journal verify --project /absolute/path/to/project --anchor-file /safe/place/project-anchor.json
+  ```
+- **Simulating policy evaluation:** Evaluate a draft event against project rules in simulation mode without activating hooks:
+  ```sh
+  node bin/steward.mjs eval --project /absolute/path/to/project --input /path/to/event.json
+  ```
+- **Inspecting policy and audit reports:** Count prepared context injections, rules omitted due to budget limits, and check audit headroom:
+  ```sh
+  node bin/steward.mjs report --project /absolute/path/to/project
+  ```
+- **Auditing agent instructions:** Check instruction files (`AGENTS.md`, `CLAUDE.md`, skill files) for common prompt-contract conflicts:
+  ```sh
+  node bin/steward.mjs instructions-audit --project /absolute/path/to/project
+  ```
+  Flags potential stalls (`approval-stall`), unbounded loops (`unbounded-tests`), suppressed errors (`suppressed-failure`), instruction hierarchy conflicts (`hierarchy-conflict`), and private reasoning exposure (`private-reasoning`).
+- **Pruning audit receipts:** The audit log retains up to 20,000 output-preparation receipts. Prune older records when approaching the ceiling:
+  ```sh
+  node bin/steward.mjs audit prune --project /absolute/path/to/project --keep 5000
+  ```
 
 ## 5. Choose a skill
 
@@ -186,6 +235,8 @@ Codex, or `/steward-policy` / `/steward-schedule` in Claude Code. Their invocati
 controls do not grant permission for mutations.
 Claude plugin skills use the `/steward:steward-policy` and
 `/steward:steward-schedule` names; select the bundled skills in Codex's skill picker.
+When interacting via the MCP interface, these capabilities map directly to the
+corresponding `steward_*` tools and `steward://*` resources.
 
 To inspect an installation or refine a rule, invoke `steward-policy` and describe
 the symptom or correction. `doctor` reports local hooks as configured, missing or
@@ -204,12 +255,17 @@ After configuring and approving real project checks:
 
 ```sh
 node bin/steward.mjs verify --project /absolute/path/to/project
+node bin/steward.mjs gate --project /absolute/path/to/project
+# Or verify against a specific historical evidence run:
 node bin/steward.mjs gate --project /absolute/path/to/project --evidence EVIDENCE_HASH
 ```
 
-Use the `evidence` hash returned by the run you inspected. A failed, unavailable,
+When `--evidence` is omitted, `gate` verifies against the latest verification run recorded in the journal. A failed, unavailable,
 stale or modified run cannot satisfy the gate. Commands execute with local user
 privileges; captured stdout and stderr remain plaintext.
+
+In `.steward/verify.json`, optional `exclude` path prefixes (such as `["dist", "coverage"]`)
+prevent build outputs and test caches from invalidating the source code snapshot.
 
 For a checkpoint, replace the fixture contents with actual task data and use the
 exact host session ID when it is available:
@@ -246,24 +302,85 @@ node bin/steward.mjs mcp --project /absolute/path/to/project
 Print ready-to-use client configuration for Claude Desktop, Cursor, or Antigravity:
 
 ```sh
-node bin/steward.mjs mcp --config --host claude
+node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
 ```
 
-Exposed MCP Tools: `steward_policy_eval`, `steward_recall`, `steward_record_decision`, `steward_checkpoint`, `steward_verify`, `steward_completion_gate`, `steward_record_knowledge`, `steward_schedule_manage`.
+**Exposed MCP Tools:**
+
+- `steward_policy_eval`: Evaluate prompt, tool, or session events against active policy rules.
+- `steward_recall`: Query journal records with type, text, session, and freshness filters.
+- `steward_record_decision`: Append an attributed decision with authority reference and quote.
+- `steward_checkpoint`: Persist session summary, next concrete action, and blockers.
+- `steward_verify`: Run approved verification checks and capture execution evidence.
+- `steward_completion_gate`: Check if recorded evidence satisfies plan and source snapshot.
+- `steward_record_knowledge`: Record verified domain assertions with basis and expiration timestamps.
+- `steward_schedule_manage`: Create or supersede milestone schedules with identity preservation.
+
+**Exposed MCP Resources:**
+
+- `steward://policy`: Active policy rules and budget configuration.
+- `steward://verification-plan`: Approved verification checks and timeout budgets.
+- `steward://journal/head`: Current sequence count and latest head hash.
+- `steward://checkpoint/latest`: Most recent session progress checkpoint.
+- `steward://doctor`: Health check and local trust status report.
+
+### In-Memory Index Cache & High-Performance Recall
+
+Steward automatically maintains an in-memory metadata index cache (`src/index-cache.mjs`) tracking
+records by `type`, `recordId`, `session`, `tag`, and `supersededHashes` alongside file modification times.
+Repeated queries avoid scanning the filesystem while invalidating cleanly on new appends and preserving
+strict cryptographic hash-chain integrity.
 
 ### Programmatic TypeScript & Node.js API
 
 Import the pure core engine directly into your external TypeScript or Node.js codebase with full type safety:
 
 ```ts
-import { evaluate, appendEntry, runVerification, completionGate } from 'steward';
+import {
+  // Policy Engine & Safe Matcher
+  evaluate,
+  matchArgGlob,
+  matchGlob,
+  // Journal & In-Memory Index Cache
+  appendEntry,
+  readJournal,
+  queryJournal,
+  queryJournalIndexed,
+  // Verification & Completion Gate
+  runVerification,
+  completionGate,
+  // Model Context Protocol (MCP) Server
+  startMcpServer,
+  formatMcpConfig,
+  // Ed25519 Asymmetric Digital Signatures
+  generateSigningKeyPair,
+  signBundle,
+  verifyBundleSignature,
+  signVerificationEvidence,
+  verifyVerificationEvidence
+} from 'steward';
 ```
 
 Bundled `index.d.ts` declarations provide autocomplete and compile-time type validation for all policy, event, memory, and verification structures.
 
 ### Safe CLI Argument Pattern Matching
 
-Policy rules optionally support linear-time safe glob matching (`patternsAny`, `globsAny`) to enforce fine-grained CLI argument boundaries without ReDoS risk.
+Policy rules optionally support linear-time safe glob matching (`patternsAny`, `globsAny`) to enforce fine-grained CLI argument boundaries without ReDoS risk. It handles character classes (`[a-z]`), wildcards (`*`), and escape sequences safely without backtracking regular expressions:
+
+```json
+{
+  "id": "deny-destructive-flags",
+  "on": ["tool"],
+  "effect": "deny",
+  "priority": 900,
+  "body": "Destructive CLI operations are restricted.",
+  "required": false,
+  "match": {
+    "tools": ["shell"],
+    "patternsAny": ["rm -r[fF]*", "*--force*"]
+  }
+}
+```
 
 ### Ed25519 Asymmetric Digital Signatures
 
@@ -281,30 +398,37 @@ node bin/steward.mjs verify-evidence --evidence EVIDENCE_HASH --verifier ./keys/
 
 ```text
 steward/
-├── .codex-plugin/ # Codex plugin manifest
-├── .claude-plugin/ # Claude plugin and marketplace
-├── .agents/plugins/ # Codex marketplace
-├── bin/           # CLI entrypoint
-├── src/           # Policy, trust, state, verification, crypto, mcp and host adapters
-├── schemas/       # Editor schemas; runtime enforces further invariants
-├── profiles/      # Default policy, initial checks and working agreement
-├── procedures/    # Eight canonical skill sources
-├── examples/      # Synthetic JSON inputs
-├── test/          # Unit, filesystem-boundary, index and CLI process tests
-├── scripts/       # Static checks, test runner and isolated demo
-├── docs/          # Contracts, host setup and model guidance
-├── evals/         # Supervised behavioral cases; no fabricated live scores
-├── evidence/      # Recorded local results and integrity manifests
-└── assets/        # Original project artwork
+├── .codex-plugin/       # Codex plugin manifest
+├── .claude-plugin/      # Claude plugin and marketplace
+├── .agents/plugins/     # Codex marketplace
+├── bin/                 # CLI entrypoint (steward.mjs)
+├── index.d.ts           # TypeScript type definitions for library consumers
+├── src/                 # Engine, trust, journal, verify, crypto, mcp and adapters
+│   ├── adapters/        # Host and MCP protocol adapters
+│   ├── crypto.mjs       # Ed25519 asymmetric signature engine
+│   ├── index-cache.mjs  # In-memory journal metadata index cache
+│   ├── matcher.mjs      # Linear-time safe glob pattern matcher
+│   └── ...
+├── schemas/             # JSON schemas for policies, verification, and journal entries
+├── profiles/            # Default policy, initial checks and working agreement
+├── procedures/          # Eight canonical skill sources
+├── examples/            # Synthetic JSON inputs
+├── test/                # Unit, filesystem-boundary, index cache, crypto, and CLI tests
+├── scripts/             # Static checks, test runner, release prep, and isolated demo
+├── docs/                # Contracts, architecture, agent context, host setup and model guidance
+├── evals/               # Supervised behavioral cases; no fabricated live scores
+├── evidence/            # Recorded local results and integrity manifests
+└── assets/              # Original project artwork
 ```
 
 | Start with | Then inspect |
 |---|---|
-| The isolated demo | [Policy contract](docs/POLICIES.md) |
-| Project initialization | [Host setup](docs/HOSTS.md) and [operations](docs/OPERATIONS.md) |
+| The isolated demo | [Policy contract](docs/POLICIES.md) and [Architecture](docs/ARCHITECTURE.md) |
+| Project initialization | [Host setup](docs/HOSTS.md) and [Operations](docs/OPERATIONS.md) |
+| Working context | [Agent context](docs/AGENT-CONTEXT.md) and [Security boundaries](SECURITY.md) |
 | Saved decisions and checkpoints | [Memory contract](docs/MEMORY.md) |
 | Completion claims | [Verification contract](docs/VERIFICATION.md) |
-| Skill adoption | [Skill scopes](docs/SKILLS.md) and [model guidance](docs/MODEL-GUIDANCE.md) |
+| Skill adoption | [Skill scopes](docs/SKILLS.md) and [Model guidance](docs/MODEL-GUIDANCE.md) |
 
 ## 9. Contribute and follow the project
 
