@@ -80,6 +80,7 @@ export function verifySignature(data, signatureHex, publicKeyPem) {
 
 /**
  * Loads a public or private key from a file path or direct PEM string.
+ * Validates against null bytes, path traversal, and file size limits.
  *
  * @param {string} input - File path or PEM content.
  * @returns {string} Clean PEM string.
@@ -89,9 +90,55 @@ export function resolveKeyPem(input) {
     if (input.includes('-----BEGIN')) {
         return input.trim();
     }
+    insist(!input.includes('\0'), 'BAD_PATH', 'Path contains null byte.');
     const resolved = path.resolve(input);
+    insist(path.isAbsolute(resolved), 'BAD_PATH', 'Expected absolute resolved path.');
     insist(fs.existsSync(resolved), 'CRYPTO_ERROR', `Key file does not exist: ${resolved}`);
+    const s = fs.lstatSync(resolved);
+    insist(s.isFile() && !s.isSymbolicLink(), 'BAD_FILE', 'Expected a regular, non-symlink file.');
+    insist(s.size <= 64 * 1024, 'INPUT_TOO_LARGE', 'Key file exceeds 64 KiB limit.');
     return fs.readFileSync(resolved, 'utf8').trim();
+}
+
+/**
+ * Safely loads a PEM key from a file or inline string, protecting against directory traversal.
+ *
+ * @param {string} input - File path or PEM content.
+ * @returns {string} Clean PEM string.
+ */
+export function loadKeypair(input) {
+    return resolveKeyPem(input);
+}
+
+/**
+ * Safely saves an Ed25519 keypair to an output directory, protecting against directory traversal.
+ *
+ * @param {string} outDir - Output directory path.
+ * @param {{ privateKeyPem: string, publicKeyPem: string, keyId?: string }} keyPair - Key pair to save.
+ * @returns {{ out: string, privPath: string, pubPath: string, keyId: string }} Saved paths and key ID.
+ */
+export function saveKeypair(outDir, keyPair) {
+    insist(typeof outDir === 'string' && outDir.trim(), 'USAGE', 'Output directory is required.');
+    insist(!outDir.includes('\0'), 'BAD_PATH', 'Path contains null byte.');
+    insist(keyPair && typeof keyPair === 'object', 'CRYPTO_ERROR', 'Keypair object is required.');
+    insist(typeof keyPair.privateKeyPem === 'string' && typeof keyPair.publicKeyPem === 'string', 'CRYPTO_ERROR', 'Invalid keypair PEM data.');
+
+    const resolvedDir = path.resolve(outDir);
+    fs.mkdirSync(resolvedDir, { recursive: true, mode: 0o700 });
+
+    const privPath = path.resolve(resolvedDir, 'steward-ed25519.priv.pem');
+    const pubPath = path.resolve(resolvedDir, 'steward-ed25519.pub.pem');
+
+    const relPriv = path.relative(resolvedDir, privPath);
+    const relPub = path.relative(resolvedDir, pubPath);
+    insist(!relPriv.startsWith('..') && !path.isAbsolute(relPriv), 'PATH_ESCAPE', 'Private key path escapes target directory.');
+    insist(!relPub.startsWith('..') && !path.isAbsolute(relPub), 'PATH_ESCAPE', 'Public key path escapes target directory.');
+
+    fs.writeFileSync(privPath, keyPair.privateKeyPem, { mode: 0o600 });
+    fs.writeFileSync(pubPath, keyPair.publicKeyPem, { mode: 0o644 });
+
+    const keyId = keyPair.keyId || deriveKeyId(keyPair.publicKeyPem);
+    return { out: resolvedDir, privPath, pubPath, keyId };
 }
 
 /**

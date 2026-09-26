@@ -8,9 +8,13 @@ import {
     signBundle,
     verifyBundleSignature,
     signVerificationEvidence,
-    verifyVerificationEvidence
+    verifyVerificationEvidence,
+    saveKeypair,
+    loadKeypair
 } from '../src/crypto.mjs';
 import { runVerification } from '../src/verify.mjs';
+import path from 'node:path';
+import fs from 'node:fs';
 
 test('Ed25519 key generation, signing, and verification', () => {
     const keyPair = generateSigningKeyPair();
@@ -79,4 +83,24 @@ test('Ed25519 verification throws NO_SIGNATURE when signature file is missing', 
     // Run verification without signing evidence
     const report = await runVerification(root);
     assert.throws(() => verifyVerificationEvidence(root, report.evidence, keyPair.publicKeyPem), { code: 'NO_SIGNATURE' });
+});
+
+test('saveKeypair and loadKeypair safely store and retrieve keys with path validation', (t) => {
+    const { root } = sandbox(t);
+    const keyPair = generateSigningKeyPair();
+    const outDir = path.join(root, 'keys');
+
+    const saved = saveKeypair(outDir, keyPair);
+    assert.equal(saved.out, path.resolve(outDir));
+    assert(fs.existsSync(saved.privPath));
+    assert(fs.existsSync(saved.pubPath));
+
+    const loadedPriv = loadKeypair(saved.privPath);
+    const loadedPub = loadKeypair(saved.pubPath);
+    assert.equal(loadedPriv, keyPair.privateKeyPem.trim());
+    assert.equal(loadedPub, keyPair.publicKeyPem.trim());
+
+    // Path with null byte rejected
+    assert.throws(() => saveKeypair(outDir + '\0bad', keyPair), { code: 'BAD_PATH' });
+    assert.throws(() => loadKeypair(saved.privPath + '\0bad'), { code: 'BAD_PATH' });
 });

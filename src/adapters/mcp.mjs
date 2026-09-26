@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { rootOf, readText, safePath } from '../fs.mjs';
+import { rootOf } from '../fs.mjs';
 import { VERSION } from '../version.mjs';
 import { evaluate } from '../engine.mjs';
 import { loadBundle } from '../trust.mjs';
@@ -149,6 +149,102 @@ export const STEWARD_RESOURCES = [
 ];
 
 /**
+ * Executes the steward_policy_eval tool.
+ */
+function executePolicyEval(root, args) {
+    const { policy } = loadBundle(root);
+    const eventObj = {
+        event: args.event || 'prompt',
+        text: args.text || '',
+        tool: args.event === 'tool' ? (args.tool || 'generic') : null,
+        paths: Array.isArray(args.paths) ? args.paths : [],
+        sessionId: args.sessionId || null
+    };
+    return evaluate(policy, eventObj);
+}
+
+/**
+ * Executes the steward_recall tool.
+ */
+function executeRecall(root, args) {
+    return queryJournal(root, {
+        type: args.type,
+        text: args.text,
+        limit: args.limit,
+        history: args.history,
+        recordId: args.recordId,
+        sessionId: args.sessionId
+    });
+}
+
+/**
+ * Executes the steward_checkpoint tool.
+ */
+async function executeCheckpoint(root, args) {
+    const checkpointData = {
+        summary: args.summary,
+        next: args.next,
+        blockers: Array.isArray(args.blockers) ? args.blockers : []
+    };
+    if (args.sessionId) {
+        const { sha256 } = await import('../fs.mjs');
+        checkpointData.session = sha256(args.sessionId);
+    }
+    return appendEntry(root, {
+        type: 'checkpoint',
+        data: checkpointData
+    });
+}
+
+/**
+ * Executes the steward_schedule_manage tool.
+ */
+async function executeScheduleManage(root, args) {
+    const schedData = {
+        title: args.title,
+        dueAt: args.dueAt,
+        status: args.status,
+        members: Array.isArray(args.members) ? args.members : []
+    };
+    if (args.id) {
+        schedData.id = args.id;
+        schedData.supersedes = args.supersedes ?? null;
+    } else if (args.supersedes) {
+        schedData.supersedes = args.supersedes;
+    }
+    return appendEntry(root, {
+        type: 'schedule',
+        data: schedData
+    });
+}
+
+const TOOL_DISPATCHERS = {
+    steward_policy_eval: (root, args) => executePolicyEval(root, args),
+    steward_recall: (root, args) => executeRecall(root, args),
+    steward_record_decision: (root, args) => appendEntry(root, {
+        type: 'decision',
+        data: {
+            statement: args.statement,
+            authority: args.authority,
+            supersedes: args.supersedes ?? null
+        }
+    }),
+    steward_checkpoint: (root, args) => executeCheckpoint(root, args),
+    steward_verify: (root) => runVerification(root),
+    steward_completion_gate: (root, args) => completionGate(root, args.evidence || null),
+    steward_record_knowledge: (root, args) => appendEntry(root, {
+        type: 'knowledge',
+        data: {
+            claim: args.claim,
+            basis: args.basis,
+            sources: Array.isArray(args.sources) ? args.sources : [],
+            expiresAt: args.expiresAt ?? null
+        }
+    }),
+    steward_schedule_manage: (root, args) => executeScheduleManage(root, args)
+};
+
+/**
  * Handles an MCP tool invocation.
  *
  * @param {string} root - Project root.
@@ -157,92 +253,35 @@ export const STEWARD_RESOURCES = [
  * @returns {Promise<object>} Result payload.
  */
 export async function executeTool(root, name, args = {}) {
-    switch (name) {
-        case 'steward_policy_eval': {
-            const { policy } = loadBundle(root);
-            const eventObj = {
-                event: args.event || 'prompt',
-                text: args.text || '',
-                tool: args.event === 'tool' ? (args.tool || 'generic') : null,
-                paths: Array.isArray(args.paths) ? args.paths : [],
-                sessionId: args.sessionId || null
-            };
-            return evaluate(policy, eventObj);
-        }
-        case 'steward_recall': {
-            return queryJournal(root, {
-                type: args.type,
-                text: args.text,
-                limit: args.limit,
-                history: args.history,
-                recordId: args.recordId,
-                sessionId: args.sessionId
-            });
-        }
-        case 'steward_record_decision': {
-            return await appendEntry(root, {
-                type: 'decision',
-                data: {
-                    statement: args.statement,
-                    authority: args.authority,
-                    supersedes: args.supersedes ?? null
-                }
-            });
-        }
-        case 'steward_checkpoint': {
-            const checkpointData = {
-                summary: args.summary,
-                next: args.next,
-                blockers: Array.isArray(args.blockers) ? args.blockers : []
-            };
-            if (args.sessionId) {
-                const { sha256 } = await import('../fs.mjs');
-                checkpointData.session = sha256(args.sessionId);
-            }
-            return await appendEntry(root, {
-                type: 'checkpoint',
-                data: checkpointData
-            });
-        }
-        case 'steward_verify': {
-            return await runVerification(root);
-        }
-        case 'steward_completion_gate': {
-            return completionGate(root, args.evidence || null);
-        }
-        case 'steward_record_knowledge': {
-            return await appendEntry(root, {
-                type: 'knowledge',
-                data: {
-                    claim: args.claim,
-                    basis: args.basis,
-                    sources: Array.isArray(args.sources) ? args.sources : [],
-                    expiresAt: args.expiresAt ?? null
-                }
-            });
-        }
-        case 'steward_schedule_manage': {
-            const schedData = {
-                title: args.title,
-                dueAt: args.dueAt,
-                status: args.status,
-                members: Array.isArray(args.members) ? args.members : []
-            };
-            if (args.id) {
-                schedData.id = args.id;
-                schedData.supersedes = args.supersedes ?? null;
-            } else if (args.supersedes) {
-                schedData.supersedes = args.supersedes;
-            }
-            return await appendEntry(root, {
-                type: 'schedule',
-                data: schedData
-            });
-        }
-        default:
-            throw new Error(`Unknown MCP tool: ${name}`);
+    const handler = TOOL_DISPATCHERS[name];
+    if (!handler) {
+        throw new Error(`Unknown MCP tool: ${name}`);
     }
+    return handler(root, args);
 }
+
+const RESOURCE_HANDLERS = {
+    'steward://policy': (root, uri) => {
+        const { policy } = loadBundle(root);
+        return { uri, mimeType: 'application/json', text: JSON.stringify(policy, null, 2) };
+    },
+    'steward://verification-plan': (root, uri) => {
+        const { plan } = loadBundle(root);
+        return { uri, mimeType: 'application/json', text: JSON.stringify(plan, null, 2) };
+    },
+    'steward://journal/head': (root, uri) => {
+        const rows = readJournal(root);
+        return { uri, mimeType: 'application/json', text: JSON.stringify(journalHead(rows), null, 2) };
+    },
+    'steward://checkpoint/latest': (root, uri) => {
+        const checkpoint = latestCheckpoint(root);
+        return { uri, mimeType: 'application/json', text: JSON.stringify(checkpoint, null, 2) };
+    },
+    'steward://doctor': (root, uri) => {
+        const result = doctor(root);
+        return { uri, mimeType: 'application/json', text: JSON.stringify(result, null, 2) };
+    }
+};
 
 /**
  * Reads an MCP resource by URI.
@@ -252,29 +291,59 @@ export async function executeTool(root, name, args = {}) {
  * @returns {object} Resource contents.
  */
 export function readResource(root, uri) {
-    switch (uri) {
-        case 'steward://policy': {
-            const { policy } = loadBundle(root);
-            return { uri, mimeType: 'application/json', text: JSON.stringify(policy, null, 2) };
-        }
-        case 'steward://verification-plan': {
-            const { plan } = loadBundle(root);
-            return { uri, mimeType: 'application/json', text: JSON.stringify(plan, null, 2) };
-        }
-        case 'steward://journal/head': {
-            const rows = readJournal(root);
-            return { uri, mimeType: 'application/json', text: JSON.stringify(journalHead(rows), null, 2) };
-        }
-        case 'steward://checkpoint/latest': {
-            const checkpoint = latestCheckpoint(root);
-            return { uri, mimeType: 'application/json', text: JSON.stringify(checkpoint, null, 2) };
-        }
-        case 'steward://doctor': {
-            const result = doctor(root);
-            return { uri, mimeType: 'application/json', text: JSON.stringify(result, null, 2) };
-        }
-        default:
-            throw new Error(`Unknown MCP resource: ${uri}`);
+    const handler = RESOURCE_HANDLERS[uri];
+    if (!handler) {
+        throw new Error(`Unknown MCP resource: ${uri}`);
+    }
+    return handler(root, uri);
+}
+
+/**
+ * Handles tools/call JSON-RPC method.
+ */
+async function handleToolsCall(root, id, params) {
+    const { name, arguments: toolArgs } = params || {};
+    try {
+        const output = await executeTool(root, name, toolArgs);
+        return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+                content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
+                isError: false
+            }
+        };
+    } catch (err) {
+        const e = publicError(err);
+        return {
+            jsonrpc: '2.0',
+            id,
+            result: {
+                content: [{ type: 'text', text: `Steward Error [${e.code}]: ${e.message}` }],
+                isError: true
+            }
+        };
+    }
+}
+
+/**
+ * Handles resources/read JSON-RPC method.
+ */
+function handleResourcesRead(root, id, params) {
+    const { uri } = params || {};
+    try {
+        const resource = readResource(root, uri);
+        return {
+            jsonrpc: '2.0',
+            id,
+            result: { contents: [resource] }
+        };
+    } catch (err) {
+        return {
+            jsonrpc: '2.0',
+            id,
+            error: { code: -32002, message: err.message }
+        };
     }
 }
 
@@ -329,28 +398,7 @@ export async function handleMcpMessage(root, req) {
                 };
             }
             case 'tools/call': {
-                const { name, arguments: toolArgs } = params || {};
-                try {
-                    const output = await executeTool(root, name, toolArgs);
-                    return {
-                        jsonrpc: '2.0',
-                        id,
-                        result: {
-                            content: [{ type: 'text', text: JSON.stringify(output, null, 2) }],
-                            isError: false
-                        }
-                    };
-                } catch (err) {
-                    const e = publicError(err);
-                    return {
-                        jsonrpc: '2.0',
-                        id,
-                        result: {
-                            content: [{ type: 'text', text: `Steward Error [${e.code}]: ${e.message}` }],
-                            isError: true
-                        }
-                    };
-                }
+                return await handleToolsCall(root, id, params);
             }
             case 'resources/list': {
                 return {
@@ -360,21 +408,7 @@ export async function handleMcpMessage(root, req) {
                 };
             }
             case 'resources/read': {
-                const { uri } = params || {};
-                try {
-                    const resource = readResource(root, uri);
-                    return {
-                        jsonrpc: '2.0',
-                        id,
-                        result: { contents: [resource] }
-                    };
-                } catch (err) {
-                    return {
-                        jsonrpc: '2.0',
-                        id,
-                        error: { code: -32002, message: err.message }
-                    };
-                }
+                return handleResourcesRead(root, id, params);
             }
             default: {
                 return {

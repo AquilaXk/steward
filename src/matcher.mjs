@@ -1,5 +1,3 @@
-import { insist } from './errors.mjs';
-
 /**
  * Validates whether a glob pattern is syntactically well-formed and safe.
  * Ensures balanced brackets and bounded length to prevent syntax anomalies.
@@ -39,19 +37,9 @@ export function isSafePattern(pattern) {
 }
 
 /**
- * Compiles a character class into a matcher predicate.
- * Supports exact characters, ranges (a-z, 0-9), negation ([!...] or [^...]),
- * and full Unicode code points with proper escaping (\-, \], \\).
+ * Parses raw code points from inside a character class into character and range elements.
  */
-function compileCharClass(content, caseSensitive) {
-    let negated = false;
-    let chars = content;
-    if (chars.startsWith('!') || chars.startsWith('^')) {
-        negated = true;
-        chars = chars.slice(1);
-    }
-
-    const codeUnits = Array.from(chars);
+function parseCharClassElements(codeUnits, caseSensitive) {
     const elements = [];
     let i = 0;
     while (i < codeUnits.length) {
@@ -74,22 +62,45 @@ function compileCharClass(content, caseSensitive) {
         elements.push({ type: 'char', value: caseSensitive ? ch : ch.toLowerCase() });
         i++;
     }
+    return elements;
+}
+
+/**
+ * Compiles a character class into a matcher predicate.
+ * Supports exact characters, ranges (a-z, 0-9), negation ([!...] or [^...]),
+ * and full Unicode code points with proper escaping (\-, \], \\).
+ */
+function compileCharClass(content, caseSensitive) {
+    const negated = content.startsWith('!') || content.startsWith('^');
+    const chars = negated ? content.slice(1) : content;
+    const elements = parseCharClassElements(Array.from(chars), caseSensitive);
 
     return (ch) => {
         const c = caseSensitive ? ch : ch.toLowerCase();
         const code = c.codePointAt(0);
-        let matched = false;
-        for (const el of elements) {
-            if (el.type === 'char' && el.value === c) {
-                matched = true;
-                break;
-            } else if (el.type === 'range' && code >= el.min && code <= el.max) {
-                matched = true;
-                break;
-            }
-        }
+        const matched = elements.some(el =>
+            el.type === 'char' ? el.value === c : (code >= el.min && code <= el.max)
+        );
         return negated ? !matched : matched;
     };
+}
+
+/**
+ * Finds the index of an unescaped closing bracket ']' in an array of characters.
+ */
+function findClosingBracket(chars, startIndex) {
+    let j = startIndex;
+    while (j < chars.length) {
+        if (chars[j] === '\\') {
+            j += 2;
+            continue;
+        }
+        if (chars[j] === ']') {
+            return j;
+        }
+        j++;
+    }
+    return -1;
 }
 
 /**
@@ -113,7 +124,7 @@ function parseTokens(pattern, caseSensitive) {
             }
         } else if (c === '*') {
             // Collapse multiple consecutive stars into a single star
-            if (tokens.length === 0 || tokens[tokens.length - 1].type !== 'star') {
+            if (tokens.at(-1)?.type !== 'star') {
                 tokens.push({ type: 'star' });
             }
             i++;
@@ -121,19 +132,7 @@ function parseTokens(pattern, caseSensitive) {
             tokens.push({ type: 'any' });
             i++;
         } else if (c === '[') {
-            let closeIdx = -1;
-            let j = i + 1;
-            while (j < chars.length) {
-                if (chars[j] === '\\') {
-                    j += 2;
-                    continue;
-                }
-                if (chars[j] === ']') {
-                    closeIdx = j;
-                    break;
-                }
-                j++;
-            }
+            const closeIdx = findClosingBracket(chars, i + 1);
             if (closeIdx === -1) {
                 // Malformed bracket, treat as literal
                 tokens.push({ type: 'char', char: '[' });
@@ -149,6 +148,16 @@ function parseTokens(pattern, caseSensitive) {
         }
     }
     return tokens;
+}
+
+/**
+ * Tests whether a match token satisfies a specific character.
+ */
+function matchesToken(tok, char) {
+    if (tok.type === 'any') return true;
+    if (tok.type === 'char') return tok.char === char;
+    if (tok.type === 'class') return tok.match(char);
+    return false;
 }
 
 /**
@@ -191,7 +200,7 @@ export function matchGlob(pattern, text, { caseSensitive = false, maxSteps = 100
                 pIdx++;
                 continue;
             }
-            if (tok.type === 'any' || (tok.type === 'char' && tok.char === targetChars[tIdx]) || (tok.type === 'class' && tok.match(targetChars[tIdx]))) {
+            if (matchesToken(tok, targetChars[tIdx])) {
                 pIdx++;
                 tIdx++;
                 continue;

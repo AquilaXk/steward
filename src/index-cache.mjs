@@ -71,6 +71,72 @@ function indexRow(index, row) {
 }
 
 /**
+ * Safely resolves a validated journal filename relative to project root.
+ * Guarantees the filename matches the strict journal format and prevents path traversal.
+ */
+function getRecordPath(root, name) {
+    insist(typeof name === 'string' && /^\d{8}-[a-f0-9-]+\.json$/.test(name), 'JOURNAL_CORRUPT', 'Unexpected file in journal.');
+    return safePath(root, `${DIRECTORY}/${name}`);
+}
+
+/**
+ * Lists candidate journal files from disk, ignoring OS metadata and temp files.
+ */
+function listJournalFiles(root) {
+    const dir = safePath(root, DIRECTORY);
+    try {
+        const names = fs.readdirSync(dir).filter(n => !n.startsWith('.tmp-')).sort();
+        return names.filter(n => !n.startsWith('.') && n !== 'Thumbs.db' && n !== 'desktop.ini');
+    } catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+        return null;
+    }
+}
+
+/**
+ * Checks whether the existing in-memory cache is still fresh and matches disk state.
+ */
+function isCacheUpToDate(root, cache, names) {
+    if (!cache || cache.files.length > names.length) {
+        return false;
+    }
+    for (let i = 0; i < cache.files.length; i++) {
+        const name = names[i];
+        if (cache.files[i] !== name) {
+            return false;
+        }
+        try {
+            const filePath = getRecordPath(root, name);
+            const stat = fs.statSync(filePath);
+            if (stat.mtimeMs !== cache.mtimes.get(name) || stat.size !== cache.sizes.get(name)) {
+                return false;
+            }
+        } catch {
+            return false;
+        }
+    }
+    return true;
+}
+
+/**
+ * Reads, verifies cryptographic integrity, and validates a single journal record from disk.
+ */
+function loadJournalRow(root, name, expectedSeq, previousHash) {
+    const filePath = getRecordPath(root, name);
+    const stat = fs.statSync(filePath);
+    const row = readJSON(filePath, 4 * 1024 * 1024);
+    try {
+        validateJournalRow(row);
+    } catch {
+        insist(false, 'JOURNAL_CORRUPT', `Invalid journal record at sequence ${expectedSeq}.`);
+    }
+    const { hash, ...payload } = row;
+    insist(row.seq === expectedSeq && row.previous === previousHash && hash === sha256(canonical(payload)), 'JOURNAL_CORRUPT', `Journal integrity check failed at record ${expectedSeq}.`);
+    insist(name === `${String(row.seq).padStart(8, '0')}-${row.id}.json`, 'JOURNAL_CORRUPT', 'Journal filename identity mismatch.');
+    return { row, mtimeMs: stat.mtimeMs, size: stat.size };
+}
+
+/**
  * Synchronizes the in-memory journal cache for a given project root.
  * Detects incremental additions or invalidations.
  *
@@ -78,44 +144,14 @@ function indexRow(index, row) {
  * @returns {{ rows: object[], cache: object }} Synced journal rows and index.
  */
 export function syncJournalCache(root) {
-    const dir = safePath(root, DIRECTORY);
-    let names = [];
-    try {
-        names = fs.readdirSync(dir).filter(n => !n.startsWith('.tmp-')).sort();
-        names = names.filter(n => !n.startsWith('.') && n !== 'Thumbs.db' && n !== 'desktop.ini');
-    } catch (e) {
-        if (e.code !== 'ENOENT') throw e;
+    const names = listJournalFiles(root);
+    if (names === null) {
         caches.delete(root);
         return { rows: [], cache: createEmptyCache() };
     }
 
     let cache = caches.get(root);
-
-    // Verify validity of existing cache
-    let canIncrement = false;
-    if (cache && cache.files.length <= names.length) {
-        let match = true;
-        for (let i = 0; i < cache.files.length; i++) {
-            if (cache.files[i] !== names[i]) {
-                match = false;
-                break;
-            }
-            try {
-                const stat = fs.statSync(safePath(root, `${DIRECTORY}/${names[i]}`));
-                if (stat.mtimeMs !== cache.mtimes.get(names[i]) || stat.size !== cache.sizes.get(names[i])) {
-                    match = false;
-                    break;
-                }
-            } catch {
-                match = false;
-                break;
-            }
-        }
-        canIncrement = match;
-    }
-
-    if (!canIncrement) {
-        // Rebuild from scratch
+    if (!isCacheUpToDate(root, cache, names)) {
         cache = createEmptyCache();
         caches.set(root, cache);
     }
@@ -125,25 +161,13 @@ export function syncJournalCache(root) {
 
     for (let i = startIndex; i < names.length; i++) {
         const name = names[i];
-        insist(/^\d{8}-[a-f0-9-]+\.json$/.test(name), 'JOURNAL_CORRUPT', 'Unexpected file in journal.');
-        const filePath = safePath(root, `${DIRECTORY}/${name}`);
-        const stat = fs.statSync(filePath);
-        const row = readJSON(filePath, 4 * 1024 * 1024);
-        try {
-            validateJournalRow(row);
-        } catch {
-            insist(false, 'JOURNAL_CORRUPT', `Invalid journal record at sequence ${cache.rows.length + 1}.`);
-        }
-        const { hash, ...payload } = row;
-        insist(row.seq === cache.rows.length + 1 && row.previous === previous && hash === sha256(canonical(payload)), 'JOURNAL_CORRUPT', `Journal integrity check failed at record ${cache.rows.length + 1}.`);
-        insist(name === `${String(row.seq).padStart(8, '0')}-${row.id}.json`, 'JOURNAL_CORRUPT', 'Journal filename identity mismatch.');
-
+        const { row, mtimeMs, size } = loadJournalRow(root, name, cache.rows.length + 1, previous);
         cache.files.push(name);
         cache.rows.push(row);
-        cache.mtimes.set(name, stat.mtimeMs);
-        cache.sizes.set(name, stat.size);
+        cache.mtimes.set(name, mtimeMs);
+        cache.sizes.set(name, size);
         indexRow(cache.index, row);
-        previous = hash;
+        previous = row.hash;
     }
 
     return { rows: cache.rows, cache };
@@ -155,6 +179,23 @@ export function syncJournalCache(root) {
  */
 export function invalidateJournalCache(root) {
     caches.delete(root);
+}
+
+/**
+ * Evaluates whether a journal row matches all specified query filter criteria.
+ */
+function matchesQueryFilter(row, { type, recordId, session, needle, sinceMs, untilMs, tag }) {
+    if (type !== undefined && row.type !== type) return false;
+    if (recordId !== undefined && row.data?.id !== recordId) return false;
+    if (session !== undefined && (row.type !== 'checkpoint' || row.data?.session !== session)) return false;
+    if (needle && !JSON.stringify(row.data).toLocaleLowerCase('en-US').includes(needle)) return false;
+    if (sinceMs !== undefined && Date.parse(row.time) < sinceMs) return false;
+    if (untilMs !== undefined && Date.parse(row.time) > untilMs) return false;
+    if (tag !== undefined) {
+        const tags = Array.isArray(row.data?.tags) ? row.data.tags : (row.data?.tag ? [row.data.tag] : []);
+        if (!tags.includes(tag)) return false;
+    }
+    return true;
 }
 
 /**
@@ -175,6 +216,8 @@ export function queryJournalIndexed(root, { type, text = '', limit = 20, history
     const { rows, cache } = syncJournalCache(root);
     const session = sessionId === undefined ? undefined : sha256(sessionId);
     const needle = text.toLocaleLowerCase('en-US');
+    const sinceMs = since === undefined ? undefined : (typeof since === 'number' ? since : Date.parse(since));
+    const untilMs = until === undefined ? undefined : (typeof until === 'number' ? until : Date.parse(until));
 
     // Narrow candidate pool using in-memory indices when possible
     let candidates = rows;
@@ -186,19 +229,15 @@ export function queryJournalIndexed(root, { type, text = '', limit = 20, history
         candidates = cache.index.bySession.get(session) || [];
     }
 
+    const filterContext = { type, recordId, session, needle, sinceMs, untilMs, tag };
+
     const matches = candidates.map(row => ({
         ...row,
         superseded: cache.index.supersededHashes.has(row.hash),
         expired: row.type === 'knowledge' && row.data.expiresAt !== null && Date.parse(row.data.expiresAt) <= now
     })).filter(row =>
         (history || (!row.superseded && !row.expired)) &&
-        (type === undefined || row.type === type) &&
-        (recordId === undefined || row.data.id === recordId) &&
-        (session === undefined || (row.type === 'checkpoint' && row.data.session === session)) &&
-        (!needle || JSON.stringify(row.data).toLocaleLowerCase('en-US').includes(needle)) &&
-        (since === undefined || Date.parse(row.time) >= (typeof since === 'number' ? since : Date.parse(since))) &&
-        (until === undefined || Date.parse(row.time) <= (typeof until === 'number' ? until : Date.parse(until))) &&
-        (tag === undefined || (Array.isArray(row.data?.tags) ? row.data.tags.includes(tag) : row.data?.tag === tag))
+        matchesQueryFilter(row, filterContext)
     ).reverse();
 
     const head = { count: rows.length, head: rows.at(-1)?.hash || null };

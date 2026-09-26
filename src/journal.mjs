@@ -1,7 +1,6 @@
-import * as fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { safePath, mkdir, readJSON, sha256, canonical, atomicWrite, withLock } from './fs.mjs';
-import { validateEntry, validateJournalRow, RECORD_TYPES } from './schema.mjs';
+import { mkdir, sha256, canonical, atomicWrite, withLock } from './fs.mjs';
+import { validateEntry, validateJournalRow } from './schema.mjs';
 import { insist } from './errors.mjs';
 import { syncJournalCache, queryJournalIndexed, invalidateJournalCache } from './index-cache.mjs';
 const DIRECTORY = '.steward/state/journal';

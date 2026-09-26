@@ -16,7 +16,7 @@ import { auditInstructions } from '../src/instructions.mjs';
 import { initProject, installHooks } from '../src/setup.mjs';
 import { doctor } from '../src/doctor.mjs';
 import { startMcpServer, formatMcpConfig } from '../src/adapters/mcp.mjs';
-import { generateSigningKeyPair, signBundle, verifyBundleSignature, signVerificationEvidence, verifyVerificationEvidence } from '../src/crypto.mjs';
+import { generateSigningKeyPair, signBundle, verifyBundleSignature, signVerificationEvidence, verifyVerificationEvidence, saveKeypair } from '../src/crypto.mjs';
 const HELP = `Steward ${VERSION} — local agent policy and evidence toolkit
 Usage: node bin/steward.mjs <command> [--project <directory>] [options]
 
@@ -50,7 +50,7 @@ sign-evidence          Sign verification run with --evidence HASH --key FILE
 verify-evidence        Verify signed evidence with --evidence HASH --verifier FILE
 
 Options: --host --project --input --file --approve --event --evidence --plugin
-         --anchor-file --session-id --keep --key --verifier --out --config --help
+         --anchor-file --session-id --keep --key --key-file --verifier --public-key --out --config --help
 No network calls, provider routing, daemon, automatic publishing or API keys.
 `;
 let command = process.argv[2] || 'help', opts = {}, positionals = [];
@@ -61,9 +61,18 @@ for (const key of ['host', 'event']) {
         opts[key] = process.argv[i + 1];
 }
 function output(value) { process.stdout.write(JSON.stringify(value, null, 2) + '\n'); }
+
+function resolveSafePath(filePath) {
+    insist(typeof filePath === 'string' && filePath.trim(), 'USAGE', 'File path is required.');
+    insist(!filePath.includes('\0'), 'BAD_PATH', 'Path contains null bytes.');
+    const resolved = path.resolve(filePath);
+    insist(path.isAbsolute(resolved), 'BAD_PATH', 'Path must resolve to an absolute path.');
+    return resolved;
+}
+
 async function input() {
     if (opts.input)
-        return parseJSON(readText(path.resolve(opts.input)));
+        return parseJSON(readText(resolveSafePath(opts.input)));
     return new Promise((resolve, reject) => {
         let size = 0;
         const chunks = [];
@@ -91,10 +100,12 @@ async function input() {
     });
 }
 try {
-    const parsed = parseArgs({ allowPositionals: true, options: Object.fromEntries(['host', 'project', 'input', 'file', 'approve', 'event', 'evidence', 'anchor-file', 'session-id', 'type', 'text', 'limit', 'record-id', 'keep', 'key', 'verifier', 'out'].map(k => [k, { type: 'string' }]).concat([['help', { type: 'boolean' }], ['plugin', { type: 'boolean' }], ['history', { type: 'boolean' }], ['version', { type: 'boolean' }], ['config', { type: 'boolean' }]])) });
+    const parsed = parseArgs({ allowPositionals: true, options: Object.fromEntries(['host', 'project', 'input', 'file', 'approve', 'event', 'evidence', 'anchor-file', 'session-id', 'type', 'text', 'limit', 'record-id', 'keep', 'key', 'key-file', 'verifier', 'public-key', 'out'].map(k => [k, { type: 'string' }]).concat([['help', { type: 'boolean' }], ['plugin', { type: 'boolean' }], ['history', { type: 'boolean' }], ['version', { type: 'boolean' }], ['config', { type: 'boolean' }]])) });
     opts = parsed.values;
     positionals = parsed.positionals;
     command = positionals[0] || 'help';
+    const keyArg = opts.key || opts['key-file'];
+    const verifierArg = opts.verifier || opts['public-key'];
     if (opts.version || command === 'version') output({ version: VERSION });
     else if (opts.help || command === 'help') {
         console.log(HELP);
@@ -105,11 +116,9 @@ try {
     else if (command === 'keygen') {
         const keys = generateSigningKeyPair();
         if (opts.out) {
-            const outDir = path.resolve(opts.out);
-            fs.mkdirSync(outDir, { recursive: true, mode: 0o700 });
-            fs.writeFileSync(path.join(outDir, 'steward-ed25519.priv.pem'), keys.privateKeyPem, { mode: 0o600 });
-            fs.writeFileSync(path.join(outDir, 'steward-ed25519.pub.pem'), keys.publicKeyPem, { mode: 0o644 });
-            output({ generated: true, out: outDir, keyId: keys.keyId });
+            const outDir = resolveSafePath(opts.out);
+            const saved = saveKeypair(outDir, keys);
+            output({ generated: true, out: saved.out, keyId: keys.keyId });
         } else {
             output(keys);
         }
@@ -124,22 +133,22 @@ try {
             }
         }
         else if (command === 'sign-bundle') {
-            insist(opts.key, 'USAGE', '--key is required.');
-            output(signBundle(root, opts.key));
+            insist(keyArg, 'USAGE', '--key or --key-file is required.');
+            output(signBundle(root, keyArg));
         }
         else if (command === 'verify-bundle') {
-            insist(opts.verifier, 'USAGE', '--verifier is required.');
-            output(verifyBundleSignature(root, opts.verifier));
+            insist(verifierArg, 'USAGE', '--verifier or --public-key is required.');
+            output(verifyBundleSignature(root, verifierArg));
         }
         else if (command === 'sign-evidence') {
             insist(opts.evidence, 'USAGE', '--evidence is required.');
-            insist(opts.key, 'USAGE', '--key is required.');
-            output(signVerificationEvidence(root, opts.evidence, opts.key));
+            insist(keyArg, 'USAGE', '--key or --key-file is required.');
+            output(signVerificationEvidence(root, opts.evidence, keyArg));
         }
         else if (command === 'verify-evidence') {
             insist(opts.evidence, 'USAGE', '--evidence is required.');
-            insist(opts.verifier, 'USAGE', '--verifier is required.');
-            output(verifyVerificationEvidence(root, opts.evidence, opts.verifier));
+            insist(verifierArg, 'USAGE', '--verifier or --public-key is required.');
+            output(verifyVerificationEvidence(root, opts.evidence, verifierArg));
         }
         else if (command === 'trust') {
             const bundle = loadBundle(root);
@@ -167,7 +176,7 @@ try {
             const sub = positionals[1] || 'list';
             if (sub === 'add') {
                 insist(opts.file, 'USAGE', '--file is required.');
-                output(await appendEntry(root, readJSON(path.resolve(opts.file))));
+                output(await appendEntry(root, readJSON(resolveSafePath(opts.file))));
             }
             else if (sub === 'list')
                 output(readJournal(root));
@@ -176,7 +185,7 @@ try {
             else if (sub === 'anchor')
                 output(journalHead(readJournal(root)));
             else if (sub === 'verify') {
-                const rows = readJournal(root, { anchor: opts['anchor-file'] ? readJSON(path.resolve(opts['anchor-file'])) : null });
+                const rows = readJournal(root, { anchor: opts['anchor-file'] ? readJSON(resolveSafePath(opts['anchor-file'])) : null });
                 output({ valid: true, ...journalHead(rows) });
             }
             else
@@ -184,7 +193,7 @@ try {
         }
         else if (command === 'checkpoint') {
             insist(opts.file, 'USAGE', '--file is required.');
-            const data = readJSON(path.resolve(opts.file));
+            const data = readJSON(resolveSafePath(opts.file));
             if (opts['session-id'] !== undefined) {
                 insist(opts['session-id'].trim() && opts['session-id'].length <= 256, 'USAGE', 'Invalid session ID.');
                 const session = sha256(opts['session-id']);

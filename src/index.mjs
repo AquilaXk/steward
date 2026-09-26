@@ -69,6 +69,8 @@ export {
     signVerificationEvidence,
     verifyVerificationEvidence,
     resolveKeyPem,
+    loadKeypair,
+    saveKeypair,
     deriveKeyId
 } from './crypto.mjs';
 export { StewardError, insist, publicError } from './errors.mjs';
