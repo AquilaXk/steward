@@ -88,7 +88,7 @@ export function atomicWrite(root, relative, text, { replace = false } = {}) {
         }
     }
 }
-export async function withLock(root, relative, fn, timeoutMs = 1500) {
+export async function withLock(root, relative, fn, timeoutMs = 5000) {
     const lock = safePath(root, relative);
     mkdir(root, path.relative(root, path.dirname(lock)) || '.');
     const end = Date.now() + timeoutMs;
@@ -98,7 +98,8 @@ export async function withLock(root, relative, fn, timeoutMs = 1500) {
             break;
         }
         catch (e) {
-            if (e.code !== 'EEXIST')
+            const isLockContention = e.code === 'EEXIST' || (process.platform === 'win32' && (e.code === 'EPERM' || e.code === 'EACCES'));
+            if (!isLockContention)
                 throw e;
             insist(Date.now() < end, 'LOCKED', 'Another writer holds the lock. A crashed-writer lock requires explicit operator recovery.');
             await new Promise(r => setTimeout(r, 15));
@@ -108,7 +109,22 @@ export async function withLock(root, relative, fn, timeoutMs = 1500) {
         return await fn();
     }
     finally {
-        fs.rmdirSync(lock);
+        try {
+            fs.rmdirSync(lock);
+        }
+        catch (e) {
+            if (process.platform === 'win32' && (e.code === 'EPERM' || e.code === 'EBUSY' || e.code === 'EACCES')) {
+                for (let retry = 0; retry < 5; retry++) {
+                    try {
+                        fs.rmdirSync(lock);
+                        break;
+                    }
+                    catch {}
+                }
+            } else if (e.code !== 'ENOENT') {
+                throw e;
+            }
+        }
     }
 }
 export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
