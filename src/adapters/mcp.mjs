@@ -1,12 +1,16 @@
 import path from 'node:path';
-import { rootOf } from '../fs.mjs';
+import { rootOf, sha256 } from '../fs.mjs';
 import { VERSION } from '../version.mjs';
 import { evaluate } from '../engine.mjs';
-import { loadBundle } from '../trust.mjs';
+import { normalizeInput } from '../adapters.mjs';
+import { requireTrust } from '../trust.mjs';
 import { appendEntry, readJournal, journalHead, queryJournal, latestCheckpoint } from '../journal.mjs';
 import { runVerification, completionGate } from '../verify.mjs';
 import { doctor } from '../doctor.mjs';
-import { publicError } from '../errors.mjs';
+import { PACKAGE_ROOT } from '../setup.mjs';
+import { insist, publicError } from '../errors.mjs';
+
+const MAX_LINE_BYTES = 1024 * 1024;
 
 /**
  * 8 Core Steward MCP Tools definition.
@@ -35,6 +39,9 @@ export const STEWARD_TOOLS = [
             properties: {
                 type: { type: 'string', enum: ['decision', 'question', 'knowledge', 'goal', 'checkpoint', 'schedule', 'handoff', 'verification'] },
                 text: { type: 'string', description: 'Search text within journal records.' },
+                tag: { type: 'string', description: 'Filter by tag.' },
+                since: { type: 'string', description: 'Filter records created on or after ISO timestamp.' },
+                until: { type: 'string', description: 'Filter records created on or before ISO timestamp.' },
                 limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
                 history: { type: 'boolean', default: false, description: 'Include superseded and expired records.' },
                 recordId: { type: 'string', description: 'Filter by specific record ID.' },
@@ -58,7 +65,8 @@ export const STEWARD_TOOLS = [
                     },
                     required: ['kind', 'reference', 'quote']
                 },
-                supersedes: { type: 'string', description: 'SHA-256 hash of a prior decision record being replaced, or null.' }
+                supersedes: { type: 'string', description: 'SHA-256 hash of a prior decision record being replaced, or null.' },
+                tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
             },
             required: ['statement', 'authority']
         }
@@ -72,7 +80,8 @@ export const STEWARD_TOOLS = [
                 summary: { type: 'string', description: 'Concise summary of progress made so far.' },
                 next: { type: 'string', description: 'Concrete next action to execute.' },
                 blockers: { type: 'array', items: { type: 'string' }, description: 'Any blocking issues or open questions.' },
-                sessionId: { type: 'string', description: 'Optional session identifier to bind checkpoint restoration.' }
+                sessionId: { type: 'string', description: 'Optional session identifier to bind checkpoint restoration.' },
+                tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
             },
             required: ['summary', 'next']
         }
@@ -114,7 +123,8 @@ export const STEWARD_TOOLS = [
                         required: ['reference', 'checkedAt']
                     }
                 },
-                expiresAt: { type: 'string', description: 'Optional ISO timestamp after which this knowledge expires.' }
+                expiresAt: { type: 'string', description: 'Optional ISO timestamp after which this knowledge expires.' },
+                tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
             },
             required: ['claim', 'basis']
         }
@@ -130,7 +140,8 @@ export const STEWARD_TOOLS = [
                 status: { type: 'string', enum: ['planned', 'staged', 'completed', 'cancelled'] },
                 members: { type: 'array', items: { type: 'string' }, description: 'Responsible agents or users.' },
                 id: { type: 'string', description: 'Optional stable identifier for schedule tracking.' },
-                supersedes: { type: ['string', 'null'], description: 'Optional SHA-256 hash of previous schedule version being replaced, or null.' }
+                supersedes: { type: ['string', 'null'], description: 'Optional SHA-256 hash of previous schedule version being replaced, or null.' },
+                tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
             },
             required: ['title', 'dueAt', 'status']
         }
@@ -152,14 +163,17 @@ export const STEWARD_RESOURCES = [
  * Executes the steward_policy_eval tool.
  */
 function executePolicyEval(root, args) {
-    const { policy } = loadBundle(root);
-    const eventObj = {
-        event: args.event || 'prompt',
-        text: args.text || '',
-        tool: args.event === 'tool' ? (args.tool || 'generic') : null,
-        paths: Array.isArray(args.paths) ? args.paths : [],
-        sessionId: args.sessionId || null
+    root = rootOf(root);
+    const { policy } = requireTrust(root);
+    insist(args && typeof args === 'object' && !Array.isArray(args), 'SCHEMA', 'Tool arguments must be an object.');
+    const raw = {
+        event: args.event,
+        text: args.text,
+        tool: args.event === 'tool' ? (args.tool ?? 'generic') : (args.tool ?? null),
+        paths: args.paths ?? [],
+        sessionId: args.sessionId ?? null
     };
+    const eventObj = normalizeInput('generic', raw, root);
     return evaluate(policy, eventObj);
 }
 
@@ -170,6 +184,9 @@ function executeRecall(root, args) {
     return queryJournal(root, {
         type: args.type,
         text: args.text,
+        tag: args.tag,
+        since: args.since,
+        until: args.until,
         limit: args.limit,
         history: args.history,
         recordId: args.recordId,
@@ -184,10 +201,11 @@ async function executeCheckpoint(root, args) {
     const checkpointData = {
         summary: args.summary,
         next: args.next,
-        blockers: Array.isArray(args.blockers) ? args.blockers : []
+        blockers: Array.isArray(args.blockers) ? args.blockers : [],
+        ...(args.tags !== undefined ? { tags: args.tags } : {})
     };
-    if (args.sessionId) {
-        const { sha256 } = await import('../fs.mjs');
+    if (args.sessionId !== undefined && args.sessionId !== null) {
+        insist(typeof args.sessionId === 'string' && args.sessionId.trim() && args.sessionId.length <= 256, 'USAGE', 'Invalid session ID.');
         checkpointData.session = sha256(args.sessionId);
     }
     return appendEntry(root, {
@@ -204,7 +222,8 @@ async function executeScheduleManage(root, args) {
         title: args.title,
         dueAt: args.dueAt,
         status: args.status,
-        members: Array.isArray(args.members) ? args.members : []
+        members: Array.isArray(args.members) ? args.members : [],
+        ...(args.tags !== undefined ? { tags: args.tags } : {})
     };
     if (args.id) {
         schedData.id = args.id;
@@ -226,7 +245,8 @@ const TOOL_DISPATCHERS = {
         data: {
             statement: args.statement,
             authority: args.authority,
-            supersedes: args.supersedes ?? null
+            supersedes: args.supersedes ?? null,
+            ...(args.tags !== undefined ? { tags: args.tags } : {})
         }
     }),
     steward_checkpoint: (root, args) => executeCheckpoint(root, args),
@@ -238,7 +258,8 @@ const TOOL_DISPATCHERS = {
             claim: args.claim,
             basis: args.basis,
             sources: Array.isArray(args.sources) ? args.sources : [],
-            expiresAt: args.expiresAt ?? null
+            expiresAt: args.expiresAt ?? null,
+            ...(args.tags !== undefined ? { tags: args.tags } : {})
         }
     }),
     steward_schedule_manage: (root, args) => executeScheduleManage(root, args)
@@ -253,20 +274,19 @@ const TOOL_DISPATCHERS = {
  * @returns {Promise<object>} Result payload.
  */
 export async function executeTool(root, name, args = {}) {
+    root = rootOf(root);
     const handler = TOOL_DISPATCHERS[name];
-    if (!handler) {
-        throw new Error(`Unknown MCP tool: ${name}`);
-    }
-    return handler(root, args);
+    insist(handler, 'USAGE', `Unknown MCP tool: ${name}`);
+    return handler(root, args || {});
 }
 
 const RESOURCE_HANDLERS = {
     'steward://policy': (root, uri) => {
-        const { policy } = loadBundle(root);
+        const { policy } = requireTrust(root);
         return { uri, mimeType: 'application/json', text: JSON.stringify(policy, null, 2) };
     },
     'steward://verification-plan': (root, uri) => {
-        const { plan } = loadBundle(root);
+        const { plan } = requireTrust(root);
         return { uri, mimeType: 'application/json', text: JSON.stringify(plan, null, 2) };
     },
     'steward://journal/head': (root, uri) => {
@@ -291,10 +311,9 @@ const RESOURCE_HANDLERS = {
  * @returns {object} Resource contents.
  */
 export function readResource(root, uri) {
+    root = rootOf(root);
     const handler = RESOURCE_HANDLERS[uri];
-    if (!handler) {
-        throw new Error(`Unknown MCP resource: ${uri}`);
-    }
+    insist(handler, 'USAGE', `Unknown MCP resource: ${uri}`);
     return handler(root, uri);
 }
 
@@ -339,10 +358,11 @@ function handleResourcesRead(root, id, params) {
             result: { contents: [resource] }
         };
     } catch (err) {
+        const e = publicError(err);
         return {
             jsonrpc: '2.0',
             id,
-            error: { code: -32002, message: err.message }
+            error: { code: -32002, message: `Steward Error [${e.code}]: ${e.message}` }
         };
     }
 }
@@ -355,10 +375,21 @@ function handleResourcesRead(root, id, params) {
  * @returns {Promise<object|null>} JSON-RPC response or null.
  */
 export async function handleMcpMessage(root, req) {
-    if (!req || typeof req !== 'object') {
+    if (!req || typeof req !== 'object' || Array.isArray(req)) {
         return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } };
     }
     const { id, method, params } = req;
+    const validId = id === undefined || id === null || typeof id === 'string' || (typeof id === 'number' && Number.isFinite(id));
+    const responseId = (typeof id === 'string' || (typeof id === 'number' && Number.isFinite(id))) ? id : null;
+    if (
+        !validId ||
+        req.jsonrpc !== '2.0' ||
+        typeof method !== 'string' ||
+        !method.trim() ||
+        (params !== undefined && (typeof params !== 'object' || params === null))
+    ) {
+        return { jsonrpc: '2.0', id: responseId, error: { code: -32600, message: 'Invalid Request' } };
+    }
 
     // Notifications require no response
     if (id === undefined || id === null) {
@@ -366,6 +397,7 @@ export async function handleMcpMessage(root, req) {
     }
 
     try {
+        root = rootOf(root);
         switch (method) {
             case 'initialize': {
                 return {
@@ -416,10 +448,11 @@ export async function handleMcpMessage(root, req) {
             }
         }
     } catch (err) {
+        const e = publicError(err);
         return {
             jsonrpc: '2.0',
             id,
-            error: { code: -32603, message: `Internal error: ${err.message}` }
+            error: { code: -32603, message: `Internal error [${e.code}]: ${e.message}` }
         };
     }
 }
@@ -440,7 +473,7 @@ export function formatMcpConfig({ host = 'claude', project = process.cwd(), runn
     } catch {
         resolvedRoot = path.resolve(project);
     }
-    const resolvedRunner = runner ? path.resolve(runner) : path.resolve(resolvedRoot, 'bin/steward.mjs');
+    const resolvedRunner = runner ? path.resolve(runner) : path.resolve(PACKAGE_ROOT, 'bin/steward.mjs');
 
     const serverDef = {
         command: process.execPath,
@@ -479,6 +512,8 @@ export function formatMcpConfig({ host = 'claude', project = process.cwd(), runn
 export function startMcpServer(root, { inStream = process.stdin, outStream = process.stdout } = {}) {
     root = rootOf(root);
     let buffer = '';
+    let bufferBytes = 0;
+    let discardingOversized = false;
 
     return new Promise((resolve) => {
         let isClosed = false;
@@ -488,6 +523,13 @@ export function startMcpServer(root, { inStream = process.stdin, outStream = pro
             if (!isClosed) {
                 isClosed = true;
                 resolve();
+            }
+        };
+
+        const writeParseError = (message = 'Parse error') => {
+            const parseErr = { jsonrpc: '2.0', id: null, error: { code: -32700, message } };
+            if (!isClosed && !outStream.destroyed) {
+                outStream.write(JSON.stringify(parseErr) + '\n');
             }
         };
 
@@ -504,10 +546,7 @@ export function startMcpServer(root, { inStream = process.stdin, outStream = pro
             try {
                 message = JSON.parse(trimmed);
             } catch {
-                const parseErr = { jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } };
-                if (!isClosed && !outStream.destroyed) {
-                    outStream.write(JSON.stringify(parseErr) + '\n');
-                }
+                writeParseError('Parse error');
                 return;
             }
 
@@ -517,7 +556,9 @@ export function startMcpServer(root, { inStream = process.stdin, outStream = pro
                     outStream.write(JSON.stringify(response) + '\n');
                 }
             } catch (err) {
-                const internalErr = { jsonrpc: '2.0', id: message?.id ?? null, error: { code: -32603, message: `Internal error: ${err.message}` } };
+                const e = publicError(err);
+                const respId = (typeof message?.id === 'string' || (typeof message?.id === 'number' && Number.isFinite(message.id))) ? message.id : null;
+                const internalErr = { jsonrpc: '2.0', id: respId, error: { code: -32603, message: `Internal error [${e.code}]: ${e.message}` } };
                 if (!isClosed && !outStream.destroyed) {
                     outStream.write(JSON.stringify(internalErr) + '\n');
                 }
@@ -525,22 +566,71 @@ export function startMcpServer(root, { inStream = process.stdin, outStream = pro
         }
 
         inStream.on('data', (chunk) => {
-            buffer += chunk;
-            const lines = buffer.split('\n');
-            buffer = lines.pop(); // Retain remainder in buffer
+            const str = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+            const nlIdx = str.indexOf('\n');
+            if (nlIdx === -1) {
+                if (discardingOversized) return;
+                const chunkBytes = Buffer.byteLength(str, 'utf8');
+                if (bufferBytes + chunkBytes > MAX_LINE_BYTES) {
+                    buffer = '';
+                    bufferBytes = 0;
+                    discardingOversized = true;
+                } else {
+                    buffer += str;
+                    bufferBytes += chunkBytes;
+                }
+                return;
+            }
 
-            for (const line of lines) {
-                queue = queue.then(() => processLine(line)).catch(() => {});
+            const parts = str.split('\n');
+            const firstPart = parts[0];
+            const firstBytes = Buffer.byteLength(firstPart, 'utf8');
+            if (discardingOversized || bufferBytes + firstBytes > MAX_LINE_BYTES) {
+                buffer = '';
+                bufferBytes = 0;
+                discardingOversized = false;
+                queue = queue.then(() => writeParseError('Parse error: message exceeds 1 MiB limit')).catch(() => {});
+            } else {
+                const fullLine = buffer + firstPart;
+                buffer = '';
+                bufferBytes = 0;
+                queue = queue.then(() => processLine(fullLine)).catch(() => {});
+            }
+
+            for (let i = 1; i < parts.length - 1; i++) {
+                const line = parts[i];
+                if (Buffer.byteLength(line, 'utf8') > MAX_LINE_BYTES) {
+                    queue = queue.then(() => writeParseError('Parse error: message exceeds 1 MiB limit')).catch(() => {});
+                } else {
+                    queue = queue.then(() => processLine(line)).catch(() => {});
+                }
+            }
+
+            const tail = parts[parts.length - 1];
+            const tailBytes = Buffer.byteLength(tail, 'utf8');
+            if (tailBytes > MAX_LINE_BYTES) {
+                buffer = '';
+                bufferBytes = 0;
+                discardingOversized = true;
+            } else {
+                buffer = tail;
+                bufferBytes = tailBytes;
+                discardingOversized = false;
             }
         });
 
         inStream.on('end', () => {
-            if (buffer.trim()) {
+            if (discardingOversized) {
+                discardingOversized = false;
+                queue = queue.then(() => writeParseError('Parse error: message exceeds 1 MiB limit')).catch(() => {});
+            } else if (buffer.trim()) {
                 const remaining = buffer;
                 buffer = '';
+                bufferBytes = 0;
                 queue = queue.then(() => processLine(remaining)).catch(() => {});
             }
             queue.then(close).catch(close);
         });
     });
 }
+
