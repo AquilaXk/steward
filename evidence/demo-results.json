@@ -1,76 +1,70 @@
 {
-  "command": "npm run demo",
-  "exitCode": 0,
-  "collectedAt": "2026-10-17T12:31:02.624Z",
-  "result": {
+  "pass": true,
+  "isolated": true,
+  "syntheticFixture": true,
+  "promptRulesPrepared": [
+    "finish-the-task",
+    "report-real-evidence"
+  ],
+  "codexAliasDenied": true,
+  "compactionFileWritten": true,
+  "checkpointRestored": true,
+  "verification": {
     "pass": true,
-    "isolated": true,
-    "syntheticFixture": true,
-    "promptRulesPrepared": [
-      "finish-the-task",
-      "report-real-evidence"
+    "checks": [
+      {
+        "id": "cost-contract",
+        "status": "pass"
+      }
     ],
-    "codexAliasDenied": true,
-    "compactionFileWritten": true,
-    "checkpointRestored": true,
-    "verification": {
-      "pass": true,
-      "checks": [
+    "journalRecords": 3
+  },
+  "changedSourceRejected": true,
+  "audit": {
+    "receipts": 4,
+    "denied": 1,
+    "emitted": {
+      "finish-the-task": 1,
+      "report-real-evidence": 1
+    },
+    "stage": "prepared",
+    "hostAcknowledged": false,
+    "current": {
+      "bundleHash": "305f881372fcfc3dbb775cc2eb6ce5ce5f59f0545cb3ac81138a23c77fe020ed",
+      "receipts": 4,
+      "rules": [
         {
-          "id": "cost-contract",
-          "status": "pass"
+          "id": "finish-the-task",
+          "effect": "inject",
+          "matched": 1,
+          "emitted": 1,
+          "omitted": 0,
+          "lastPreparedAt": "2026-10-17T15:31:56.562Z"
+        },
+        {
+          "id": "report-real-evidence",
+          "effect": "inject",
+          "matched": 1,
+          "emitted": 1,
+          "omitted": 0,
+          "lastPreparedAt": "2026-10-17T15:31:56.562Z"
+        },
+        {
+          "id": "protect-policy",
+          "effect": "deny",
+          "matched": 1,
+          "emitted": 0,
+          "omitted": 0,
+          "lastPreparedAt": null
         }
       ],
-      "journalRecords": 3
+      "neverEmitted": []
     },
-    "changedSourceRejected": true,
-    "audit": {
-      "receipts": 4,
-      "denied": 1,
-      "emitted": {
-        "finish-the-task": 1,
-        "report-real-evidence": 1
-      },
-      "stage": "prepared",
-      "hostAcknowledged": false,
-      "current": {
-        "bundleHash": "305f881372fcfc3dbb775cc2eb6ce5ce5f59f0545cb3ac81138a23c77fe020ed",
-        "receipts": 4,
-        "rules": [
-          {
-            "id": "finish-the-task",
-            "effect": "inject",
-            "matched": 1,
-            "emitted": 1,
-            "omitted": 0,
-            "lastPreparedAt": "2026-10-17T12:31:14.277Z"
-          },
-          {
-            "id": "report-real-evidence",
-            "effect": "inject",
-            "matched": 1,
-            "emitted": 1,
-            "omitted": 0,
-            "lastPreparedAt": "2026-10-17T12:31:14.277Z"
-          },
-          {
-            "id": "protect-policy",
-            "effect": "deny",
-            "matched": 1,
-            "emitted": 0,
-            "omitted": 0,
-            "lastPreparedAt": null
-          }
-        ],
-        "neverEmitted": []
-      },
-      "retention": {
-        "limit": 20000,
-        "remaining": 19996
-      }
-    },
-    "liveHostInvoked": false,
-    "modelApiCalls": 0
+    "retention": {
+      "limit": 20000,
+      "remaining": 19996
+    }
   },
-  "rawOutput": "\n> steward@0.2.0 demo\n> node scripts/demo.mjs\n\n{\n  \"pass\": true,\n  \"isolated\": true,\n  \"syntheticFixture\": true,\n  \"promptRulesPrepared\": [\n    \"finish-the-task\",\n    \"report-real-evidence\"\n  ],\n  \"codexAliasDenied\": true,\n  \"compactionFileWritten\": true,\n  \"checkpointRestored\": true,\n  \"verification\": {\n    \"pass\": true,\n    \"checks\": [\n      {\n        \"id\": \"cost-contract\",\n        \"status\": \"pass\"\n      }\n    ],\n    \"journalRecords\": 3\n  },\n  \"changedSourceRejected\": true,\n  \"audit\": {\n    \"receipts\": 4,\n    \"denied\": 1,\n    \"emitted\": {\n      \"finish-the-task\": 1,\n      \"report-real-evidence\": 1\n    },\n    \"stage\": \"prepared\",\n    \"hostAcknowledged\": false,\n    \"current\": {\n      \"bundleHash\": \"305f881372fcfc3dbb775cc2eb6ce5ce5f59f0545cb3ac81138a23c77fe020ed\",\n      \"receipts\": 4,\n      \"rules\": [\n        {\n          \"id\": \"finish-the-task\",\n          \"effect\": \"inject\",\n          \"matched\": 1,\n          \"emitted\": 1,\n          \"omitted\": 0,\n          \"lastPreparedAt\": \"2026-10-17T12:31:14.277Z\"\n        },\n        {\n          \"id\": \"report-real-evidence\",\n          \"effect\": \"inject\",\n          \"matched\": 1,\n          \"emitted\": 1,\n          \"omitted\": 0,\n          \"lastPreparedAt\": \"2026-10-17T12:31:14.277Z\"\n        },\n        {\n          \"id\": \"protect-policy\",\n          \"effect\": \"deny\",\n          \"matched\": 1,\n          \"emitted\": 0,\n          \"omitted\": 0,\n          \"lastPreparedAt\": null\n        }\n      ],\n      \"neverEmitted\": []\n    },\n    \"retention\": {\n      \"limit\": 20000,\n      \"remaining\": 19996\n    }\n  },\n  \"liveHostInvoked\": false,\n  \"modelApiCalls\": 0\n}\n"
+  "liveHostInvoked": false,
+  "modelApiCalls": 0
 }

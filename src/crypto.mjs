@@ -107,7 +107,7 @@ function validateSafeKeyInput(input, label = 'Key') {
     try {
         stat = fs.lstatSync(resolved); //NOSONAR
     } catch (err) {
-        if (err && err.code === 'ENOENT') {
+        if (err?.code === 'ENOENT') {
             throw new StewardError('CRYPTO_ERROR', `${label} does not exist: ${resolved}`);
         }
         throw err;
@@ -192,15 +192,7 @@ export function loadKeypair(input) {
     return resolveKeyPem(resolved, 'file');
 }
 
-/**
- * Safely saves an Ed25519 keypair to an output directory, protecting against symlink overwrites
- * and enforcing strict 0600 permissions on the private key.
- *
- * @param {string} outDir - Output directory path.
- * @param {{ privateKeyPem: string, publicKeyPem: string, keyId?: string }} keyPair - Key pair to save.
- * @returns {{ out: string, privPath: string, pubPath: string, keyId: string }} Saved paths and key ID.
- */
-export function saveKeypair(outDir, keyPair) {
+function validateSaveKeypairInputs(outDir, keyPair) {
     if (typeof outDir !== 'string' || !outDir.trim()) {
         throw new StewardError('USAGE', 'Output directory is required.');
     }
@@ -213,35 +205,40 @@ export function saveKeypair(outDir, keyPair) {
     if (typeof keyPair.privateKeyPem !== 'string' || typeof keyPair.publicKeyPem !== 'string') {
         throw new StewardError('CRYPTO_ERROR', 'Invalid keypair PEM data.');
     }
+}
 
-    const baseDir = path.resolve(outDir);
-    if (!path.isAbsolute(baseDir)) {
-        throw new StewardError('BAD_PATH', 'Expected absolute output directory.');
-    }
-
+function assertExistingTargetIsSafe(targetPath, expectDirectory) {
     try {
-        const dirStat = fs.lstatSync(baseDir); //NOSONAR
-        if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) {
-            throw new StewardError('BAD_FILE', 'Output directory must be a regular directory, not a symbolic link.');
+        const st = fs.lstatSync(targetPath); //NOSONAR
+        const validKind = expectDirectory ? st.isDirectory() : st.isFile();
+        if (st.isSymbolicLink() || !validKind) {
+            const msg = expectDirectory
+                ? 'Output directory must be a regular directory, not a symbolic link.'
+                : 'Refusing to overwrite symbolic link or non-regular file.';
+            throw new StewardError('BAD_FILE', msg);
         }
     } catch (err) {
-        if (err instanceof StewardError || err.code !== 'ENOENT') throw err;
+        if (err instanceof StewardError || err?.code !== 'ENOENT') throw err;
     }
+}
+
+/**
+ * Safely saves an Ed25519 keypair to an output directory, protecting against symlink overwrites
+ * and enforcing strict 0600 permissions on the private key.
+ *
+ * @param {string} outDir - Output directory path.
+ * @param {{ privateKeyPem: string, publicKeyPem: string, keyId?: string }} keyPair - Key pair to save.
+ * @returns {{ out: string, privPath: string, pubPath: string, keyId: string }} Saved paths and key ID.
+ */
+export function saveKeypair(outDir, keyPair) {
+    validateSaveKeypairInputs(outDir, keyPair);
+    const baseDir = path.resolve(outDir);
+    assertExistingTargetIsSafe(baseDir, true);
 
     const { privPath, pubPath } = resolveKeypairPaths(baseDir);
-
     fs.mkdirSync(baseDir, { recursive: true, mode: 0o700 }); //NOSONAR
-
-    for (const target of [privPath, pubPath]) {
-        try {
-            const st = fs.lstatSync(target); //NOSONAR
-            if (st.isSymbolicLink() || !st.isFile()) {
-                throw new StewardError('BAD_FILE', 'Refusing to overwrite symbolic link or non-regular file.');
-            }
-        } catch (err) {
-            if (err instanceof StewardError || err.code !== 'ENOENT') throw err;
-        }
-    }
+    assertExistingTargetIsSafe(privPath, false);
+    assertExistingTargetIsSafe(pubPath, false);
 
     fs.writeFileSync(privPath, keyPair.privateKeyPem, { mode: 0o600 }); //NOSONAR
     fs.chmodSync(privPath, 0o600); //NOSONAR

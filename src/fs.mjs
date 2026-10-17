@@ -3,11 +3,18 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { insist, StewardError } from './errors.mjs';
 export const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+function compareAscii(a, b) {
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+}
 export function canonical(value) {
     if (Array.isArray(value))
         return '[' + value.map(canonical).join(',') + ']';
-    if (value !== null && typeof value === 'object')
-        return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}';
+    if (value !== null && typeof value === 'object') {
+        const keys = Object.keys(value).sort(compareAscii);
+        return '{' + keys.map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}';
+    }
     return JSON.stringify(value);
 }
 export function rootOf(project) {
@@ -76,51 +83,44 @@ export function atomicWrite(root, relative, text, { replace = false } = {}) {
             fs.unlinkSync(temp);
         }
     }
-    finally {
-        if (fd !== undefined)
-            fs.closeSync(fd);
-        try {
-            fs.unlinkSync(temp);
+    catch (error) {
+        if (fd !== undefined) {
+            try { fs.closeSync(fd); } catch {}
         }
-        catch (e) {
-            if (e.code !== 'ENOENT')
-                throw e;
-        }
+        try { fs.unlinkSync(temp); } catch {}
+        throw error;
     }
 }
-async function removeLockDir(lock) {
+async function removeLockDir(lock, retry = 0) {
     const maxRetries = process.platform === 'win32' ? 5 : 1;
-    for (let retry = 0; retry < maxRetries; retry++) {
-        try {
-            fs.rmdirSync(lock);
+    try {
+        fs.rmdirSync(lock);
+    }
+    catch (e) {
+        if (e.code === 'ENOENT' || retry + 1 >= maxRetries)
             return;
-        }
-        catch (e) {
-            if (e.code === 'ENOENT')
-                return;
-            if (retry + 1 < maxRetries)
-                await new Promise(r => setTimeout(r, 10 * (retry + 1)));
-        }
+        await new Promise(r => setTimeout(r, 10 * (retry + 1)));
+        await removeLockDir(lock, retry + 1);
     }
 }
-
+async function acquireLockDir(lock, end) {
+    try {
+        fs.mkdirSync(lock, { mode: 0o700 });
+    }
+    catch (e) {
+        const isLockContention = e.code === 'EEXIST' || (process.platform === 'win32' && (e.code === 'EPERM' || e.code === 'EACCES'));
+        if (!isLockContention)
+            throw e;
+        insist(Date.now() < end, 'LOCKED', 'Another writer holds the lock. A crashed-writer lock requires explicit operator recovery.');
+        await new Promise(r => setTimeout(r, 15));
+        await acquireLockDir(lock, end);
+    }
+}
 export async function withLock(root, relative, fn, timeoutMs = 5000) {
     const lock = safePath(root, relative);
     mkdir(root, path.relative(root, path.dirname(lock)) || '.');
     const end = Date.now() + timeoutMs;
-    for (;;) {
-        try {
-            fs.mkdirSync(lock, { mode: 0o700 });
-            break;
-        }
-        catch (e) {
-            const isLockContention = e.code === 'EEXIST' || (process.platform === 'win32' && (e.code === 'EPERM' || e.code === 'EACCES'));
-            if (!isLockContention)
-                throw e;
-            insist(Date.now() < end, 'LOCKED', 'Another writer holds the lock. A crashed-writer lock requires explicit operator recovery.');
-            await new Promise(r => setTimeout(r, 15));
-        }
-    }
+    await acquireLockDir(lock, end);
     try {
         return await fn();
     }
@@ -152,8 +152,15 @@ export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
     visit(root);
     return result;
 }
+function trimTrailingSlashes(value) {
+    let end = value.length;
+    while (end > 0 && value.codePointAt(end - 1) === 47) {
+        end--;
+    }
+    return end === value.length ? value : value.slice(0, end);
+}
 export function snapshot(root, extraExcludes = []) {
-    const normalizedExcludes = extraExcludes.map(x => String(x).replace(/\/+$/, '')).filter(Boolean);
+    const normalizedExcludes = extraExcludes.map(x => trimTrailingSlashes(String(x))).filter(Boolean);
     const files = walk(root, {
         exclude: (p, entry) =>
             entry.name === '.git' ||

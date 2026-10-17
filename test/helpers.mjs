@@ -25,10 +25,15 @@ export function sandbox(t, { trusted = true, plan = null } = {}) {
         trustBundle(root, loadBundle(root).hash);
     return { root, temp, trustHome: process.env.STEWARD_TRUST_HOME };
 }
+function formatCliInput(input) {
+    if (typeof input === 'string') return input;
+    if (input === undefined) return '';
+    return JSON.stringify(input);
+}
 export function write(root, relative, value) { const p = path.join(root, relative); fs.mkdirSync(path.dirname(p), { recursive: true }); fs.writeFileSync(p, typeof value === 'string' ? value : JSON.stringify(value, null, 2)); }
-export function cli(root, args, input) { return spawnSync(process.execPath, [path.join(PACKAGE, 'bin/steward.mjs'), ...args, '--project', root], { encoding: 'utf8', input: typeof input === 'string' ? input : input === undefined ? '' : JSON.stringify(input), env: process.env, timeout: 15000 }); }
+export function cli(root, args, input) { return spawnSync(process.execPath, [path.join(PACKAGE, 'bin/steward.mjs'), ...args, '--project', root], { encoding: 'utf8', input: formatCliInput(input), env: process.env, timeout: 15000 }); }
 export const event = (text = 'hello') => ({ event: 'prompt', text, tool: null, paths: [], sessionId: null });
 export const rule = (extra = {}) => ({ id: 'example', on: ['prompt'], effect: 'inject', priority: 100, body: 'Use evidence.', required: false, match: { always: true }, ...extra });
-export const policy = (rules, budget = { bytes: 6000, rules: 12 }) => ({ version: 1, budget, rules });
+export const policy = (rules, budget) => ({ version: 1, budget: budget ?? { bytes: 6000, rules: 12 }, rules });
 export const plan = (code = 'process.exit(0)', extra = {}) => ({ version: 1, maxAgeSeconds: 3600, checks: [{ id: 'focused', description: 'A controlled verification fixture.', argv: ['node', '-e', code], timeoutMs: 2000, ...extra }] });
 export const checkpoint = { type: 'checkpoint', data: { summary: 'Parser fixed; local test passed.', next: 'Check the consumer contract.', blockers: [] } };

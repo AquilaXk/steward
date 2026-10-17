@@ -14,15 +14,48 @@ import * as publicApi from '../src/index.mjs';
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const json = (relative) => JSON.parse(read(relative));
+function extractHeadingTitle(line) {
+    let hashes = 0;
+    while (hashes < line.length && line.codePointAt(hashes) === 35) hashes++;
+    if (hashes < 1 || hashes > 6 || hashes >= line.length) return null;
+    const nextCode = line.codePointAt(hashes);
+    if (nextCode !== 32 && nextCode !== 9) return null;
+    const title = line.slice(hashes).trim();
+    return title || null;
+}
+function stripMarkdownLinks(text) {
+    let out = '';
+    let i = 0;
+    while (i < text.length) {
+        const openBracket = text.indexOf('[', i);
+        if (openBracket === -1) {
+            out += text.slice(i);
+            break;
+        }
+        const closeBracket = text.indexOf('](', openBracket + 1);
+        const closeParen = closeBracket === -1 ? -1 : text.indexOf(')', closeBracket + 2);
+        if (closeBracket !== -1 && closeParen !== -1) {
+            out += text.slice(i, openBracket) + text.slice(openBracket + 1, closeBracket);
+            i = closeParen + 1;
+        } else {
+            out += text.slice(i, openBracket + 1);
+            i = openBracket + 1;
+        }
+    }
+    return out;
+}
+function compareAscii(a, b) {
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+}
 function headingSlugs(markdown) {
     const slugs = new Set();
     const counts = new Map();
     for (const line of markdown.split(/\r?\n/)) {
-        const m = /^#{1,6}\s+(.+?)\s*$/.exec(line);
-        if (!m) continue;
-        const base = m[1]
-            .replace(/`([^`]+)`/g, '$1')
-            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+        const rawTitle = extractHeadingTitle(line);
+        if (!rawTitle) continue;
+        const base = stripMarkdownLinks(rawTitle.replaceAll('`', ''))
             .toLowerCase()
             .replace(/[^\p{L}\p{N}\s_-]/gu, '')
             .trim()
@@ -110,7 +143,7 @@ try {
     }
     const dts = read('index.d.ts');
     for (const symbolName of Object.keys(publicApi)) {
-        assert.match(dts, new RegExp(`export\\s+(?:declare\\s+)?(?:const|function|class)\\s+${symbolName}\\b`), `Missing symbol in index.d.ts: ${symbolName}`);
+        assert.match(dts, new RegExp(String.raw`export\s+(?:declare\s+)?(?:const|function|class)\s+${symbolName}\b`), `Missing symbol in index.d.ts: ${symbolName}`);
     }
     const journalSchema = json('schemas/journal-entry.schema.json');
     assert.deepEqual(journalSchema.oneOf.map(b => b.properties.type.const), RECORD_TYPES, 'Journal entry schema types drifted from RECORD_TYPES.');
@@ -161,7 +194,6 @@ try {
     assert.equal(checkEvidence.result.jsonFiles, jsonFiles.length, 'evidence/check-results.json jsonFiles drifted.');
     assert.equal(checkEvidence.result.skills, skills.length, 'evidence/check-results.json skills drifted.');
     assert.equal(checkEvidence.result.localLinks, localLinks, 'evidence/check-results.json localLinks drifted.');
-    const compareAscii = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
     const sourceManifest = json('evidence/source-manifest.json');
     assert.equal(sourceManifest.version, 1);
     assert.deepEqual(sourceManifest.files.map((item) => item.path), [...all].sort(compareAscii), 'evidence/source-manifest.json file list drifted.');

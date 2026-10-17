@@ -15,22 +15,27 @@ function cleanEnvironment() {
     env.NO_COLOR = '1';
     return env;
 }
+function probeWindowsCandidate(dir, cmd, extensions) {
+    for (const ext of extensions) {
+        const candidate = path.join(dir, cmd + ext);
+        try {
+            if (fs.existsSync(candidate)) return candidate;
+        } catch {}
+    }
+    return null;
+}
+function isBareWindowsCommand(cmd) {
+    return process.platform === 'win32' && !path.extname(cmd) && !cmd.includes('/') && !cmd.includes('\\');
+}
 export function resolveCommand(cmd, env = {}) {
     if (cmd === 'node') return process.execPath;
-    if (process.platform === 'win32' && !path.extname(cmd) && !cmd.includes('/') && !cmd.includes('\\')) {
-        const pathext = (env.PATHEXT || process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';');
-        const pathDirs = (env.PATH || process.env.PATH || '').split(path.delimiter);
-        for (const dir of pathDirs) {
-            for (const rawExt of pathext) {
-                if (!rawExt) continue;
-                for (const ext of new Set([rawExt, rawExt.toLowerCase(), rawExt.toUpperCase()])) {
-                    const candidate = path.join(dir, cmd + ext);
-                    try {
-                        if (fs.existsSync(candidate)) return candidate;
-                    } catch {}
-                }
-            }
-        }
+    if (!isBareWindowsCommand(cmd)) return cmd;
+    const rawExts = (env.PATHEXT || process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
+    const extensions = [...new Set(rawExts.flatMap(ext => [ext, ext.toLowerCase(), ext.toUpperCase()]))];
+    const pathDirs = (env.PATH || process.env.PATH || '').split(path.delimiter);
+    for (const dir of pathDirs) {
+        const hit = probeWindowsCandidate(dir, cmd, extensions);
+        if (hit) return hit;
     }
     return cmd;
 }

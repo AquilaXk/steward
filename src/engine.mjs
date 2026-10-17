@@ -46,11 +46,23 @@ export function matches(r, e, words = null) {
         return false;
     return true;
 }
+function compareMatchedRules(a, b) {
+    const diff = b.priority - a.priority;
+    if (diff !== 0) return diff;
+    if (a.id < b.id) return -1;
+    if (a.id > b.id) return 1;
+    return 0;
+}
+function budgetOmissionReason(emittedCount, candidate, budget) {
+    if (emittedCount >= budget.rules) return 'rule_limit';
+    if (Buffer.byteLength(candidate) > budget.bytes) return 'byte_budget';
+    return null;
+}
 export function evaluate(policy, event) {
     validatePolicy(policy);
     validateEvent(event);
     const words = normalizedWords(event.text);
-    const matched = policy.rules.filter(r => matches(r, event, words)).sort((a, b) => b.priority - a.priority || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+    const matched = policy.rules.filter(r => matches(r, event, words)).sort(compareMatchedRules);
     const denied = matched.filter(r => r.effect === 'deny');
     const base = { decision: 'allow', reason: null, matched: matched.map(r => r.id), emitted: [], omitted: [], context: '', bytes: 0 };
     if (denied.length)
@@ -63,7 +75,7 @@ export function evaluate(policy, event) {
     for (const r of injections) {
         const line = `[${r.id}] ${r.body}\n`;
         const candidate = (context || header) + line;
-        const reason = emitted.length >= policy.budget.rules ? 'rule_limit' : Buffer.byteLength(candidate) > policy.budget.bytes ? 'byte_budget' : null;
+        const reason = budgetOmissionReason(emitted.length, candidate, policy.budget);
         if (reason) {
             omitted.push({ id: r.id, reason });
             continue;

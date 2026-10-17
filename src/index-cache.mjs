@@ -18,7 +18,7 @@ function deepFreeze(value) {
     if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
         Object.freeze(value);
         if (Array.isArray(value)) {
-            for (let i = 0; i < value.length; i++) deepFreeze(value[i]);
+            for (const item of value) deepFreeze(item);
         } else {
             for (const key of Object.keys(value)) deepFreeze(value[key]);
         }
@@ -236,23 +236,15 @@ function parseTimestampBound(value, label) {
  */
 function selectSmallestCandidateSet(rows, index, { type, tag, session, recordId }) {
     let best = rows;
-    if (type !== undefined) {
-        const bucket = index.byType.get(type);
-        if (!bucket || bucket.length === 0) return [];
-        if (bucket.length < best.length) best = bucket;
-    }
-    if (tag !== undefined) {
-        const bucket = index.byTag.get(tag);
-        if (!bucket || bucket.length === 0) return [];
-        if (bucket.length < best.length) best = bucket;
-    }
-    if (session !== undefined) {
-        const bucket = index.bySession.get(session);
-        if (!bucket || bucket.length === 0) return [];
-        if (bucket.length < best.length) best = bucket;
-    }
-    if (recordId !== undefined) {
-        const bucket = index.byRecordId.get(recordId);
+    const lookups = [
+        [type, index.byType],
+        [tag, index.byTag],
+        [session, index.bySession],
+        [recordId, index.byRecordId]
+    ];
+    for (const [key, map] of lookups) {
+        if (key === undefined) continue;
+        const bucket = map.get(key);
         if (!bucket || bucket.length === 0) return [];
         if (bucket.length < best.length) best = bucket;
     }

@@ -2,31 +2,32 @@ name: Automerge
 
 on:
   pull_request:
-    types:
-      - labeled
-      - synchronize
-      - reopened
-      - ready_for_review
-
-permissions:
-  contents: write
-  pull-requests: write
+    types: [labeled, synchronize, reopened, ready_for_review]
+    branches: [main]
 
 concurrency:
   group: automerge-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
 jobs:
   automerge:
-    if: >-
-      github.event.pull_request.draft == false &&
-      contains(github.event.pull_request.labels.*.name, 'automerge')
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - name: Enable squash auto-merge
+      - name: Enable squash auto-merge when labeled
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
+          IS_DRAFT: ${{ github.event.pull_request.draft }}
+          HAS_AUTOMERGE: ${{ contains(github.event.pull_request.labels.*.name, 'automerge') }}
         run: |
-          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash --delete-branch
+          if [[ "$IS_DRAFT" == "true" || "$HAS_AUTOMERGE" != "true" ]]; then
+            echo "Automerge not active on PR #${PR_NUMBER}; exiting cleanly."
+            exit 0
+          fi
+          gh pr merge "$PR_NUMBER" --repo "$GITHUB_REPOSITORY" --auto --squash
