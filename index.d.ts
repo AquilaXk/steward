@@ -9,7 +9,8 @@ export const VERSION: string;
 // Policy Engine & Schema
 // ==========================================
 
-export type RuleEvent = 'prompt' | 'tool' | 'session' | 'compact';
+export type RuleEvent = 'prompt' | 'tool' | 'session';
+export type EventType = RuleEvent | 'compact';
 export type RuleEffect = 'inject' | 'deny';
 
 export interface RuleMatch {
@@ -44,7 +45,7 @@ export interface Policy {
 }
 
 export interface EventInput {
-    event: RuleEvent;
+    event: EventType;
     text: string;
     tool: string | null;
     paths: string[];
@@ -56,6 +57,13 @@ export interface OmittedRule {
     reason: 'byte_budget' | 'rule_limit';
 }
 
+export interface CompactionSnapshot {
+    path: string;
+    count: number;
+    head: string | null;
+    hasCheckpoint: boolean;
+}
+
 export interface EvaluationResult {
     decision: 'allow' | 'deny';
     reason: string | null;
@@ -65,6 +73,7 @@ export interface EvaluationResult {
     context: string;
     bytes: number;
     denied?: string[];
+    snapshot?: CompactionSnapshot;
     simulation?: boolean;
     activated?: boolean;
 }
@@ -75,6 +84,11 @@ export function normalizeTool(name: string): string;
 export function relativePath(root: string, input: string, cwd?: string): string;
 export function validateEvent(event: unknown): EventInput;
 export function validatePolicy(policy: unknown): Policy;
+export function isObject(x: unknown): x is Record<string, unknown>;
+export function object(x: unknown, keys: string[], label: string): void;
+export function text(x: unknown, label: string, max?: number): void;
+export function strings(x: unknown, label: string, options?: { empty?: boolean; max?: number }): void;
+export function date(x: unknown, label: string): void;
 
 // ==========================================
 // Safe Glob & CLI Argument Pattern Matcher
@@ -94,17 +108,18 @@ export function isSafePattern(pattern: string): boolean;
 // Journal & Memory Models
 // ==========================================
 
-export type RecordType =
+export type UserRecordType =
     | 'decision'
     | 'question'
     | 'knowledge'
     | 'goal'
     | 'checkpoint'
     | 'schedule'
-    | 'handoff'
-    | 'verification';
+    | 'handoff';
 
-export const RECORD_TYPES: readonly RecordType[];
+export type RecordType = UserRecordType | 'verification';
+
+export const RECORD_TYPES: readonly UserRecordType[];
 
 export interface DecisionData {
     statement: string;
@@ -114,6 +129,7 @@ export interface DecisionData {
         quote: string;
     };
     supersedes: string | null;
+    tags?: string[];
 }
 
 export interface QuestionData {
@@ -121,6 +137,7 @@ export interface QuestionData {
     assumptions: string[];
     resolution: string | null;
     supersedes: string | null;
+    tags?: string[];
 }
 
 export interface KnowledgeSource {
@@ -133,6 +150,7 @@ export interface KnowledgeData {
     basis: 'source' | 'observation' | 'assumption';
     sources: KnowledgeSource[];
     expiresAt: string | null;
+    tags?: string[];
 }
 
 export interface GoalData {
@@ -140,13 +158,15 @@ export interface GoalData {
     acceptance: string[];
     status: 'active' | 'blocked' | 'complete';
     evidence: string[];
+    tags?: string[];
 }
 
 export interface CheckpointData {
     summary: string;
     next: string;
     blockers: string[];
-    session?: string;
+    session?: string | null;
+    tags?: string[];
 }
 
 export interface ScheduleData {
@@ -156,6 +176,7 @@ export interface ScheduleData {
     members: string[];
     id?: string;
     supersedes?: string | null;
+    tags?: string[];
 }
 
 export interface HandoffData {
@@ -164,7 +185,17 @@ export interface HandoffData {
     constraints: string[];
     acceptance: string[];
     evidence: string[];
+    tags?: string[];
 }
+
+export type JournalEntryData =
+    | DecisionData
+    | QuestionData
+    | KnowledgeData
+    | GoalData
+    | CheckpointData
+    | ScheduleData
+    | HandoffData;
 
 export interface JournalRecord<T = unknown> {
     version: 1;
@@ -202,15 +233,15 @@ export interface JournalQueryResult extends JournalHead {
     limit: number;
     truncated: boolean;
     history: boolean;
-    rows: JournalRecord[];
+    rows: ReadonlyArray<Readonly<JournalRecord>>;
 }
 
-export function appendEntry(root: string, entry: { type: RecordType; data: unknown }): Promise<JournalRecord>;
-export function readJournal(root: string, options?: { anchor?: { count: number; head: string } | null; fresh?: boolean }): JournalRecord[];
+export function appendEntry(root: string, entry: { type: UserRecordType; data: JournalEntryData }): Promise<JournalRecord>;
+export function readJournal(root: string, options?: { anchor?: { count: number; head: string | null } | null; fresh?: boolean }): JournalRecord[];
 export function journalHead(rows: JournalRecord[]): JournalHead;
 export function queryJournal(root: string, options?: JournalQueryOptions): JournalQueryResult;
 export function latestCheckpoint(root: string, sessionId?: string | null): JournalRecord<CheckpointData> | null;
-export function saveCompaction(root: string, sessionId?: string | null): { path: string; count: number; head: string | null; hasCheckpoint: boolean };
+export function saveCompaction(root: string, sessionId?: string | null): CompactionSnapshot;
 export function syncJournalCache(root: string): { rows: JournalRecord[]; cache: unknown };
 export function queryJournalIndexed(root: string, options?: JournalQueryOptions): JournalQueryResult;
 export function invalidateJournalCache(root: string): void;
@@ -272,11 +303,11 @@ export interface CompletionGateResult {
 }
 
 export function validatePlan(plan: unknown): VerificationPlan;
-export function validateEntry(entry: unknown): unknown;
+export function validateEntry(entry: unknown): { type: UserRecordType; data: JournalEntryData };
 export function validateVerification(report: unknown): VerificationReport;
 export function validateJournalRow(row: unknown): JournalRecord;
 export function resolveCommand(cmd: string, env?: Record<string, string | undefined>): string;
-export function runVerification(root: string): Promise<VerificationReport>;
+export function runVerification(root: string): Promise<VerificationReport & { evidence: string }>;
 export function completionGate(root: string, evidence?: string | null): CompletionGateResult;
 
 // ==========================================
@@ -296,18 +327,69 @@ export interface TrustResult {
     bundleHash: string;
 }
 
+export interface HostStatus {
+    host: 'codex' | 'claude';
+    status: 'not-installed' | 'broken' | 'configured';
+    nativeStatus: string;
+    problems: string[];
+}
+
+export interface InstructionFinding {
+    code: string;
+    line: number;
+}
+
+export interface InstructionFileReport {
+    path: string;
+    sha256: string;
+    bytes: number;
+    findings: InstructionFinding[];
+}
+
+export interface InstructionsAuditResult {
+    files: InstructionFileReport[];
+    inventoryHash: string;
+    findingCount: number;
+    completeSecurityReview: boolean;
+}
+
 export interface DoctorResult {
-    root: string;
-    host: string | null;
+    healthy: boolean;
     localHealthy: boolean;
-    checks: Array<{ name: string; status: 'ok' | 'fail' | 'warn'; message: string }>;
+    status: 'unchecked' | 'needs-attention';
+    bundleHash: string;
+    journal: JournalHead;
+    instructions: InstructionsAuditResult;
+    hosts: HostStatus[];
+    liveHostVerified: boolean;
+    next: string;
+}
+
+export interface AuditRuleSummary {
+    id: string;
+    effect: RuleEffect;
+    matched: number;
+    emitted: number;
+    omitted: number;
+    lastPreparedAt: string | null;
 }
 
 export interface AuditReport {
-    bundle: { hash: string; ruleCount: number };
-    capacity: { usedBytes: number; maxBytes: number; fileCount: number };
-    activeRules: Array<{ id: string; effect: RuleEffect; required: boolean }>;
-    summary: { evaluatedEvents: number; emittedRules: number; deniedEvents: number };
+    receipts: number;
+    denied: number;
+    emitted: Record<string, number>;
+    stage: 'prepared';
+    hostAcknowledged: boolean;
+    current: {
+        bundleHash: string;
+        receipts: number;
+        rules: AuditRuleSummary[];
+        neverEmitted: string[];
+    };
+    retention: {
+        limit: number;
+        remaining: number;
+    };
 }
 
 export function loadBundle(root: string): TrustBundle;
@@ -318,7 +400,7 @@ export function projectKey(root: string): string;
 export function doctor(root: string, host?: string | null): DoctorResult;
 export function report(root: string): AuditReport;
 export function pruneAudit(root: string, options?: { keep?: number }): { deleted: number; remaining: number };
-export function auditInstructions(root: string): { files: string[]; issues: string[] };
+export function auditInstructions(root: string): InstructionsAuditResult;
 
 // ==========================================
 // Host Adapters & Hooks
@@ -334,9 +416,9 @@ export interface EncodedOutput {
 }
 
 export function normalizeInput(host: HostType, raw: unknown, root: string, expectedEvent?: string | null): EventInput;
-export function encode(host: HostType, event: RuleEvent, result: EvaluationResult): EncodedOutput;
-export function eventKind(hostEvent: string): RuleEvent;
-export function handleHook(root: string, host: HostType, input: unknown, expectedEvent?: string | null): { event: EventInput; evaluation: EvaluationResult; encoded: EncodedOutput };
+export function encode(host: HostType, event: EventType, result: EvaluationResult): EncodedOutput;
+export function eventKind(hostEvent?: string | null): EventType;
+export function handleHook(root: string, host: HostType, input: unknown, expectedEvent?: string | null): { result: EvaluationResult; encoded: EncodedOutput; receipt: string };
 
 // ==========================================
 // MCP Server Adapter
@@ -408,16 +490,39 @@ export function resolveKeyPem(input: string): string;
 export function loadKeypair(input: string): string | { privateKeyPem: string; publicKeyPem: string; keyId: string };
 export function saveKeypair(outDir: string, keyPair: { privateKeyPem: string; publicKeyPem: string; keyId?: string }): { out: string; privPath: string; pubPath: string; keyId: string };
 export function signBundle(root: string, privateKeyPem: string): SignatureRecord;
-export function verifyBundleSignature(root: string, publicKeyInput: string, sigRecord?: SignatureRecord | null): { valid: boolean; bundleHash: string; signedAt: string; keyId: string };
+export function verifyBundleSignature(root: string, publicKeyInput: string, sigRecord?: SignatureRecord | null): { valid: true; bundleHash: string; signedAt: string; keyId: string; target: 'bundle' };
 export function signVerificationEvidence(root: string, evidenceHash: string, privateKeyInput: string): EvidenceSignatureRecord;
-export function verifyVerificationEvidence(root: string, evidenceHash: string, publicKeyInput: string, sigRecord?: EvidenceSignatureRecord | null): { valid: boolean; evidenceHash: string; keyId: string; signedAt: string };
+export function verifyVerificationEvidence(root: string, evidenceHash: string, publicKeyInput: string, sigRecord?: EvidenceSignatureRecord | null): { valid: true; evidenceHash: string; runId: string; workspaceHash: string; keyId: string; signedAt: string; target: 'evidence' };
 
 // ==========================================
 // Setup & Errors
 // ==========================================
 
-export function initProject(root: string, options?: { plugin?: boolean }): { initialized: boolean; files: string[] };
-export function installHooks(root: string, host: string, options?: { plugin?: boolean; update?: boolean; uninstall?: boolean }): { installed: boolean; files: string[] };
+export interface InitProjectResult {
+    project: string;
+    profile: string;
+    created: string[];
+    skipped: string[];
+    generated: string[];
+    trusted: boolean;
+    note: string;
+}
+
+export interface InstallHooksResult {
+    host: string;
+    path?: string;
+    installed?: boolean;
+    uninstalled?: boolean;
+    skills?: { source?: string; created: string[]; skipped: string[]; updated?: string[] };
+    removed?: string[];
+    preserved?: string[];
+    hostTrustRequired?: boolean;
+    liveHostVerified?: boolean;
+    note?: string;
+}
+
+export function initProject(root: string, options?: { plugin?: boolean }): InitProjectResult;
+export function installHooks(root: string, host: string, options?: { plugin?: boolean; update?: boolean; uninstall?: boolean }): InstallHooksResult;
 
 export class StewardError extends Error {
     code: string;
@@ -426,3 +531,4 @@ export class StewardError extends Error {
 
 export function insist(condition: unknown, code: string, message: string): asserts condition;
 export function publicError(error: unknown): { code: string; message: string };
+

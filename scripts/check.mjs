@@ -5,13 +5,34 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
-import { validatePolicy, validatePlan, validateEntry } from '../src/schema.mjs';
+import { validatePolicy, validatePlan, validateEntry, RECORD_TYPES } from '../src/schema.mjs';
 import { validateEvent } from '../src/engine.mjs';
 import { claudeArtifacts } from '../src/skills.mjs';
 import { VERSION } from '../src/version.mjs';
+import * as publicApi from '../src/index.mjs';
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const read = (relative) => fs.readFileSync(path.join(root, relative), 'utf8');
 const json = (relative) => JSON.parse(read(relative));
+function headingSlugs(markdown) {
+    const slugs = new Set();
+    const counts = new Map();
+    for (const line of markdown.split(/\r?\n/)) {
+        const m = /^#{1,6}\s+(.+?)\s*$/.exec(line);
+        if (!m) continue;
+        const base = m[1]
+            .replace(/`([^`]+)`/g, '$1')
+            .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+            .toLowerCase()
+            .replace(/[^\p{L}\p{N}\s_-]/gu, '')
+            .trim()
+            .replace(/\s+/g, '-');
+        if (!base) continue;
+        const seen = counts.get(base) || 0;
+        counts.set(base, seen + 1);
+        slugs.add(seen === 0 ? base : `${base}-${seen}`);
+    }
+    return slugs;
+}
 function files(directory = '') {
     return fs.readdirSync(path.join(root, directory), { withFileTypes: true })
         .filter((entry) => !['.git', 'node_modules', '.steward', 'evidence'].includes(entry.name))
@@ -86,6 +107,15 @@ try {
         assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema');
         assert(schema.$id.startsWith('urn:steward:'));
     }
+    const dts = read('index.d.ts');
+    for (const symbolName of Object.keys(publicApi)) {
+        assert.match(dts, new RegExp(`export\\s+(?:declare\\s+)?(?:const|function|class)\\s+${symbolName}\\b`), `Missing symbol in index.d.ts: ${symbolName}`);
+    }
+    const journalSchema = json('schemas/journal-entry.schema.json');
+    assert.deepEqual(journalSchema.oneOf.map(b => b.properties.type.const), RECORD_TYPES, 'Journal entry schema types drifted from RECORD_TYPES.');
+    for (const branch of journalSchema.oneOf) {
+        assert(branch.properties.data.properties.tags, `Missing tags in schemas/journal-entry.schema.json for ${branch.properties.type.const}`);
+    }
     assert.equal(json('profiles/agent-workflow.json').apiIntegration, false);
     const rubric = json('evals/agent-workflow.json');
     assert.equal(rubric.status, 'not_run_on_live_model');
@@ -94,14 +124,26 @@ try {
     assert.equal(read('CLAUDE.md').trim(), '@AGENTS.md');
     for (const file of ['README.md', 'README.ko.md', 'SECURITY.md', 'docs/MODEL-GUIDANCE.md', '.github/workflows/ci.yml'])
         assert(read(file).trim());
-    // Check local Markdown file links. Fragment-only links and external URLs are outside this check.
+    // Check local Markdown file links and #fragment heading anchors.
     let localLinks = 0;
+    const slugCache = new Map();
+    const getSlugs = (absPath) => {
+        if (!slugCache.has(absPath)) slugCache.set(absPath, headingSlugs(fs.readFileSync(absPath, 'utf8')));
+        return slugCache.get(absPath);
+    };
     for (const file of all.filter((name) => name.endsWith('.md'))) {
+        const absCurrent = path.resolve(root, file);
         for (const match of read(file).matchAll(/\]\(([^)\s]+)\)/g)) {
-            const target = match[1].split('#')[0];
-            if (!target || /^(https?:|mailto:)/.test(target))
+            const rawHref = match[1];
+            if (/^(https?:|mailto:|file:|conversation:)/.test(rawHref))
                 continue;
-            assert(fs.existsSync(path.resolve(root, path.dirname(file), target)), `Broken local link in ${file}: ${target}`);
+            const [target, fragment] = rawHref.split('#');
+            const resolvedTarget = target ? path.resolve(root, path.dirname(file), target) : absCurrent;
+            assert(fs.existsSync(resolvedTarget), `Broken local link in ${file}: ${rawHref}`);
+            if (fragment && resolvedTarget.endsWith('.md') && fs.statSync(resolvedTarget).isFile()) {
+                const slugs = getSlugs(resolvedTarget);
+                assert(slugs.has(decodeURIComponent(fragment).toLowerCase()), `Broken markdown anchor in ${file}: ${rawHref}`);
+            }
             localLinks++;
         }
     }

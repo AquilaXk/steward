@@ -88,3 +88,41 @@ test('library entrypoint exports all core functions and constants', () => {
     assert.equal(typeof steward.insist, 'function');
     assert.equal(typeof steward.publicError, 'function');
 });
+
+test('index.d.ts declares every runtime export from src/index.mjs and accurate domain types', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { PACKAGE } = await import('./helpers.mjs');
+    const dts = fs.readFileSync(path.join(PACKAGE, 'index.d.ts'), 'utf8');
+
+    for (const key of Object.keys(steward)) {
+        const re = new RegExp(`export\\s+(?:declare\\s+)?(?:const|function|class)\\s+${key}\\b`);
+        assert.match(dts, re, `Missing TypeScript declaration for exported symbol: ${key}`);
+    }
+
+    assert.match(dts, /export type RuleEvent = 'prompt' \| 'tool' \| 'session';/);
+    assert.match(dts, /tags\?: string\[\];/);
+    assert.match(dts, /receipt: string/);
+    assert.match(dts, /neverEmitted: string\[\]/);
+});
+
+test('JSON Schemas in schemas/*.json stay aligned with runtime schema validators', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const { PACKAGE } = await import('./helpers.mjs');
+
+    const journalSchema = JSON.parse(fs.readFileSync(path.join(PACKAGE, 'schemas/journal-entry.schema.json'), 'utf8'));
+    const schemaTypes = journalSchema.oneOf.map(branch => branch.properties.type.const);
+    assert.deepEqual(schemaTypes, steward.RECORD_TYPES);
+
+    for (const branch of journalSchema.oneOf) {
+        const typeName = branch.properties.type.const;
+        assert.ok(branch.properties.data.properties.tags, `schemas/journal-entry.schema.json missing data.properties.tags for ${typeName}`);
+        assert.equal(branch.properties.data.properties.tags.maxItems, 16);
+    }
+
+    const verifySchema = JSON.parse(fs.readFileSync(path.join(PACKAGE, 'schemas/verification.schema.json'), 'utf8'));
+    assert.equal(verifySchema.properties.exclude.uniqueItems, true);
+    assert.equal(verifySchema.properties.exclude.items.maxLength, 2048);
+});
+
