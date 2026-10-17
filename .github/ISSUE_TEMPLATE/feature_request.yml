@@ -1,0 +1,31 @@
+name: Feature or Enhancement Proposal
+description: Propose a focused capability, schema refinement, or host/MCP integration improvement.
+title: "[Feat] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What concrete workflow limitation or contract gap does this proposal address?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution & Contract
+      description: Describe the CLI, MCP, schema, or engine behavior and how it preserves Steward's zero-dependency, fail-closed invariants.
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Deterministic Acceptance Criteria
+      description: List verifiable conditions and regression tests that prove the change works.
+      placeholder: |
+        - [ ] Criterion 1
+        - [ ] Criterion 2
+    validations:
+      required: true

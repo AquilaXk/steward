@@ -1,0 +1,55 @@
+name: Bug Report
+description: Report a reproducible defect in Steward's policy engine, journal, verification gate, CLI, or MCP adapter.
+title: "[Fix] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Report suspected security vulnerabilities privately via [GitHub Security Advisories](https://github.com/AquilaXk/steward/security/advisories/new).
+        Do not include credentials, private prompts, or confidential journal contents.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected Area
+      description: Which subsystem exhibits the defect?
+      options:
+        - Policy Engine & Glob Matcher (src/engine.mjs, src/matcher.mjs)
+        - Journal & Index Cache (src/journal.mjs, src/index-cache.mjs)
+        - Verification & Completion Gate (src/verify.mjs)
+        - Trust & Ed25519 Cryptography (src/trust.mjs, src/crypto.mjs)
+        - MCP Stdio Server (src/adapters/mcp.mjs)
+        - Host Adapters & Installer (src/adapters.mjs, src/setup.mjs)
+        - CLI & Schemas (bin/steward.mjs, schemas/*.json, index.d.ts)
+        - Documentation & CI
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal Reproduction
+      description: Exact commands, synthetic policy/event/journal JSON, and steps to reproduce.
+      placeholder: |
+        1. Run `node bin/steward.mjs ...`
+        2. Pass input `{ ... }`
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Observed vs. Expected Behavior
+      description: What actually happened (exit code, stdout/stderr, error code) versus what the contract specifies?
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Runtime Environment
+      description: OS, architecture, Node.js version, Steward version, and host client (if applicable).
+      placeholder: "macOS arm64, Node v22.16.0, Steward 0.2.0"
+    validations:
+      required: true

@@ -1,19 +1,40 @@
 name: Release
+
 on:
   push:
     tags:
       - 'v*.*.*'
   workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to verify and publish (e.g. v0.2.0)'
+        required: true
+        type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - name: Validate release tag format
+        env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag format: $RELEASE_TAG" >&2
+            exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
       - run: npm run check
@@ -23,26 +44,42 @@ jobs:
   publish:
     needs: verify
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: write
       id-token: write
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
           registry-url: 'https://registry.npmjs.org'
-      - name: Verify packaging
-        run: node scripts/prepare-release.mjs
-      - name: Make package public for publish
-        run: |
-          node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); delete pkg.private; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
-      - name: Publish to npm
-        run: npm publish --provenance --access public
+      - name: Verify packaging and build release archive
         env:
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: node scripts/prepare-release.mjs --pack
+      - name: Publish to npm (when NPM_TOKEN is configured)
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-      - name: Create GitHub Release
         run: |
-          gh release create ${{ github.ref_name }} --generate-notes --title "Release ${{ github.ref_name }}"
+          if [ -z "$NPM_TOKEN" ]; then
+            echo "NPM_TOKEN is not configured; skipping npm registry publish."
+            exit 0
+          fi
+          cp package.json package.json.bak
+          trap 'mv -f package.json.bak package.json' EXIT
+          node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); delete pkg.private; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
+          npm publish --provenance --access public
+      - name: Create or update GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ github.event.inputs.tag || github.ref_name }}
+        run: |
+          if gh release view "$RELEASE_TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$RELEASE_TAG" steward-*.tgz steward-*.tgz.sha256 --clobber --repo "$GITHUB_REPOSITORY"
+          else
+            gh release create "$RELEASE_TAG" steward-*.tgz steward-*.tgz.sha256 --generate-notes --title "Release $RELEASE_TAG" --repo "$GITHUB_REPOSITORY"
+          fi
