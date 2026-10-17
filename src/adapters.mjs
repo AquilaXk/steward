@@ -38,7 +38,7 @@ export function normalizeInput(host, raw, root, expectedEvent = null) {
         insist(isObject(ti), 'BAD_INPUT', 'tool_input must be an object.');
         result.tool = raw.tool_name;
         const kind = normalizeTool(result.tool);
-        result.text = [ti.command, ti.url, ti.description].filter(v => typeof v === 'string').join('\n');
+        result.text = [ti.command, ti.url, ti.description, ti.content, ti.new_string, ti.old_string].filter(v => typeof v === 'string' && v.length > 0).join('\n');
         if (kind === 'shell')
             insist(typeof ti.command === 'string' && ti.command.trim(), 'BAD_INPUT', 'Shell command is missing.');
         if (result.tool.toLowerCase() === 'apply_patch') {
@@ -57,7 +57,7 @@ export function normalizeInput(host, raw, root, expectedEvent = null) {
         else if (kind === 'file.write' || kind === 'file.read') {
             insist(typeof ti.file_path === 'string' && ti.file_path, 'BAD_INPUT', 'File operation path is missing.');
             result.paths = [relativePath(root, ti.file_path, cwd)];
-            result.text = ti.file_path;
+            result.text = [ti.file_path, result.text].filter(Boolean).join('\n');
         }
         result.paths = [...new Set(result.paths)];
     }

@@ -82,4 +82,48 @@ test('matcher handles escaped brackets in character classes and Unicode code poi
     assert.deepEqual(tokenizeCommand('git commit -m ""'), ['git', 'commit', '-m', '']);
     assert.deepEqual(tokenizeCommand("echo '' 'second'"), ['echo', '', 'second']);
 });
+test('matchGlob does not short-circuit raw equality when pattern contains glob metacharacters or escapes', async () => {
+    const { matchGlob, isSafePattern } = await import('../src/matcher.mjs');
+    assert.equal(matchGlob('[0-9]', '[0-9]'), false);
+    assert.equal(matchGlob('[!a]', '[!a]'), false);
+    assert.equal(matchGlob(String.raw`a\*b`, String.raw`a\*b`), false);
+    assert.equal(matchGlob(String.raw`a\*b`, 'a*b'), true);
+    assert.equal(isSafePattern('[]'), false);
+    assert.equal(isSafePattern('[!]'), false);
+    assert.equal(isSafePattern('[^]'), false);
+    assert.throws(() => validatePolicy(policy([rule({ match: { patternsAny: ['[]'] } })])), { code: 'SCHEMA' });
+});
+test('matchGlob fails closed with GLOB_COMPLEXITY on step budget exhaustion and handles >100k inputs', async () => {
+    const { matchGlob } = await import('../src/matcher.mjs');
+    const longPrefix = 'a'.repeat(150000) + ' --force';
+    assert.equal(matchGlob('*--force*', longPrefix), true);
+    const dashAmplification = '-'.repeat(15000) + '--force';
+    assert.equal(matchGlob('*--force*', dashAmplification), true);
+    assert.throws(() => matchGlob('*a*b*c*', 'xxxx', { maxSteps: 2 }), { code: 'GLOB_COMPLEXITY' });
+});
+test('tokenizeCommand enforces POSIX single-quote literals and splits unquoted shell operators', async () => {
+    const { tokenizeCommand } = await import('../src/matcher.mjs');
+    assert.deepEqual(tokenizeCommand(String.raw`git 'push\' --force`), ['git', 'push\\', '--force']);
+    assert.deepEqual(tokenizeCommand('git push -f;echo 1'), ['git', 'push', '-f', ';', 'echo', '1']);
+    assert.deepEqual(tokenizeCommand('git push --force&&true'), ['git', 'push', '--force', '&&', 'true']);
+    assert.deepEqual(tokenizeCommand('(rm -rf /)'), ['(', 'rm', '-rf', '/', ')']);
+    const p = policy([rule({ id: 'no-force', effect: 'deny', body: 'No force.', on: ['tool'], match: { tools: ['shell'], patternsAny: ['-f', '--force'] } })]);
+    assert.equal(evaluate(p, { ...event(String.raw`git 'push\' --force`), event: 'tool', tool: 'Bash' }).decision, 'deny');
+    assert.equal(evaluate(p, { ...event('git push -f;echo 1'), event: 'tool', tool: 'Bash' }).decision, 'deny');
+    assert.equal(evaluate(p, { ...event('git push --force&&true'), event: 'tool', tool: 'Bash' }).decision, 'deny');
+});
+test('normalizeInput preserves file content in text for Write and Edit tool events', async (t) => {
+    const { sandbox } = await import('./helpers.mjs');
+    const { normalizeInput } = await import('../src/adapters.mjs');
+    const { root } = sandbox(t);
+    const normWrite = normalizeInput('claude', {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Write',
+        tool_input: { file_path: 'src/app.js', content: 'const secret = "PRIVATE_KEY";' }
+    }, root, 'PreToolUse');
+    assert.deepEqual(normWrite.paths, ['src/app.js']);
+    assert.ok(normWrite.text.includes('PRIVATE_KEY'));
+    const p = policy([rule({ id: 'no-secret', effect: 'deny', body: 'No secret.', on: ['tool'], match: { tools: ['Write'], patternsAny: ['*PRIVATE_KEY*'] } })]);
+    assert.equal(evaluate(p, normWrite).decision, 'deny');
+});
 
