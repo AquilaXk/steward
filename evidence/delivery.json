@@ -1,13 +1,13 @@
 {
   "package": "steward",
-  "version": "0.1.1",
-  "revision": "public source preparation",
-  "collectedAt": "2026-09-07T12:15:37.062980+00:00",
+  "version": "0.2.0",
+  "revision": "v0.2.0 verification Refresh",
+  "collectedAt": "2026-10-17T12:31:02.624Z",
   "environment": {
     "os": "macOS",
     "architecture": "arm64",
-    "node": "v22.16.0",
-    "npm": "10.9.2"
+    "node": "v24.19.0",
+    "npm": "11.6.2"
   },
   "commands": [
     {
@@ -24,8 +24,8 @@
     }
   ],
   "tests": {
-    "tests": 136,
-    "pass": 136,
+    "tests": 202,
+    "pass": 202,
     "fail": 0,
     "cancelled": 0,
     "skipped": 0,

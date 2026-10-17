@@ -124,7 +124,7 @@ The demo creates a temporary project, runs three synthetic arithmetic tests, rec
 and restores a checkpoint, and rejects evidence after a source change. It removes its
 fixture afterward and does not launch a native agent application.
 
-For the full local software suite (183 tests covering engine, journal, index cache,
+For the full local software suite (202 tests covering engine, journal, index cache,
 MCP server, Ed25519 crypto, pattern matcher, and CLI integration), run `npm run verify`
 (or `npm test`). See the [verification record](evidence/VERIFICATION.md) for observed results
 and their scope.
@@ -186,12 +186,12 @@ Run `version` to inspect the installed version. Package, CLI and plugins share
   ```sh
   node bin/steward.mjs journal list --project /absolute/path/to/project
   ```
-- **Querying memory:** Recall active journal records with type, text, limit, session, or record filters:
+- **Querying memory:** Recall active journal records with type, text, tag, date-range, limit, session, or record filters:
   ```sh
   node bin/steward.mjs journal query --project /absolute/path/to/project \
-    --type decision --text <term> --limit 20
+    --type decision --text <term> --tag <tag> --limit 20
   ```
-  Filter by `--type` (`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`), `--text`, `--limit` (1–100, default 20), `--record-id`, or `--session-id`. Expired knowledge and superseded records are excluded by default; pass `--history` to inspect past revisions.
+  Filter by `--type` (`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`), `--text`, `--tag`, `--since`, `--until`, `--limit` (1–100, default 20), `--record-id`, or `--session-id`. Expired knowledge and superseded records are excluded by default; pass `--history` to inspect past revisions.
 - **External integrity anchor:** Prevent journal suffix deletion by recording an anchor outside the project:
   ```sh
   node bin/steward.mjs journal anchor --project /absolute/path/to/project > /safe/place/project-anchor.json
@@ -447,10 +447,10 @@ publishing the source repository does not publish an npm package.
 
 ## 10. References and attribution
 
-- [OpenAI GPT model guidance](https://developers.openai.com/api/docs/guides/latest-model)
+- [OpenAI model guidance](https://developers.openai.com/api/docs/guides/latest-model)
   and [Codex skills](https://developers.openai.com/codex/skills/).
 - [Claude models](https://platform.claude.com/docs/en/models/overview),
-  [Claude Fable 5.1 guidance](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1)
+  [Claude prompt engineering guidance](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview)
   and [Claude Code skills](https://code.claude.com/docs/en/skills).
 
 Source review dates and scope are recorded in [docs/sources.json](docs/sources.json).

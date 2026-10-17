@@ -10,15 +10,31 @@ release never silently rewrites stored records.
 
 - Add native plugin onboarding and a doctor command that separates local wiring
   from observed host behavior.
+- Add a zero-dependency stdio Model Context Protocol (MCP) server exposing eight
+  tools and five resources with a 1 MiB line cap, JSON-RPC 2.0 validation, and
+  trusted-bundle enforcement.
+- Add Ed25519 asymmetric key generation (`keygen`) and domain-separated signing
+  and verification for policy bundles (`sign-bundle`, `verify-bundle`) and
+  verification evidence (`sign-evidence`, `verify-evidence`).
+- Add linear-time CLI argument glob matching (`patternsAny`, `globsAny`) with
+  128-bit ASCII bitmaps, POSIX shell operator tokenization, and a fail-closed
+  `GLOB_COMPLEXITY` step ceiling.
+- Add an in-memory secondary index cache (`src/index-cache.mjs`) for journal
+  queries (`--tag`, `--since`, `--until`, `--record-id`, `--session-id`) with
+  deeply frozen records and smallest-set-first intersection.
+- Add `audit prune --keep <N>`, `verification.json` `exclude` path prefixes,
+  recursive `.git`/`node_modules` snapshot exclusion, and `index.d.ts` TypeScript
+  declarations.
 - Add bounded journal queries with explicit history, expiry and supersession.
 - Add managed updates and removal that preserve customized skills and project data.
 - Generate Claude skill metadata from shared procedures and reject packaging drift.
 - Preserve schedule identity across immutable revisions and reject forked updates.
 - Report unused policy rules and remaining audit capacity for the current bundle.
-- Synchronize package, CLI and plugin versions through the package check.
+- Synchronize package, CLI, TypeScript definitions, JSON schemas, and plugin
+  versions through the static package check.
 
 This release also includes the previously unreleased public-source preparation:
-English and Korean README alignment, artwork, current model guidance, repository
+English and Korean README alignment, artwork, vendor-neutral model guidance, repository
 metadata and pinned CI actions. Rename package, CLI, skill, state and trust identities
 to Steward without automatically migrating old installations. Validate journal
 envelopes, isolate checkpoint restoration by session digest, preflight hook writes

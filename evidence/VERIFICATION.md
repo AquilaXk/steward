@@ -1,45 +1,31 @@
 # Steward local verification
 
-This is the public-source preparation revision, package version 0.1.1.
-Environment: macOS arm64, Node v22.16.0, npm 10.9.2.
-The runtime matches the Node 22 project pin and was obtained from the official
-distribution with its published SHA-256 checked.
+This is the current verification record for package version 0.2.0.
+Environment: macOS arm64, Node v24.19.0 (Node 22+ compatible), npm 11.6.2.
 
 | Command | Exit | Observed result |
 |---|---:|---|
-| `npm run check` | 0 | Module syntax, JSON, package identity, skill metadata and local links |
-| `npm test` | 0 | 136 passed; 0 failed, cancelled, skipped or todo |
+| `npm run check` | 0 | Module syntax (41 modules), JSON (21 files), package identity, skill metadata (8 skills), `index.d.ts` and schema parity, and local Markdown links/anchors |
+| `npm test` | 0 | 202 passed; 0 failed, cancelled, skipped or todo |
 | `npm run demo` | 0 | Three synthetic arithmetic tests; policy denial; checkpoint recovery; source-change rejection |
 | Skill Creator structural validator | 0 | All eight canonical skills have valid names, frontmatter and complete bodies |
 
 Raw suite output is in `test-results.tap`. Check and demo output is retained in
-the corresponding JSON files. `delivery.json` records the collection timestamp.
-The initial eleven regression cases failed before their fixes and passed afterward.
-A further project-alias regression failed before the path-identity correction and
-passed afterward. The final suite includes all twelve additions.
+the corresponding JSON files (`check-results.json`, `demo-results.json`). `delivery.json`
+records the collection timestamp and test summary.
 
-Existing host adapter tests and the demo now save checkpoints for their named
-sessions. They retain assertions for compaction persistence, restored contents and
-session anonymization. New cases reject cross-session and unscoped substitution.
+The local software suite covers:
+- Pure policy engine (`src/engine.mjs`), linear-time ASCII/Unicode glob matcher (`src/matcher.mjs`) with fail-closed `GLOB_COMPLEXITY` step limits, and POSIX shell operator tokenization (`src/adapters.mjs`).
+- Ed25519 asymmetric keypair generation, symlink/permission hardening, and domain-separated bundle and verification evidence signatures (`src/crypto.mjs`).
+- Append-only journal (`src/journal.mjs`) and in-memory secondary index cache (`src/index-cache.mjs`) with deeply frozen returned records and fresh hash-chain verification at the completion gate (`src/verify.mjs`).
+- Zero-dependency stdio JSON-RPC 2.0 Model Context Protocol (MCP) server (`src/adapters/mcp.mjs`) with 1 MiB message bounds, trusted-bundle enforcement, 8 tools, and 5 resources.
+- TypeScript declaration (`index.d.ts`) and JSON Schema (`schemas/*.json`) parity with runtime exports and validators.
 
-Not run: live Codex or Claude sessions, model APIs, supervised behavioral cases,
-Linux/Windows and Node 24 in this local run. The public repository's Actions page
-records the separate current-commit CI matrix. No actual user hook installation or
-service deployment was performed. Hook CLI subprocess tests are not live host enforcement evidence.
+Not run in this local capture: live Codex or Claude sessions, external model APIs, or
+supervised behavioral cases (`evals/agent-workflow.json`). The public repository's
+GitHub Actions workflow exercises the 6-job CI matrix across Ubuntu, macOS, and Windows
+on Node 22 and 24.
 
-The original evidence directory was copied outside this project before regeneration.
-It was not relabeled as current output. New manifests hash the current files:
-`source-manifest.json` excludes `evidence/`; `manifest.json` excludes itself.
-The reference scan covers file paths and UTF-8 contents, including hidden files.
-Manifests are integrity records, not signatures or independent author authentication.
-
-The README and six skill procedures were refined for the public source release.
-An independent read-only scenario inspection informed the changes; no model API
-evaluation was performed. The structural skill validator used Python 3.14.6 and
-PyYAML 6.0.3 in a temporary tooling environment, not a project runtime dependency.
-
-Publication CI exposed two Windows installation assertions affected by Git's CRLF
-checkout conversion. The follow-up `.gitattributes` policy preserves canonical LF
-bytes. Both affected installation tests passed on Node v22.16.0, and a checkout
-with `core.autocrlf=true` preserved every tracked file byte for byte. The original
-suite output above is unchanged; the follow-up's full matrix is recorded in CI.
+Manifests hash the current repository files: `source-manifest.json` excludes `evidence/`;
+`manifest.json` excludes itself (`evidence/manifest.json`). Manifests are integrity
+records, not signatures or independent author authentication.

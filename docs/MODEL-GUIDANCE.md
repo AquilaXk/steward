@@ -1,25 +1,24 @@
 # Model and host guidance
 
-Reviewed on **2026-09-07**. This is an engineering mapping, not provider certification.
-The official [OpenAI model guide](https://developers.openai.com/api/docs/guides/latest-model)
-currently identifies GPT-6 Astra. The [Claude model catalog](https://platform.claude.com/docs/en/models/overview)
-lists Fable 5.1, Opus 5, Sonnet 5 and Haiku 4.5. Steward does not select a model,
-set effort or sampling parameters, call either provider API or implement a model runtime.
+Reviewed on **2026-10-17**. This is an engineering mapping, not provider certification.
+Official [OpenAI model guidance](https://developers.openai.com/api/docs/guides/latest-model)
+and the [Claude model catalog](https://platform.claude.com/docs/en/models/overview)
+classify capabilities across reasoning, coding, and fast execution tiers (`tier-reasoning`,
+`tier-coding`, `tier-fast`). Steward does not pin a specific model identifier,
+set effort or sampling parameters, call provider APIs, or implement a model runtime.
 `profiles/agent-workflow.json` is documentation metadata, not an API configuration.
 
 ## Behavior mapping
 
-OpenAI's guide motivates completing authorized work, keeping skill advice subordinate
-to the current task, and choosing useful rather than repetitive verification. These
-map to the shared working agreement and the work/verify skills. Parallel work remains
-conditional on real collaboration tools and independent scopes.
+Official reasoning and coding guidance motivates completing authorized work, keeping skill
+advice subordinate to the current task, and choosing useful rather than repetitive
+verification. These map to the shared working agreement and the work/verify skills.
+Parallel work remains conditional on real collaboration tools and independent scopes.
 
-The [Fable 5.1 prompting guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1)
-supports respecting task scope and communicating progress. Steward explicitly keeps
-review-only requests read-only unless edits are requested. The
-[Opus 5 guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-5)
-informs the restriction against trivial or serial delegation. Provider-specific tuning
-must be evaluated in the intended host, not imposed as a universal model setting.
+Provider prompting guidance supports respecting task scope, communicating progress, and
+restricting trivial or serial delegation. Steward explicitly keeps review-only requests
+read-only unless edits are requested. Provider-specific tuning must be evaluated in the
+intended host, not imposed as a universal model setting.
 
 ## Native loading
 
@@ -32,7 +31,7 @@ files are preserved and require review during upgrades.
 [Claude memory guidance](https://code.claude.com/docs/en/memory) documents `@AGENTS.md`
 imports from `CLAUDE.md`. Keep the working agreement small and discover skill bodies
 only when needed. [Agent Skills](https://agentskills.io/specification) requires a name
-matching its parent directory; canonical source directories now meet that constraint.
+matching its parent directory; canonical source directories meet that constraint.
 See [host protocol details](HOSTS.md) for event-specific output behavior.
 
 ## Skill review for the public source release
@@ -40,7 +39,7 @@ See [host protocol details](HOSTS.md) for event-specific output behavior.
 The eight procedures were read against the CLI and runtime contracts, then inspected
 independently for realistic setup, recall, supersession, checkpoint, verification,
 delegation and passive-schedule requests. This was a read-only scenario review, not
-a scored execution of GPT and Claude sessions.
+a scored execution of live provider sessions.
 
 | Procedure | Review outcome |
 |---|---|

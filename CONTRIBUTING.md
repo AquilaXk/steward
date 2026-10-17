@@ -19,7 +19,7 @@ Claude plugin artifacts. The package check rejects missing, extra or stale artif
 Define the package version in package.json, synchronize package-lock.json and both
 plugin manifests, and add the corresponding CHANGELOG.md entry. The CLI reads that
 package version directly. Tag merged source as `vMAJOR.MINOR.PATCH`; do not retag a
-released version. `private:true`
-prevents accidental npm publication; intentionally change it only during a separately
-reviewed release process. The included GitHub workflow does not publish packages or
-create releases.
+released version without explicit review. `private:true` in `package.json` prevents
+accidental local `npm publish`; the GitHub release workflow verifies the package,
+attaches the tarball and SHA-256 checksum to the GitHub Release, and publishes to npm
+only when `NPM_TOKEN` is configured.

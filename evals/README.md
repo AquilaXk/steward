@@ -1,6 +1,6 @@
 # Supervised behavioral evaluation
 
-`agent-workflow.json` defines eighteen task-level cases with expected and negative
+`agent-workflow.json` defines nineteen task-level cases with expected and negative
 behaviors. They have not been run on a live model. Local contract tests do not score them.
 
 Use a disposable project and the intended native host. Record the exact model identifier,

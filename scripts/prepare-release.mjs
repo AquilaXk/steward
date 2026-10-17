@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,6 +9,13 @@ import assert from 'node:assert/strict';
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const pkgPath = path.join(root, 'package.json');
 const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+const shouldPack = process.argv.includes('--pack');
+
+const expectedTag = `v${pkg.version}`;
+const releaseTag = process.env.RELEASE_TAG || (process.env.GITHUB_REF_NAME?.startsWith('v') ? process.env.GITHUB_REF_NAME : null);
+if (releaseTag) {
+    assert.equal(releaseTag, expectedTag, `Release tag ${releaseTag} does not match package.json version (${expectedTag}).`);
+}
 
 console.log(`Preparing release verification for ${pkg.name}@${pkg.version}...`);
 
@@ -96,5 +104,15 @@ assert(bundledFiles.has('src/adapters/mcp.mjs'), 'src/adapters/mcp.mjs missing f
 assert(bundledFiles.has('src/matcher.mjs'), 'src/matcher.mjs missing from tarball');
 assert(bundledFiles.has('src/crypto.mjs'), 'src/crypto.mjs missing from tarball');
 assert(bundledFiles.has('bin/steward.mjs'), 'bin/steward.mjs missing from tarball');
+
+if (shouldPack) {
+    execFileSync(npm.file, [...npm.prefixArgs, 'pack', '--quiet'], { cwd: root, stdio: 'inherit' });
+    const tarballPath = path.join(root, packInfo.filename);
+    assert(fs.existsSync(tarballPath), `Expected packed tarball at ${tarballPath}`);
+    const digest = crypto.createHash('sha256').update(fs.readFileSync(tarballPath)).digest('hex');
+    const checksumPath = `${tarballPath}.sha256`;
+    fs.writeFileSync(checksumPath, `${digest}  ${packInfo.filename}\n`, 'utf8');
+    console.log(`Wrote SHA-256 checksum: ${path.basename(checksumPath)} (${digest})`);
+}
 
 console.log('Release package contents verified successfully.');

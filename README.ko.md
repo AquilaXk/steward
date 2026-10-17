@@ -120,7 +120,7 @@ node bin/steward.mjs --help
 소스 변경 후에는 기존 검증 근거를 거부합니다. 실행 후 임시 파일을 정리하며,
 실제 에이전트 앱은 실행하지 않습니다.
 
-전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 183개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
+전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 202개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
 실행 결과와 검증 범위는 [검증 기록](evidence/VERIFICATION.md)을 확인하세요.
 
 ## 4. 프로젝트 설정
@@ -182,12 +182,12 @@ Claude 설치는 `CLAUDE.md`에서 공통 `AGENTS.md`를 가져오도록 연결�
   ```sh
   node bin/steward.mjs journal list --project /absolute/path/to/project
   ```
-- **기억 조회 (`journal query`):** 타입, 텍스트, 개수, 세션 또는 레코드 ID 필터를 지정하여 활성 저널 기록을 조회합니다:
+- **기억 조회 (`journal query`):** 타입, 텍스트, 태그, 기간, 개수, 세션 또는 레코드 ID 필터를 지정하여 활성 저널 기록을 조회합니다:
   ```sh
   node bin/steward.mjs journal query --project /absolute/path/to/project \
-    --type decision --text <검색어> --limit 20
+    --type decision --text <검색어> --tag <태그> --limit 20
   ```
-  `--type` (`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`), `--text`, `--limit` (1–100, 기본값 20), `--record-id`, `--session-id` 필터를 지원합니다. 만료된 지식과 대체된 기록은 기본적으로 제외되며, `--history`를 함께 전달해야 과거 이력을 포함합니다.
+  `--type` (`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`), `--text`, `--tag`, `--since`, `--until`, `--limit` (1–100, 기본값 20), `--record-id`, `--session-id` 필터를 지원합니다. 만료된 지식과 대체된 기록은 기본적으로 제외되며, `--history`를 함께 전달해야 과거 이력을 포함합니다.
 - **외부 무결성 앵커 (`journal anchor` & `journal verify`):** 프로젝트 외부에 저널 개수와 해시 기준점을 기록해 두고 뒤쪽 레코드 삭제를 감지합니다:
   ```sh
   node bin/steward.mjs journal anchor --project /absolute/path/to/project > /safe/place/project-anchor.json
@@ -439,10 +439,10 @@ npm 패키지는 `private: true`를 유지합니다. 소스 저장소 공개는 
 
 ## 10. 참고 자료와 출처
 
-- [OpenAI GPT 모델 지침](https://developers.openai.com/api/docs/guides/latest-model),
+- [OpenAI 모델 지침](https://developers.openai.com/api/docs/guides/latest-model),
   [Codex 스킬](https://developers.openai.com/codex/skills/).
 - [Claude 모델](https://platform.claude.com/docs/en/models/overview),
-  [Claude Fable 5.1 지침](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5-1),
+  [Claude 프롬프트 엔지니어링 지침](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/overview),
   [Claude Code 스킬](https://code.claude.com/docs/en/skills).
 
 출처별 검토 날짜와 범위는 [docs/sources.json](docs/sources.json)에 기록합니다.
