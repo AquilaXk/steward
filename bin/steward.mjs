@@ -29,14 +29,15 @@ hook --host HOST       Handle JSON on stdin (generic, codex, claude)
 eval --input FILE      Evaluate an untrusted draft as a simulation; no activation
 journal add --file F   Add a typed decision/question/knowledge/goal/schedule/handoff
 journal list           Read the validated journal
-journal query          Recall current records; --type --text --limit (1–100)
-                       --history includes expired/superseded; --record-id filters ID
+journal query          Recall current records; --type --text --tag --since --until --limit (1–100)
+                       --history includes expired/superseded; --record-id --session-id filter IDs
 journal verify         Check integrity; optional --anchor-file FILE
 journal anchor         Print a count/hash checkpoint to keep outside the project
 checkpoint --file F    Persist {summary,next,blockers}; --session-id binds recovery
 verify                 Run the exact trusted verification commands
 gate                   Check latest evidence against current source and plan
 report                 Count context prepared, never pretend host receipt
+audit report           Alias for report
 audit prune [--keep N] Prune older audit receipts to recover retention capacity
 instructions-audit     Inventory agent files and flag common instruction conflicts
 doctor                 Check trust and local wiring; --host codex or claude
@@ -47,9 +48,12 @@ sign-bundle            Sign trust bundle with --key FILE
 verify-bundle          Verify signed bundle with --verifier FILE
 sign-evidence          Sign verification run with --evidence HASH --key FILE
 verify-evidence        Verify signed evidence with --evidence HASH --verifier FILE
+version                Print Steward CLI version
 
 Options: --host --project --input --file --approve --event --evidence --plugin
-         --anchor-file --session-id --keep --key --key-file --verifier --public-key --out --config --help
+         --anchor-file --session-id --type --text --tag --since --until --limit
+         --record-id --history --keep --key --key-file --verifier --public-key
+         --out --config --version --help
 No network calls, provider routing, daemon, automatic publishing or API keys.
 `;
 let command = process.argv[2] || 'help', opts = {}, positionals = [];
@@ -68,15 +72,7 @@ function resolveSafePath(filePath) {
     if (filePath.includes('\0')) {
         throw new StewardError('BAD_PATH', 'Path contains null bytes.');
     }
-    const resolved = path.resolve(filePath);
-    const normalized = path.normalize(resolved);
-    if (normalized !== resolved) {
-        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
-    }
-    if (!path.isAbsolute(resolved)) {
-        throw new StewardError('BAD_PATH', 'Path must resolve to an absolute path.');
-    }
-    return resolved;
+    return path.resolve(filePath);
 }
 
 async function input() {
@@ -109,7 +105,7 @@ async function input() {
     });
 }
 try {
-    const parsed = parseArgs({ allowPositionals: true, options: Object.fromEntries(['host', 'project', 'input', 'file', 'approve', 'event', 'evidence', 'anchor-file', 'session-id', 'type', 'text', 'limit', 'record-id', 'keep', 'key', 'key-file', 'verifier', 'public-key', 'out'].map(k => [k, { type: 'string' }]).concat([['help', { type: 'boolean' }], ['plugin', { type: 'boolean' }], ['history', { type: 'boolean' }], ['version', { type: 'boolean' }], ['config', { type: 'boolean' }]])) });
+    const parsed = parseArgs({ allowPositionals: true, options: Object.fromEntries(['host', 'project', 'input', 'file', 'approve', 'event', 'evidence', 'anchor-file', 'session-id', 'type', 'text', 'tag', 'since', 'until', 'limit', 'record-id', 'keep', 'key', 'key-file', 'verifier', 'public-key', 'out'].map(k => [k, { type: 'string' }]).concat([['help', { type: 'boolean' }], ['plugin', { type: 'boolean' }], ['history', { type: 'boolean' }], ['version', { type: 'boolean' }], ['config', { type: 'boolean' }]])) });
     opts = parsed.values;
     positionals = parsed.positionals;
     command = positionals[0] || 'help';
@@ -180,7 +176,12 @@ try {
         }
         else if (command === 'hook') {
             const host = opts.host || 'generic';
-            const { encoded } = handleHook(root, host, await input(), opts.event || null);
+            const raw = await input();
+            const expectedEvent = opts.event || null;
+            if (!opts.event && raw && typeof raw === 'object' && !Array.isArray(raw)) {
+                opts.event = raw.hook_event_name || raw.event || null;
+            }
+            const { encoded } = handleHook(root, host, raw, expectedEvent);
             if (encoded.stdout)
                 process.stdout.write(encoded.stdout + '\n');
             if (encoded.stderr)
@@ -201,11 +202,11 @@ try {
             else if (sub === 'list')
                 output(readJournal(root));
             else if (sub === 'query')
-                output(queryJournal(root, { type: opts.type, text: opts.text, limit: opts.limit === undefined ? 20 : Number(opts.limit), history: opts.history, recordId: opts['record-id'], sessionId: opts['session-id'] }));
+                output(queryJournal(root, { type: opts.type, text: opts.text, tag: opts.tag, since: opts.since, until: opts.until, limit: opts.limit === undefined ? 20 : Number(opts.limit), history: opts.history, recordId: opts['record-id'], sessionId: opts['session-id'] }));
             else if (sub === 'anchor')
                 output(journalHead(readJournal(root)));
             else if (sub === 'verify') {
-                const rows = readJournal(root, { anchor: opts['anchor-file'] ? readJSON(resolveSafePath(opts['anchor-file'])) : null });
+                const rows = readJournal(root, { fresh: true, anchor: opts['anchor-file'] ? readJSON(resolveSafePath(opts['anchor-file'])) : null });
                 output({ valid: true, ...journalHead(rows) });
             }
             else
@@ -234,6 +235,7 @@ try {
         else if (command === 'audit') {
             const sub = positionals[1] || 'report';
             if (sub === 'prune') {
+                insist(opts.keep === undefined || opts.keep.trim() !== '', 'USAGE', 'keep must be a non-negative integer.');
                 const keep = opts.keep === undefined ? 5000 : Number(opts.keep);
                 output(pruneAudit(root, { keep }));
             }

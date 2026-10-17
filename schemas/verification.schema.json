@@ -15,12 +15,17 @@
     },
     "exclude": {
       "type": "array",
+      "minItems": 0,
       "maxItems": 32,
+      "uniqueItems": true,
       "items": {
         "type": "string",
         "minLength": 1,
-        "maxLength": 256,
-        "pattern": "^[^/\\\\]"
+        "maxLength": 2048,
+        "pattern": "\\S",
+        "not": {
+          "pattern": "(^/|\\\\|[*?\\[\\]:]|(^|/)\\.{1,2}(/|$))"
+        }
       }
     },
     "checks": {

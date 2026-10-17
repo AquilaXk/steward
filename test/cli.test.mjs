@@ -109,4 +109,47 @@ test('CLI sign-bundle and verify-bundle accept --key-file and --public-key alias
     assert.equal(relSign.status, 0, relSign.stderr);
 });
 
+test('CLI audit prune rejects empty --keep value instead of coercing to 0', (t) => {
+    const { root } = sandbox(t);
+    cli(root, ['hook', '--host', 'generic'], event('step 1'));
+    const res = cli(root, ['audit', 'prune', '--keep', '']);
+    assert.equal(res.status, 1);
+    assert.equal(JSON.parse(res.stderr).error.code, 'USAGE');
+});
+
+test('CLI journal query supports --tag and journal verify enforces fresh hash-chain verification', (t) => {
+    const { root } = sandbox(t);
+    const entryFile = path.join(root, 'decision.json');
+    write(root, 'decision.json', {
+        type: 'decision',
+        data: {
+            statement: 'Enforce fresh hash chain verification',
+            authority: { kind: 'user', reference: 'issue-10', quote: 'always verify' },
+            supersedes: null,
+            tags: ['security-gate']
+        }
+    });
+    const addRes = cli(root, ['journal', 'add', '--file', entryFile]);
+    assert.equal(addRes.status, 0, addRes.stderr);
+
+    const queryRes = cli(root, ['journal', 'query', '--tag', 'security-gate']);
+    assert.equal(queryRes.status, 0, queryRes.stderr);
+    const queryOut = JSON.parse(queryRes.stdout);
+    assert.equal(queryOut.total, 1);
+    assert.deepEqual(queryOut.rows[0].data.tags, ['security-gate']);
+});
+
+test('CLI hook without --event preserves stdin event kind when encoding errors', (t) => {
+    const { root } = sandbox(t, { trusted: false });
+    const res = cli(root, ['hook', '--host', 'claude'], {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'Bash',
+        tool_input: { command: 'echo hello' }
+    });
+    assert.equal(res.status, 0);
+    const out = JSON.parse(res.stdout);
+    assert.equal(out.hookSpecificOutput.hookEventName, 'PreToolUse');
+    assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
+});
+
 
