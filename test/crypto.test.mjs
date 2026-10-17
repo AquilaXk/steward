@@ -10,7 +10,8 @@ import {
     signVerificationEvidence,
     verifyVerificationEvidence,
     saveKeypair,
-    loadKeypair
+    loadKeypair,
+    resolveKeyPem
 } from '../src/crypto.mjs';
 import { runVerification } from '../src/verify.mjs';
 import path from 'node:path';
@@ -39,6 +40,11 @@ test('Ed25519 key generation, signing, and verification', () => {
     const tamperedSig = signature.slice(0, -2) + (signature.endsWith('0') ? '1' : '0');
     const invalidSig = verifySignature(data, tamperedSig, keyPair.publicKeyPem);
     assert.equal(invalidSig, false);
+
+    // Non-hex trailing characters and non-128-char hex strings rejected strictly
+    assert.equal(verifySignature(data, signature + 'zzzz', keyPair.publicKeyPem), false);
+    assert.equal(verifySignature(data, 'zz' + signature.slice(2), keyPair.publicKeyPem), false);
+    assert.equal(verifySignature(data, signature.slice(0, 126), keyPair.publicKeyPem), false);
 });
 
 test('Ed25519 bundle signing and verification', (t) => {
@@ -53,9 +59,25 @@ test('Ed25519 bundle signing and verification', (t) => {
     assert.equal(result.valid, true);
     assert.equal(result.bundleHash, sigRecord.bundleHash);
 
-    // Unrelated key rejects
+    // Unrelated key rejects (keyId mismatch caught before or during verification)
     const anotherKeyPair = generateSigningKeyPair();
-    assert.throws(() => verifyBundleSignature(root, anotherKeyPair.publicKeyPem), { code: 'SIGNATURE_INVALID' });
+    assert.throws(() => verifyBundleSignature(root, anotherKeyPair.publicKeyPem), (err) => {
+        return err.code === 'APPROVAL_MISMATCH' || err.code === 'SIGNATURE_INVALID';
+    });
+
+    // Tampered keyId or signedAt or non-object sigRecord rejected
+    assert.throws(
+        () => verifyBundleSignature(root, keyPair.publicKeyPem, { ...sigRecord, keyId: '0'.repeat(32) }),
+        { code: 'APPROVAL_MISMATCH' }
+    );
+    assert.throws(
+        () => verifyBundleSignature(root, keyPair.publicKeyPem, { ...sigRecord, signedAt: 'not-a-date' }),
+        { code: 'CRYPTO_ERROR' }
+    );
+    assert.throws(
+        () => verifyBundleSignature(root, keyPair.publicKeyPem, 'not-an-object'),
+        { code: 'CRYPTO_ERROR' }
+    );
 });
 
 test('Ed25519 verification evidence signing and verifier gate', async (t) => {
@@ -71,6 +93,20 @@ test('Ed25519 verification evidence signing and verifier gate', async (t) => {
     const verified = verifyVerificationEvidence(root, report.evidence, keyPair.publicKeyPem);
     assert.equal(verified.valid, true);
     assert.equal(verified.evidenceHash, report.evidence);
+
+    // Tampered workspaceHash, keyId, or signedAt in evidence signature record rejected
+    assert.throws(
+        () => verifyVerificationEvidence(root, report.evidence, keyPair.publicKeyPem, { ...sig, workspaceHash: 'f'.repeat(64) }),
+        { code: 'APPROVAL_MISMATCH' }
+    );
+    assert.throws(
+        () => verifyVerificationEvidence(root, report.evidence, keyPair.publicKeyPem, { ...sig, keyId: '0'.repeat(32) }),
+        { code: 'APPROVAL_MISMATCH' }
+    );
+    assert.throws(
+        () => verifyVerificationEvidence(root, report.evidence, keyPair.publicKeyPem, { ...sig, signedAt: 'invalid-date' }),
+        { code: 'CRYPTO_ERROR' }
+    );
 });
 
 test('Ed25519 verification throws NO_SIGNATURE when signature file is missing', async (t) => {
@@ -85,7 +121,7 @@ test('Ed25519 verification throws NO_SIGNATURE when signature file is missing', 
     assert.throws(() => verifyVerificationEvidence(root, report.evidence, keyPair.publicKeyPem), { code: 'NO_SIGNATURE' });
 });
 
-test('saveKeypair and loadKeypair safely store and retrieve keys with path validation', (t) => {
+test('saveKeypair and loadKeypair safely store and retrieve keys with path validation, chmod 0600, and directory resolveKeyPem', (t) => {
     const { root } = sandbox(t);
     const keyPair = generateSigningKeyPair();
     const outDir = path.join(root, 'keys');
@@ -94,6 +130,31 @@ test('saveKeypair and loadKeypair safely store and retrieve keys with path valid
     assert.equal(saved.out, path.resolve(outDir));
     assert(fs.existsSync(saved.privPath));
     assert(fs.existsSync(saved.pubPath));
+
+    if (process.platform !== 'win32') {
+        // Widen permissions on privPath and verify saveKeypair restores 0o600
+        fs.chmodSync(saved.privPath, 0o644);
+        saveKeypair(outDir, keyPair);
+        const mode = fs.statSync(saved.privPath).mode & 0o777;
+        assert.equal(mode, 0o600);
+    }
+
+    // resolveKeyPem and signBundle/verifyBundleSignature accept a keypair directory directly
+    assert.equal(resolveKeyPem(outDir, 'private'), keyPair.privateKeyPem.trim());
+    assert.equal(resolveKeyPem(outDir, 'public'), keyPair.publicKeyPem.trim());
+    const bundleSig = signBundle(root, outDir);
+    assert.equal(bundleSig.keyId, keyPair.keyId);
+    const bundleVer = verifyBundleSignature(root, outDir);
+    assert.equal(bundleVer.valid, true);
+
+    // Symlinked target file in saveKeypair is refused
+    const symDir = path.join(root, 'sym-keys');
+    fs.mkdirSync(symDir, { recursive: true });
+    const victimFile = path.join(root, 'victim.txt');
+    fs.writeFileSync(victimFile, 'keep-me');
+    fs.symlinkSync(victimFile, path.join(symDir, 'steward-ed25519.priv.pem'));
+    assert.throws(() => saveKeypair(symDir, keyPair), { code: 'BAD_FILE' });
+    assert.equal(fs.readFileSync(victimFile, 'utf8'), 'keep-me');
 
     const loadedPriv = loadKeypair(saved.privPath);
     const loadedPub = loadKeypair(saved.pubPath);
@@ -116,3 +177,4 @@ test('saveKeypair and loadKeypair safely store and retrieve keys with path valid
     fs.mkdirSync(emptyDir);
     assert.throws(() => loadKeypair(emptyDir), { code: 'CRYPTO_ERROR' });
 });
+
