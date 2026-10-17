@@ -294,6 +294,97 @@ test('MCP handleMcpMessage enforces JSON-RPC 2.0 request invariants', async (t) 
     const badIdRes = await handleMcpMessage(root, { jsonrpc: '2.0', id: { nested: 1 }, method: 'ping' });
     assert.equal(badIdRes.id, null);
     assert.equal(badIdRes.error.code, -32600);
+
+    const nullIdRes = await handleMcpMessage(root, { jsonrpc: '2.0', id: null, method: 'ping' });
+    assert.equal(nullIdRes.id, null);
+    assert.equal(nullIdRes.error.code, -32600);
+
+    const arrayParamsRes = await handleMcpMessage(root, { jsonrpc: '2.0', id: 52, method: 'ping', params: [1, 2] });
+    assert.equal(arrayParamsRes.id, 52);
+    assert.equal(arrayParamsRes.error.code, -32600);
+
+    const protoToolRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 53,
+        method: 'tools/call',
+        params: { name: 'toString', arguments: {} }
+    });
+    assert.equal(protoToolRes.result.isError, true);
+    assert.match(protoToolRes.result.content[0].text, /Unknown MCP tool: toString/);
+
+    const protoResourceRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 54,
+        method: 'resources/read',
+        params: { uri: 'toString' }
+    });
+    assert.equal(protoResourceRes.error.code, -32002);
+    assert.match(protoResourceRes.error.message, /Unknown MCP resource: toString/);
+});
+
+test('MCP executes steward_checkpoint, steward_verify, steward_completion_gate, and all 5 resources', async (t) => {
+    const { root } = sandbox(t, { plan: plan() });
+
+    const cpRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 80,
+        method: 'tools/call',
+        params: {
+            name: 'steward_checkpoint',
+            arguments: {
+                summary: 'Ready to verify Track 2',
+                next: 'Run steward_verify',
+                blockers: [],
+                tags: ['checkpoint']
+            }
+        }
+    });
+    assert.equal(cpRes.result.isError, false);
+    const cpOut = JSON.parse(cpRes.result.content[0].text);
+    assert.equal(cpOut.type, 'checkpoint');
+    assert.equal(cpOut.data.summary, 'Ready to verify Track 2');
+
+    const verifyRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 81,
+        method: 'tools/call',
+        params: {
+            name: 'steward_verify',
+            arguments: {}
+        }
+    });
+    assert.equal(verifyRes.result.isError, false);
+    const verifyOut = JSON.parse(verifyRes.result.content[0].text);
+    assert.equal(verifyOut.allPassed, true);
+    assert.match(verifyOut.evidence, /^[a-f0-9]{64}$/);
+
+    const gateRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 82,
+        method: 'tools/call',
+        params: {
+            name: 'steward_completion_gate',
+            arguments: { evidence: verifyOut.evidence }
+        }
+    });
+    assert.equal(gateRes.result.isError, false);
+    const gateOut = JSON.parse(gateRes.result.content[0].text);
+    assert.equal(gateOut.pass, true);
+    assert.equal(gateOut.evidence, verifyOut.evidence);
+
+    for (const [idx, resourceDef] of STEWARD_RESOURCES.entries()) {
+        const resRead = await handleMcpMessage(root, {
+            jsonrpc: '2.0',
+            id: 90 + idx,
+            method: 'resources/read',
+            params: { uri: resourceDef.uri }
+        });
+        assert.ok(resRead.result, `Expected resource result for ${resourceDef.uri}`);
+        assert.equal(resRead.result.contents[0].uri, resourceDef.uri);
+        assert.equal(resRead.result.contents[0].mimeType, 'application/json');
+        const parsed = JSON.parse(resRead.result.contents[0].text);
+        assert.ok(parsed && typeof parsed === 'object');
+    }
 });
 
 test('startMcpServer enforces 1 MiB line limit and recovers for subsequent messages', async (t) => {

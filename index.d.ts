@@ -486,13 +486,13 @@ export function generateSigningKeyPair(): SigningKeyPair;
 export function deriveKeyId(publicKeyPem: string): string;
 export function signData(data: string | Buffer | object, privateKeyPem: string): { alg: string; signature: string };
 export function verifySignature(data: string | Buffer | object, signatureHex: string, publicKeyPem: string): boolean;
-export function resolveKeyPem(input: string): string;
+export function resolveKeyPem(input: string, role?: 'any' | 'private' | 'public' | 'file'): string;
 export function loadKeypair(input: string): string | { privateKeyPem: string; publicKeyPem: string; keyId: string };
 export function saveKeypair(outDir: string, keyPair: { privateKeyPem: string; publicKeyPem: string; keyId?: string }): { out: string; privPath: string; pubPath: string; keyId: string };
 export function signBundle(root: string, privateKeyPem: string): SignatureRecord;
-export function verifyBundleSignature(root: string, publicKeyInput: string, sigRecord?: SignatureRecord | null): { valid: true; bundleHash: string; signedAt: string; keyId: string; target: 'bundle' };
+export function verifyBundleSignature(root: string, publicKeyInput: string, sigRecord?: SignatureRecord | null): { valid: true; bundleHash: string; signedAt: string; keyId: string };
 export function signVerificationEvidence(root: string, evidenceHash: string, privateKeyInput: string): EvidenceSignatureRecord;
-export function verifyVerificationEvidence(root: string, evidenceHash: string, publicKeyInput: string, sigRecord?: EvidenceSignatureRecord | null): { valid: true; evidenceHash: string; runId: string; workspaceHash: string; keyId: string; signedAt: string; target: 'evidence' };
+export function verifyVerificationEvidence(root: string, evidenceHash: string, publicKeyInput: string, sigRecord?: EvidenceSignatureRecord | null): { valid: true; evidenceHash: string; keyId: string; signedAt: string };
 
 // ==========================================
 // Setup & Errors

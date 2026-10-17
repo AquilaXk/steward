@@ -177,10 +177,11 @@ try {
         else if (command === 'hook') {
             const host = opts.host || 'generic';
             const raw = await input();
+            const expectedEvent = opts.event || null;
             if (!opts.event && raw && typeof raw === 'object' && !Array.isArray(raw)) {
                 opts.event = raw.hook_event_name || raw.event || null;
             }
-            const { encoded } = handleHook(root, host, raw, opts.event || null);
+            const { encoded } = handleHook(root, host, raw, expectedEvent);
             if (encoded.stdout)
                 process.stdout.write(encoded.stdout + '\n');
             if (encoded.stderr)

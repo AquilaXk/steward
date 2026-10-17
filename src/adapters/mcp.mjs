@@ -275,7 +275,7 @@ const TOOL_DISPATCHERS = {
  */
 export async function executeTool(root, name, args = {}) {
     root = rootOf(root);
-    const handler = TOOL_DISPATCHERS[name];
+    const handler = typeof name === 'string' && Object.hasOwn(TOOL_DISPATCHERS, name) ? TOOL_DISPATCHERS[name] : null;
     insist(handler, 'USAGE', `Unknown MCP tool: ${name}`);
     return handler(root, args || {});
 }
@@ -312,7 +312,7 @@ const RESOURCE_HANDLERS = {
  */
 export function readResource(root, uri) {
     root = rootOf(root);
-    const handler = RESOURCE_HANDLERS[uri];
+    const handler = typeof uri === 'string' && Object.hasOwn(RESOURCE_HANDLERS, uri) ? RESOURCE_HANDLERS[uri] : null;
     insist(handler, 'USAGE', `Unknown MCP resource: ${uri}`);
     return handler(root, uri);
 }
@@ -379,20 +379,21 @@ export async function handleMcpMessage(root, req) {
         return { jsonrpc: '2.0', id: null, error: { code: -32600, message: 'Invalid Request' } };
     }
     const { id, method, params } = req;
-    const validId = id === undefined || id === null || typeof id === 'string' || (typeof id === 'number' && Number.isFinite(id));
+    const isNotification = !Object.hasOwn(req, 'id') || id === undefined;
+    const validId = isNotification || typeof id === 'string' || (typeof id === 'number' && Number.isFinite(id));
     const responseId = (typeof id === 'string' || (typeof id === 'number' && Number.isFinite(id))) ? id : null;
     if (
         !validId ||
         req.jsonrpc !== '2.0' ||
         typeof method !== 'string' ||
         !method.trim() ||
-        (params !== undefined && (typeof params !== 'object' || params === null))
+        (params !== undefined && (typeof params !== 'object' || params === null || Array.isArray(params)))
     ) {
         return { jsonrpc: '2.0', id: responseId, error: { code: -32600, message: 'Invalid Request' } };
     }
 
     // Notifications require no response
-    if (id === undefined || id === null) {
+    if (isNotification) {
         return null;
     }
 
