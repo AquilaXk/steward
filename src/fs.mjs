@@ -88,7 +88,7 @@ export function atomicWrite(root, relative, text, { replace = false } = {}) {
         }
     }
 }
-function removeLockDir(lock) {
+async function removeLockDir(lock) {
     const maxRetries = process.platform === 'win32' ? 5 : 1;
     for (let retry = 0; retry < maxRetries; retry++) {
         try {
@@ -98,6 +98,8 @@ function removeLockDir(lock) {
         catch (e) {
             if (e.code === 'ENOENT')
                 return;
+            if (retry + 1 < maxRetries)
+                await new Promise(r => setTimeout(r, 10 * (retry + 1)));
         }
     }
 }
@@ -123,7 +125,7 @@ export async function withLock(root, relative, fn, timeoutMs = 5000) {
         return await fn();
     }
     finally {
-        removeLockDir(lock);
+        await removeLockDir(lock);
     }
 }
 export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
@@ -151,13 +153,14 @@ export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
     return result;
 }
 export function snapshot(root, extraExcludes = []) {
+    const normalizedExcludes = extraExcludes.map(x => String(x).replace(/\/+$/, '')).filter(Boolean);
     const files = walk(root, {
         exclude: (p, entry) =>
             entry.name === '.git' ||
             entry.name === 'node_modules' ||
             p === '.steward/state' ||
             p.startsWith('.steward/install-') ||
-            extraExcludes.some(x => p === x || p.startsWith(x + '/'))
+            normalizedExcludes.some(x => p === x || p.startsWith(x + '/'))
     });
     return { hash: sha256(canonical(files)), files: files.length, excluded: ['.git/', 'node_modules/', '.steward/state/', '.steward/install-*', ...extraExcludes] };
 }

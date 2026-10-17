@@ -2,8 +2,8 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { requireTrust, loadBundle } from './trust.mjs';
-import { snapshot, sha256, atomicWrite, canonical, safePath, readText } from './fs.mjs';
+import { requireTrust } from './trust.mjs';
+import { snapshot, sha256, atomicWrite, canonical, safePath, readText, rootOf } from './fs.mjs';
 import { appendInternal, readJournal } from './journal.mjs';
 import { insist } from './errors.mjs';
 function cleanEnvironment() {
@@ -35,6 +35,7 @@ export function resolveCommand(cmd, env = {}) {
     return cmd;
 }
 export async function runVerification(root) {
+    root = rootOf(root);
     const { plan, hash: bundleHash } = requireTrust(root), before = snapshot(root, plan.exclude || []);
     const id = randomUUID(), checks = [];
     const env = cleanEnvironment();
@@ -66,7 +67,8 @@ export async function runVerification(root) {
     return { ...report, evidence: record.hash };
 }
 export function completionGate(root, evidence = null) {
-    const bundle = requireTrust(root), rows = readJournal(root);
+    root = rootOf(root);
+    const bundle = requireTrust(root), rows = readJournal(root, { fresh: true });
     const row = evidence ? rows.find(r => r.hash === evidence) : rows.findLast(r => r.type === 'verification');
     insist(row && row.type === 'verification', 'NO_EVIDENCE', 'No verification evidence exists for this project.');
     const r = row.data;

@@ -1,10 +1,11 @@
 import * as fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { safePath, readJSON, atomicWrite, sha256 } from './fs.mjs';
+import { safePath, readJSON, atomicWrite, sha256, rootOf } from './fs.mjs';
 import { insist } from './errors.mjs';
 import { loadBundle } from './trust.mjs';
 const AUDIT_LIMIT = 20000;
 export function audit(root, host, event, result, bundleHash) {
+    root = rootOf(root);
     const id = randomUUID();
     // These are output-preparation receipts. The process cannot observe host/model receipt.
     const row = { version: 1, id, time: new Date().toISOString(), project: sha256(root), host, event: event.event, bundleHash, decision: result.decision,
@@ -23,13 +24,14 @@ export function audit(root, host, event, result, bundleHash) {
     return id;
 }
 export function report(root) {
+    root = rootOf(root);
     const dir = safePath(root, '.steward/state/audit');
     let names = [];
     let entries = 0;
     try {
         const contents = fs.readdirSync(dir);
         entries = contents.length;
-        names = contents.filter(n => n.endsWith('.json'));
+        names = contents.filter(n => n.endsWith('.json')).sort();
     }
     catch (e) {
         if (e.code !== 'ENOENT')
@@ -72,6 +74,7 @@ export function report(root) {
         retention: { limit: AUDIT_LIMIT, remaining: Math.max(0, AUDIT_LIMIT - entries) } };
 }
 export function pruneAudit(root, { keep = 5000 } = {}) {
+    root = rootOf(root);
     insist(Number.isInteger(keep) && keep >= 0, 'USAGE', 'keep must be a non-negative integer.');
     const dir = safePath(root, '.steward/state/audit');
     let names = [];

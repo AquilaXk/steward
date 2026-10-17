@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
-import { safePath, readText, sha256, canonical } from './fs.mjs';
+import { safePath, readText, sha256, canonical, rootOf } from './fs.mjs';
 const patterns = [
     ['approval-stall', /always (?:ask|wait for).{0,25}(?:permission|approval)/i],
     ['unbounded-tests', /(?:run all tests after every|repeat.{0,20}tests until perfect)/i],
@@ -9,6 +9,7 @@ const patterns = [
     ['private-reasoning', /(?:reveal|print|show).{0,20}(?:hidden chain|private chain)/i]
 ];
 export function auditInstructions(root) {
+    root = rootOf(root);
     const files = [];
     function visit(relative, depth = 0) {
         if (depth > 12)
@@ -17,7 +18,7 @@ export function auditInstructions(root) {
         if (!fs.existsSync(abs))
             return;
         if (fs.lstatSync(abs).isDirectory()) {
-            for (const e of fs.readdirSync(abs, { withFileTypes: true }))
+            for (const e of fs.readdirSync(abs, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'en')))
                 if (!['node_modules', '.git', 'state'].includes(e.name))
                     visit(path.join(relative, e.name), depth + 1);
         }

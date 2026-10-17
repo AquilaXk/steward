@@ -3,7 +3,9 @@ import { normalizeInput, encode } from './adapters.mjs';
 import { requireTrust } from './trust.mjs';
 import { audit } from './audit.mjs';
 import { latestCheckpoint, saveCompaction } from './journal.mjs';
+import { rootOf } from './fs.mjs';
 export function handleHook(root, host, raw, expectedEvent = null) {
+    root = rootOf(root);
     const event = normalizeInput(host, raw, root, expectedEvent);
     const bundle = requireTrust(root);
     let result = evaluate(bundle.policy, event);

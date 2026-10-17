@@ -1,10 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { mkdir, sha256, canonical, atomicWrite, withLock } from './fs.mjs';
+import { mkdir, sha256, canonical, atomicWrite, withLock, rootOf } from './fs.mjs';
 import { validateEntry, validateJournalRow } from './schema.mjs';
 import { insist } from './errors.mjs';
 import { syncJournalCache, queryJournalIndexed, invalidateJournalCache } from './index-cache.mjs';
 const DIRECTORY = '.steward/state/journal';
 export function readJournal(root, { anchor = null, fresh = false } = {}) {
+    root = rootOf(root);
     if (fresh) invalidateJournalCache(root);
     const { rows } = syncJournalCache(root);
     if (anchor) {
@@ -19,6 +20,7 @@ export function queryJournal(root, options = {}) {
     return queryJournalIndexed(root, options);
 }
 export async function appendInternal(root, type, data) {
+    root = rootOf(root);
     mkdir(root, DIRECTORY);
     return withLock(root, '.steward/state/journal.lock', () => {
         const rows = readJournal(root);
@@ -39,6 +41,7 @@ export async function appendInternal(root, type, data) {
     });
 }
 export async function appendEntry(root, entry) {
+    root = rootOf(root);
     validateEntry(entry);
     if (entry.type === 'goal' && entry.data.status === 'complete') {
         const { completionGate } = await import('./verify.mjs');
@@ -53,6 +56,7 @@ function selectCheckpoint(rows, sessionId) {
 }
 export function latestCheckpoint(root, sessionId = null) { return selectCheckpoint(readJournal(root), sessionId); }
 export function saveCompaction(root, sessionId) {
+    root = rootOf(root);
     const rows = readJournal(root), checkpoint = selectCheckpoint(rows, sessionId);
     const record = { version: 1, time: new Date().toISOString(), session: sessionId == null ? null : sha256(sessionId), ...journalHead(rows), checkpoint: checkpoint ? { hash: checkpoint.hash, data: checkpoint.data } : null, conversationCaptured: false };
     const relative = `.steward/state/checkpoints/${randomUUID()}.json`;

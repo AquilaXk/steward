@@ -25,7 +25,7 @@ function installSkills(root, host, write = atomicWrite, update = false) {
     const destination = host === 'claude' ? '.claude/skills' : '.agents/skills';
     const source = path.join(PACKAGE_ROOT, 'procedures');
     function copy(directory, relative = '') {
-        for (const item of fs.readdirSync(directory, { withFileTypes: true })) {
+        for (const item of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'en'))) {
             insist(!item.isSymbolicLink(), 'BAD_SKILL_SOURCE', 'Skill sources must be regular files or directories.');
             const suffix = path.posix.join(relative, item.name);
             const absolute = path.join(directory, item.name);
@@ -130,6 +130,7 @@ export function hookCommand(root, host, event) {
     return [process.execPath, path.join(PACKAGE_ROOT, 'bin/steward.mjs'), 'hook', '--host', host, '--project', root, '--event', event].map(quote).join(' ');
 }
 export function installHooks(root, host, { plugin = false, update = false, uninstall = false } = {}) {
+    root = rootOf(root);
     insist(['codex', 'claude'].includes(host), 'BAD_HOST', 'Install supports codex or claude.');
     const lock = safePath(root, '.steward/install.lock');
     try { fs.mkdirSync(lock, { mode: 0o700 }); }

@@ -73,7 +73,7 @@ export function validatePlan(p) {
     if (p.exclude !== undefined) {
         strings(p.exclude, 'plan.exclude', { empty: true, max: 32 });
         for (const v of p.exclude)
-            insist(!v.startsWith('/') && !v.includes('\\') && !v.split('/').some(s => s === '..' || s === '.') && !v.includes(':'), 'SCHEMA', 'exclude must be project-relative literal path prefixes.');
+            insist(!v.startsWith('/') && !v.includes('\\') && !v.split('/').some(s => s === '..' || s === '.') && !v.includes(':') && !/[*?[\]]/.test(v), 'SCHEMA', 'exclude must be project-relative literal path prefixes.');
     }
     insist(Array.isArray(p.checks) && p.checks.length > 0 && p.checks.length <= 32, 'SCHEMA', 'Plan needs 1..32 checks.');
     const ids = new Set();
@@ -96,8 +96,18 @@ export function validateEntry(entry) {
     object(entry, ['type', 'data'], 'entry');
     insist(RECORD_TYPES.includes(entry.type), 'SCHEMA', 'Unknown or reserved journal entry type.');
     const d = entry.data;
-    const fields = { decision: ['statement', 'authority', 'supersedes'], question: ['question', 'assumptions', 'resolution', 'supersedes'], knowledge: ['claim', 'basis', 'sources', 'expiresAt'], goal: ['objective', 'acceptance', 'status', 'evidence'], checkpoint: ['summary', 'next', 'blockers', 'session'], schedule: ['title', 'dueAt', 'status', 'members', 'id', 'supersedes'], handoff: ['task', 'scope', 'constraints', 'acceptance', 'evidence'] };
+    const fields = {
+        decision: ['statement', 'authority', 'supersedes', 'tags'],
+        question: ['question', 'assumptions', 'resolution', 'supersedes', 'tags'],
+        knowledge: ['claim', 'basis', 'sources', 'expiresAt', 'tags'],
+        goal: ['objective', 'acceptance', 'status', 'evidence', 'tags'],
+        checkpoint: ['summary', 'next', 'blockers', 'session', 'tags'],
+        schedule: ['title', 'dueAt', 'status', 'members', 'id', 'supersedes', 'tags'],
+        handoff: ['task', 'scope', 'constraints', 'acceptance', 'evidence', 'tags']
+    };
     object(d, fields[entry.type], entry.type);
+    if (d.tags !== undefined)
+        strings(d.tags, `${entry.type}.tags`, { empty: true, max: 16 });
     if (entry.type === 'decision') {
         text(d.statement, 'statement');
         object(d.authority, ['kind', 'reference', 'quote'], 'authority');
