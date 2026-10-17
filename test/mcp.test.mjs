@@ -414,8 +414,8 @@ test('startMcpServer enforces 1 MiB line limit and recovers for subsequent messa
 
 test('formatMcpConfig resolves default runner to Steward package bin/steward.mjs', () => {
     const cfg = formatMcpConfig({ host: 'claude', project: '/tmp/external-workspace' });
-    const runnerPath = cfg.mcpServers.steward.args[0];
-    assert.ok(!runnerPath.startsWith('/tmp/external-workspace'), `Expected package runner path, got ${runnerPath}`);
+    const runnerPath = cfg.mcpServers.steward.args[0].replaceAll('\\', '/');
+    assert.ok(!runnerPath.includes('external-workspace'), `Expected package runner path, got ${runnerPath}`);
     assert.ok(runnerPath.endsWith('bin/steward.mjs'));
 });
 
