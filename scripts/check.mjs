@@ -161,16 +161,21 @@ try {
     assert.equal(checkEvidence.result.jsonFiles, jsonFiles.length, 'evidence/check-results.json jsonFiles drifted.');
     assert.equal(checkEvidence.result.skills, skills.length, 'evidence/check-results.json skills drifted.');
     assert.equal(checkEvidence.result.localLinks, localLinks, 'evidence/check-results.json localLinks drifted.');
+    const compareAscii = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
     const sourceManifest = json('evidence/source-manifest.json');
     assert.equal(sourceManifest.version, 1);
-    assert.deepEqual(sourceManifest.files.map((item) => item.path), [...all].sort(), 'evidence/source-manifest.json file list drifted.');
+    assert.deepEqual(sourceManifest.files.map((item) => item.path), [...all].sort(compareAscii), 'evidence/source-manifest.json file list drifted.');
     for (const item of sourceManifest.files) {
         const buf = fs.readFileSync(path.join(root, item.path));
         assert.equal(buf.byteLength, item.bytes, `evidence/source-manifest.json byte length mismatch: ${item.path}`);
         assert.equal(crypto.createHash('sha256').update(buf).digest('hex'), item.sha256, `evidence/source-manifest.json sha256 mismatch: ${item.path}`);
     }
+    const evidenceFiles = fs.readdirSync(path.join(root, 'evidence'))
+        .map((name) => path.posix.join('evidence', name))
+        .filter((rel) => rel !== 'evidence/manifest.json');
     const fullManifest = json('evidence/manifest.json');
     assert.equal(fullManifest.version, 1);
+    assert.deepEqual(fullManifest.files.map((item) => item.path), [...all, ...evidenceFiles].sort(compareAscii), 'evidence/manifest.json file list drifted.');
     for (const item of fullManifest.files) {
         const buf = fs.readFileSync(path.join(root, item.path));
         assert.equal(buf.byteLength, item.bytes, `evidence/manifest.json byte length mismatch: ${item.path}`);

@@ -380,8 +380,8 @@
     },
     {
       "path": "scripts/check.mjs",
-      "bytes": 11029,
-      "sha256": "03025d3ced6b73abf72af00b5b8d28e0d8f35687d4022cc2e92ed28edeca7bab"
+      "bytes": 11453,
+      "sha256": "9aa02e6f58927fca2f59c729bdba7f6857c22f5aec9b178a530eafe72163f868"
     },
     {
       "path": "scripts/demo.mjs",

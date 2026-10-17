@@ -277,7 +277,7 @@
     {
       "path": "evidence/source-manifest.json",
       "bytes": 18238,
-      "sha256": "e2cba964ae5b24a65d11a80096d77a873b466af02354037ec47185e4dea3e282"
+      "sha256": "8170192de7b7c08cb5befa852f84e498925d1ba198419cb80221cc1f819fc977"
     },
     {
       "path": "evidence/test-results.tap",
@@ -426,8 +426,8 @@
     },
     {
       "path": "scripts/check.mjs",
-      "bytes": 11029,
-      "sha256": "03025d3ced6b73abf72af00b5b8d28e0d8f35687d4022cc2e92ed28edeca7bab"
+      "bytes": 11453,
+      "sha256": "9aa02e6f58927fca2f59c729bdba7f6857c22f5aec9b178a530eafe72163f868"
     },
     {
       "path": "scripts/demo.mjs",
