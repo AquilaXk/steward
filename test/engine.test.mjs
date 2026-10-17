@@ -91,6 +91,9 @@ test('matchGlob does not short-circuit raw equality when pattern contains glob m
     assert.equal(isSafePattern('[]'), false);
     assert.equal(isSafePattern('[!]'), false);
     assert.equal(isSafePattern('[^]'), false);
+    assert.equal(matchGlob('[]', 'a'), false);
+    assert.equal(matchGlob('[!]', 'a'), false);
+    assert.equal(matchGlob('[^]', 'a'), false);
     assert.throws(() => validatePolicy(policy([rule({ match: { patternsAny: ['[]'] } })])), { code: 'SCHEMA' });
 });
 test('matchGlob fails closed with GLOB_COMPLEXITY on step budget exhaustion and handles >100k inputs', async () => {

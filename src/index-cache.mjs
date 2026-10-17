@@ -300,7 +300,7 @@ export function queryJournalIndexed(root, { type, text = '', limit = 20, history
     const candidates = selectSmallestCandidateSet(rows, cache.index, { type, tag, session, recordId });
     const filterContext = { type, recordId, session, needle, sinceMs, untilMs, tag };
 
-    const matches = candidates.map(row => ({
+    const matches = candidates.map(row => Object.freeze({
         ...row,
         superseded: cache.index.supersededHashes.has(row.hash),
         expired: row.type === 'knowledge' && row.data.expiresAt !== null && Date.parse(row.data.expiresAt) <= now

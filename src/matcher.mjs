@@ -132,6 +132,7 @@ function addSingleCodePoint(cp, asciiBits, unicodeSet) {
 function compileCharClass(content, caseSensitive) {
     const negated = content.startsWith('!') || content.startsWith('^');
     const raw = negated ? content.slice(1) : content;
+    if (!raw) return () => false;
     const units = Array.from(raw);
     const asciiBits = new Uint32Array(4);
     const unicodeSet = new Set();

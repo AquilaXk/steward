@@ -106,6 +106,7 @@ test('cached journal rows and array are immutable against caller mutation', asyn
     }, TypeError);
     rows.pop();
     assert.equal(readJournal(root).length, 1);
+    assert.equal(Object.isFrozen(queryJournal(root).rows[0]), true);
 });
 
 test('queryJournal rejects malformed since/until timestamps and preserves all schedule revisions for recordId + history', async (t) => {
