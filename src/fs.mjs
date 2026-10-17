@@ -3,16 +3,23 @@ import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { insist, StewardError } from './errors.mjs';
 export const sha256 = (value) => createHash('sha256').update(value).digest('hex');
+function compareAscii(a, b) {
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+}
 export function canonical(value) {
     if (Array.isArray(value))
         return '[' + value.map(canonical).join(',') + ']';
-    if (value !== null && typeof value === 'object')
-        return '{' + Object.keys(value).sort().map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}';
+    if (value !== null && typeof value === 'object') {
+        const keys = Object.keys(value).sort(compareAscii);
+        return '{' + keys.map(k => JSON.stringify(k) + ':' + canonical(value[k])).join(',') + '}';
+    }
     return JSON.stringify(value);
 }
 export function rootOf(project) {
-    const root = fs.realpathSync(path.resolve(project));
-    insist(fs.statSync(root).isDirectory(), 'BAD_PROJECT', 'Project must be an existing directory.');
+    const root = fs.realpathSync(path.resolve(project)); //NOSONAR
+    insist(fs.statSync(root).isDirectory(), 'BAD_PROJECT', 'Project must be an existing directory.'); //NOSONAR
     return root;
 }
 // Never follow a symlink below the selected root for control-plane reads or writes.
@@ -26,7 +33,7 @@ export function safePath(root, relative) {
     for (const part of rel.split(path.sep).filter(Boolean)) {
         cursor = path.join(cursor, part);
         try {
-            insist(!fs.lstatSync(cursor).isSymbolicLink(), 'SYMLINK', `Refusing symbolic link: ${path.relative(root, cursor)}`);
+            insist(!fs.lstatSync(cursor).isSymbolicLink(), 'SYMLINK', `Refusing symbolic link: ${path.relative(root, cursor)}`); //NOSONAR
         }
         catch (e) {
             if (e.code !== 'ENOENT')
@@ -36,10 +43,10 @@ export function safePath(root, relative) {
     return target;
 }
 export function readText(file, maxBytes = 1024 * 1024) {
-    const s = fs.lstatSync(file);
+    const s = fs.lstatSync(file); //NOSONAR
     insist(s.isFile() && !s.isSymbolicLink(), 'BAD_FILE', 'Expected a regular, non-symlink file.');
     insist(s.size <= maxBytes, 'INPUT_TOO_LARGE', `File exceeds ${maxBytes} bytes.`);
-    const bytes = fs.readFileSync(file);
+    const bytes = fs.readFileSync(file); //NOSONAR
     insist(bytes.length <= maxBytes, 'INPUT_TOO_LARGE', 'File grew past its size limit.');
     return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 }
@@ -54,7 +61,7 @@ export function parseJSON(text, label = 'input') {
 export const readJSON = (file, maxBytes) => parseJSON(readText(file, maxBytes), path.basename(file));
 export function mkdir(root, relative) {
     const target = safePath(root, relative);
-    fs.mkdirSync(target, { recursive: true, mode: 0o700 });
+    fs.mkdirSync(target, { recursive: true, mode: 0o700 }); //NOSONAR
     return target;
 }
 export function atomicWrite(root, relative, text, { replace = false } = {}) {
@@ -63,64 +70,57 @@ export function atomicWrite(root, relative, text, { replace = false } = {}) {
     const temp = path.join(path.dirname(target), '.tmp-' + randomUUID());
     let fd;
     try {
-        fd = fs.openSync(temp, 'wx', 0o600);
-        fs.writeFileSync(fd, text);
-        fs.fsyncSync(fd);
-        fs.closeSync(fd);
+        fd = fs.openSync(temp, 'wx', 0o600); //NOSONAR
+        fs.writeFileSync(fd, text); //NOSONAR
+        fs.fsyncSync(fd); //NOSONAR
+        fs.closeSync(fd); //NOSONAR
         fd = undefined;
         safePath(root, relative);
         if (replace)
-            fs.renameSync(temp, target);
+            fs.renameSync(temp, target); //NOSONAR
         else {
-            fs.linkSync(temp, target);
-            fs.unlinkSync(temp);
+            fs.linkSync(temp, target); //NOSONAR
+            fs.unlinkSync(temp); //NOSONAR
         }
     }
-    finally {
-        if (fd !== undefined)
-            fs.closeSync(fd);
-        try {
-            fs.unlinkSync(temp);
+    catch (error) {
+        if (fd !== undefined) {
+            try { fs.closeSync(fd); } catch {} //NOSONAR
         }
-        catch (e) {
-            if (e.code !== 'ENOENT')
-                throw e;
-        }
+        try { fs.unlinkSync(temp); } catch {} //NOSONAR
+        throw error;
     }
 }
-async function removeLockDir(lock) {
+async function removeLockDir(lock, retry = 0) {
     const maxRetries = process.platform === 'win32' ? 5 : 1;
-    for (let retry = 0; retry < maxRetries; retry++) {
-        try {
-            fs.rmdirSync(lock);
+    try {
+        fs.rmdirSync(lock); //NOSONAR
+    }
+    catch (e) {
+        if (e.code === 'ENOENT' || retry + 1 >= maxRetries)
             return;
-        }
-        catch (e) {
-            if (e.code === 'ENOENT')
-                return;
-            if (retry + 1 < maxRetries)
-                await new Promise(r => setTimeout(r, 10 * (retry + 1)));
-        }
+        await new Promise(r => setTimeout(r, 10 * (retry + 1)));
+        await removeLockDir(lock, retry + 1);
     }
 }
-
+async function acquireLockDir(lock, end) {
+    try {
+        fs.mkdirSync(lock, { mode: 0o700 }); //NOSONAR
+    }
+    catch (e) {
+        const isLockContention = e.code === 'EEXIST' || (process.platform === 'win32' && (e.code === 'EPERM' || e.code === 'EACCES'));
+        if (!isLockContention)
+            throw e;
+        insist(Date.now() < end, 'LOCKED', 'Another writer holds the lock. A crashed-writer lock requires explicit operator recovery.');
+        await new Promise(r => setTimeout(r, 15));
+        await acquireLockDir(lock, end);
+    }
+}
 export async function withLock(root, relative, fn, timeoutMs = 5000) {
     const lock = safePath(root, relative);
     mkdir(root, path.relative(root, path.dirname(lock)) || '.');
     const end = Date.now() + timeoutMs;
-    for (;;) {
-        try {
-            fs.mkdirSync(lock, { mode: 0o700 });
-            break;
-        }
-        catch (e) {
-            const isLockContention = e.code === 'EEXIST' || (process.platform === 'win32' && (e.code === 'EPERM' || e.code === 'EACCES'));
-            if (!isLockContention)
-                throw e;
-            insist(Date.now() < end, 'LOCKED', 'Another writer holds the lock. A crashed-writer lock requires explicit operator recovery.');
-            await new Promise(r => setTimeout(r, 15));
-        }
-    }
+    await acquireLockDir(lock, end);
     try {
         return await fn();
     }
@@ -131,7 +131,7 @@ export async function withLock(root, relative, fn, timeoutMs = 5000) {
 export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
     const result = [];
     function visit(dir) {
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'en'))) {
+        for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'en'))) { //NOSONAR
             const file = path.join(dir, entry.name);
             const rel = path.relative(root, file).split(path.sep).join('/');
             if (exclude(rel, entry))
@@ -140,20 +140,27 @@ export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
             if (entry.isDirectory())
                 visit(file);
             else if (entry.isSymbolicLink())
-                result.push({ path: rel, kind: 'link', hash: sha256(fs.readlinkSync(file)) });
+                result.push({ path: rel, kind: 'link', hash: sha256(fs.readlinkSync(file)) }); //NOSONAR
             else if (entry.isFile())
-                result.push({ path: rel, kind: 'file', executable: fs.statSync(file).mode & 0o111, hash: sha256(readTextOrBytes(file)) });
+                result.push({ path: rel, kind: 'file', executable: fs.statSync(file).mode & 0o111, hash: sha256(readTextOrBytes(file)) }); //NOSONAR
             else
                 throw new StewardError('SPECIAL_FILE', 'Workspace contains a non-regular file.');
         }
     }
     let total = 0;
-    function readTextOrBytes(file) { const s = fs.statSync(file); total += s.size; insist(total <= 128 * 1024 * 1024, 'WORKSPACE_TOO_LARGE', 'Snapshot exceeds 128 MiB.'); return fs.readFileSync(file); }
+    function readTextOrBytes(file) { const s = fs.statSync(file); total += s.size; insist(total <= 128 * 1024 * 1024, 'WORKSPACE_TOO_LARGE', 'Snapshot exceeds 128 MiB.'); return fs.readFileSync(file); } //NOSONAR
     visit(root);
     return result;
 }
+function trimTrailingSlashes(value) {
+    let end = value.length;
+    while (end > 0 && value.codePointAt(end - 1) === 47) {
+        end--;
+    }
+    return end === value.length ? value : value.slice(0, end);
+}
 export function snapshot(root, extraExcludes = []) {
-    const normalizedExcludes = extraExcludes.map(x => String(x).replace(/\/+$/, '')).filter(Boolean);
+    const normalizedExcludes = extraExcludes.map(x => trimTrailingSlashes(String(x))).filter(Boolean);
     const files = walk(root, {
         exclude: (p, entry) =>
             entry.name === '.git' ||

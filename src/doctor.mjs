@@ -7,6 +7,31 @@ import { readJournal, journalHead } from './journal.mjs';
 import { auditInstructions } from './instructions.mjs';
 import { HOOK_EVENTS, hookCommand, PACKAGE_ROOT } from './setup.mjs';
 
+function findMatchingHooks(groups, command) {
+    if (!Array.isArray(groups)) return [];
+    return groups.flatMap(group =>
+        Array.isArray(group?.hooks)
+            ? group.hooks.filter(h => h?.command === command).map(h => ({ group, h }))
+            : []
+    );
+}
+
+function isValidHookEventConfig(event, command, receiptCommands, matches) {
+    if (!receiptCommands.includes(command) || matches.length !== 1) return false;
+    const { group, h } = matches[0];
+    if (h.type !== 'command' || h.async === true || h.timeout !== 10) return false;
+    return event === 'PreToolUse' ? group.matcher === '.*' : group.matcher === undefined;
+}
+
+function resolveSkillsRoot(root, host, skillSource) {
+    if (skillSource === 'plugin') {
+        const subDir = host === 'claude' ? '.claude-plugin/skills' : 'procedures';
+        return path.join(PACKAGE_ROOT, subDir);
+    }
+    const localDir = host === 'codex' ? '.agents/skills' : '.claude/skills';
+    return safePath(root, localDir);
+}
+
 function inspectHost(root, host) {
     const configPath = host === 'codex' ? '.codex/hooks.json' : '.claude/settings.local.json';
     const receiptPath = `.steward/install-${host}.json`;
@@ -25,21 +50,15 @@ function inspectHost(root, host) {
         }
         for (const event of HOOK_EVENTS) {
             const command = hookCommand(root, host, event);
-            const groups = config?.hooks?.[event];
-            const matches = Array.isArray(groups) ? groups.flatMap(group =>
-                Array.isArray(group?.hooks) ? group.hooks.filter(h => h?.command === command).map(h => ({ group, h })) : []) : [];
-            if (!receipt.commands.includes(command) || matches.length !== 1 ||
-                matches[0].h.type !== 'command' || matches[0].h.async === true ||
-                matches[0].h.timeout !== 10 ||
-                (event === 'PreToolUse' ? matches[0].group.matcher !== '.*' : matches[0].group.matcher !== undefined)) {
+            const matches = findMatchingHooks(config?.hooks?.[event], command);
+            if (!isValidHookEventConfig(event, command, receipt.commands, matches)) {
                 result.problems.push(`${event}: missing, changed or duplicated handler. Reinstall from the current toolkit and Node path.`);
             }
         }
         if (config.disableAllHooks === true)
             result.problems.push('Hooks are disabled in this configuration.');
-        const skillsRoot = receipt.skillSource === 'plugin' ? path.join(PACKAGE_ROOT, host === 'claude' ? '.claude-plugin/skills' : 'procedures') :
-            safePath(root, host === 'codex' ? '.agents/skills' : '.claude/skills');
-        for (const name of fs.readdirSync(path.join(PACKAGE_ROOT, 'procedures')).sort()) {
+        const skillsRoot = resolveSkillsRoot(root, host, receipt.skillSource);
+        for (const name of fs.readdirSync(path.join(PACKAGE_ROOT, 'procedures')).sort((a, b) => a.localeCompare(b, 'en'))) {
             if (!fs.existsSync(path.join(skillsRoot, name, 'SKILL.md')))
                 result.problems.push(`Missing skill: ${name}. Restore it through the matching installation mode.`);
         }

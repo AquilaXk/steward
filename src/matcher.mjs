@@ -8,7 +8,7 @@ const TOK_ANY = 2;
 const TOK_CHAR = 3;
 const TOK_CLASS = 4;
 
-const FLAG_WS = 1 << 0;
+const FLAG_WS = 1;
 const FLAG_OP = 1 << 1;
 const FLAG_DBL_ESC = 1 << 2;
 
@@ -59,34 +59,41 @@ function hasDanglingEscape(pattern) {
     return (trailingBackslashes & 1) === 1;
 }
 
-function hasBalancedBrackets(pattern) {
-    let inClass = false;
-    let classStart = 0;
-    let memberCount = 0;
+function stepBracketState(c, index, state) {
+    if (c === '[') {
+        if (state.inClass) return false;
+        state.inClass = true;
+        state.classStart = index;
+        state.memberCount = 0;
+        return true;
+    }
+    if (c === ']') {
+        if (!state.inClass || state.memberCount === 0) return false;
+        state.inClass = false;
+        return true;
+    }
+    if (!state.inClass) return true;
+    const isInitialNegation = index === state.classStart + 1 && (c === '!' || c === '^');
+    if (!isInitialNegation) {
+        state.memberCount++;
+    }
+    return true;
+}
 
+function hasBalancedBrackets(pattern) {
+    const state = { inClass: false, classStart: 0, memberCount: 0 };
     for (let i = 0; i < pattern.length; i++) {
         const c = pattern[i];
         if (c === '\\') {
-            if (inClass) memberCount++;
+            if (state.inClass) state.memberCount++;
             i++;
             continue;
         }
-        if (c === '[') {
-            if (inClass) return false;
-            inClass = true;
-            classStart = i;
-            memberCount = 0;
-        } else if (c === ']') {
-            if (!inClass || memberCount === 0) return false;
-            inClass = false;
-        } else if (inClass) {
-            if (i === classStart + 1 && (c === '!' || c === '^')) {
-                continue;
-            }
-            memberCount++;
+        if (!stepBracketState(c, i, state)) {
+            return false;
         }
     }
-    return !inClass;
+    return !state.inClass;
 }
 
 /**
@@ -245,6 +252,28 @@ function matchesToken(tok, cp) {
     return tok.match(cp);
 }
 
+function advanceGlobStep(tokens, targetCodes, state) {
+    if (state.pIdx < tokens.length) {
+        const tok = tokens[state.pIdx];
+        if (tok.type === TOK_STAR) {
+            state.starPIdx = state.pIdx++;
+            state.starTIdx = state.tIdx;
+            return true;
+        }
+        if (matchesToken(tok, targetCodes[state.tIdx])) {
+            state.pIdx++;
+            state.tIdx++;
+            return true;
+        }
+    }
+    if (state.starPIdx !== -1) {
+        state.pIdx = state.starPIdx + 1;
+        state.tIdx = ++state.starTIdx;
+        return true;
+    }
+    return false;
+}
+
 /**
  * Deterministic linear-time glob matching with bit-level ASCII class lookup.
  * Enforces a fail-closed execution step budget (throws GLOB_COMPLEXITY on exhaustion).
@@ -263,46 +292,23 @@ export function matchGlob(pattern, text, { caseSensitive = false, maxSteps } = {
     const tokens = parseTokens(pattern, caseSensitive);
     const targetCodes = toCodePoints(text, caseSensitive);
     const stepBudget = maxSteps ?? Math.max(100000, targetCodes.length * 4);
-
-    let pIdx = 0;
-    let tIdx = 0;
-    let starPIdx = -1;
-    let starTIdx = -1;
+    const state = { pIdx: 0, tIdx: 0, starPIdx: -1, starTIdx: -1 };
     let steps = 0;
 
-    while (tIdx < targetCodes.length) {
+    while (state.tIdx < targetCodes.length) {
         if (++steps > stepBudget) {
             throw new StewardError('GLOB_COMPLEXITY', 'Glob evaluation exceeded execution step budget.');
         }
-
-        if (pIdx < tokens.length) {
-            const tok = tokens[pIdx];
-            if (tok.type === TOK_STAR) {
-                starPIdx = pIdx++;
-                starTIdx = tIdx;
-                continue;
-            }
-            if (matchesToken(tok, targetCodes[tIdx])) {
-                pIdx++;
-                tIdx++;
-                continue;
-            }
+        if (!advanceGlobStep(tokens, targetCodes, state)) {
+            return false;
         }
-
-        if (starPIdx !== -1) {
-            pIdx = starPIdx + 1;
-            tIdx = ++starTIdx;
-            continue;
-        }
-
-        return false;
     }
 
-    while (pIdx < tokens.length && tokens[pIdx].type === TOK_STAR) {
-        pIdx++;
+    while (state.pIdx < tokens.length && tokens[state.pIdx].type === TOK_STAR) {
+        state.pIdx++;
     }
 
-    return pIdx === tokens.length;
+    return state.pIdx === tokens.length;
 }
 
 function flushArg(args, state) {
@@ -339,7 +345,7 @@ function consumeDoubleQuoted(text, i, state) {
         state.quote = QUOTE_NONE;
         return i + 1;
     }
-    if (c === '\\' && i + 1 < text.length && isDoubleQuoteEscapable(text.charCodeAt(i + 1))) {
+    if (c === '\\' && i + 1 < text.length && isDoubleQuoteEscapable(text.codePointAt(i + 1))) {
         state.current += text[i + 1];
         return i + 2;
     }
@@ -360,6 +366,44 @@ function consumeUnquotedOperator(text, i, args, state) {
     return i + 1;
 }
 
+function consumeBackslashEscape(text, i, state) {
+    state.hasToken = true;
+    if (i + 1 < text.length) {
+        state.current += text[i + 1];
+        return i + 2;
+    }
+    state.current += '\\';
+    return i + 1;
+}
+
+function consumeUnquotedStep(text, i, args, state) {
+    const c = text[i];
+    const code = text.codePointAt(i);
+    if (c === '\\') {
+        return consumeBackslashEscape(text, i, state);
+    }
+    if (c === "'") {
+        state.quote = QUOTE_SINGLE;
+        state.hasToken = true;
+        return i + 1;
+    }
+    if (c === '"') {
+        state.quote = QUOTE_DOUBLE;
+        state.hasToken = true;
+        return i + 1;
+    }
+    if (isWhitespaceChar(c, code)) {
+        flushArg(args, state);
+        return i + 1;
+    }
+    if (isOperatorCode(code)) {
+        return consumeUnquotedOperator(text, i, args, state);
+    }
+    state.current += c;
+    state.hasToken = true;
+    return i + 1;
+}
+
 /**
  * Tokenizes a command-line string following POSIX.1-2024 lexical rules:
  * - Single quotes preserve all characters literally (including backslashes).
@@ -376,53 +420,14 @@ export function tokenizeCommand(text) {
     let i = 0;
 
     while (i < text.length) {
-        const c = text[i];
-        const code = text.charCodeAt(i);
-
         if (state.quote === QUOTE_SINGLE) {
-            consumeSingleQuoted(c, state);
+            consumeSingleQuoted(text[i], state);
             i++;
-            continue;
-        }
-        if (state.quote === QUOTE_DOUBLE) {
+        } else if (state.quote === QUOTE_DOUBLE) {
             i = consumeDoubleQuoted(text, i, state);
-            continue;
+        } else {
+            i = consumeUnquotedStep(text, i, args, state);
         }
-        if (c === '\\') {
-            state.hasToken = true;
-            if (i + 1 < text.length) {
-                state.current += text[i + 1];
-                i += 2;
-            } else {
-                state.current += '\\';
-                i++;
-            }
-            continue;
-        }
-        if (c === "'") {
-            state.quote = QUOTE_SINGLE;
-            state.hasToken = true;
-            i++;
-            continue;
-        }
-        if (c === '"') {
-            state.quote = QUOTE_DOUBLE;
-            state.hasToken = true;
-            i++;
-            continue;
-        }
-        if (isWhitespaceChar(c, code)) {
-            flushArg(args, state);
-            i++;
-            continue;
-        }
-        if (isOperatorCode(code)) {
-            i = consumeUnquotedOperator(text, i, args, state);
-            continue;
-        }
-        state.current += c;
-        state.hasToken = true;
-        i++;
     }
 
     flushArg(args, state);
