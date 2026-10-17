@@ -3,8 +3,16 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { insist, StewardError } from './errors.mjs';
 import { canonical, sha256, safePath, readText, parseJSON, atomicWrite } from './fs.mjs';
+import { isObject } from './schema.mjs';
 import { loadBundle } from './trust.mjs';
 import { readJournal } from './journal.mjs';
+
+const HEX_128_RE = /^[0-9a-fA-F]{128}$/;
+const ISO_DATE_PREFIX_RE = /^\d{4}-\d\d-\d\dT/;
+
+function isIsoTimestamp(value) {
+    return typeof value === 'string' && value.length <= 80 && ISO_DATE_PREFIX_RE.test(value) && Number.isFinite(Date.parse(value));
+}
 
 /**
  * Generates an Ed25519 asymmetric key pair.
@@ -68,10 +76,13 @@ export function signData(data, privateKeyPem) {
  * @returns {boolean} True if signature is cryptographically valid.
  */
 export function verifySignature(data, signatureHex, publicKeyPem) {
-    if (!signatureHex || typeof signatureHex !== 'string' || typeof publicKeyPem !== 'string') return false;
+    if (typeof signatureHex !== 'string' || signatureHex.length !== 128 || !HEX_128_RE.test(signatureHex) || typeof publicKeyPem !== 'string') {
+        return false;
+    }
     try {
         const buffer = toSignableBuffer(data);
         const sigBuffer = Buffer.from(signatureHex, 'hex');
+        if (sigBuffer.length !== 64) return false;
         return crypto.verify(null, buffer, publicKeyPem, sigBuffer);
     } catch {
         return false;
@@ -89,40 +100,22 @@ function validateSafeKeyInput(input, label = 'Key') {
         throw new StewardError('BAD_PATH', 'Path contains null byte.');
     }
     const resolved = path.resolve(input);
-    const normalized = path.normalize(resolved);
-    if (normalized !== resolved) {
-        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
-    }
     if (!path.isAbsolute(resolved)) {
         throw new StewardError('BAD_PATH', 'Expected absolute resolved path.');
     }
-    if (!fs.existsSync(resolved)) {
-        throw new StewardError('CRYPTO_ERROR', `${label} does not exist: ${resolved}`);
+    let stat;
+    try {
+        stat = fs.lstatSync(resolved); //NOSONAR
+    } catch (err) {
+        if (err && err.code === 'ENOENT') {
+            throw new StewardError('CRYPTO_ERROR', `${label} does not exist: ${resolved}`);
+        }
+        throw err;
     }
-    return { isInline: false, resolved };
-}
-
-/**
- * Loads a public or private key from a file path or direct PEM string.
- * Validates against null bytes, path traversal, and file size limits.
- *
- * @param {string} input - File path or PEM content.
- * @returns {string} Clean PEM string.
- */
-export function resolveKeyPem(input) {
-    const checked = validateSafeKeyInput(input, 'Key file');
-    if (checked.isInline) {
-        return checked.pem;
+    if (stat.isSymbolicLink()) {
+        throw new StewardError('BAD_FILE', 'Refusing symbolic link.');
     }
-    const resolved = checked.resolved;
-    const s = fs.lstatSync(resolved); //NOSONAR
-    if (!s.isFile() || s.isSymbolicLink()) {
-        throw new StewardError('BAD_FILE', 'Expected a regular, non-symlink file.');
-    }
-    if (s.size > 64 * 1024) {
-        throw new StewardError('INPUT_TOO_LARGE', 'Key file exceeds 64 KiB limit.');
-    }
-    return fs.readFileSync(resolved, 'utf8').trim(); //NOSONAR
+    return { isInline: false, resolved, stat };
 }
 
 function resolveKeypairPaths(dir) {
@@ -130,11 +123,6 @@ function resolveKeypairPaths(dir) {
     const pubFile = path.basename('steward-ed25519.pub.pem');
     const privPath = path.resolve(dir, privFile);
     const pubPath = path.resolve(dir, pubFile);
-    const normalizedPriv = path.normalize(privPath);
-    const normalizedPub = path.normalize(pubPath);
-    if (normalizedPriv !== privPath || normalizedPub !== pubPath) {
-        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
-    }
     if (!privPath.startsWith(dir + path.sep) || !pubPath.startsWith(dir + path.sep)) {
         throw new StewardError('PATH_ESCAPE', 'Key path escapes target directory.');
     }
@@ -144,6 +132,37 @@ function resolveKeypairPaths(dir) {
         throw new StewardError('PATH_ESCAPE', 'Key path escapes target directory.');
     }
     return { privPath, pubPath };
+}
+
+/**
+ * Loads a public or private key from a file path, keypair directory, or direct PEM string.
+ * Validates against null bytes, symlinks, and file size limits.
+ *
+ * @param {string} input - File path, directory path, or PEM content.
+ * @param {'any'|'private'|'public'|'file'} [role='any'] - Expected key role when input is a directory.
+ * @returns {string} Clean PEM string.
+ */
+export function resolveKeyPem(input, role = 'any') {
+    const checked = validateSafeKeyInput(input, 'Key file');
+    if (checked.isInline) {
+        return checked.pem;
+    }
+    const { resolved, stat } = checked;
+    if (stat.isDirectory() && role !== 'file') {
+        const { privPath, pubPath } = resolveKeypairPaths(resolved);
+        if (role === 'private') return resolveKeyPem(privPath, 'file');
+        if (role === 'public') return resolveKeyPem(pubPath, 'file');
+        if (fs.existsSync(privPath)) return resolveKeyPem(privPath, 'file');
+        if (fs.existsSync(pubPath)) return resolveKeyPem(pubPath, 'file');
+        throw new StewardError('CRYPTO_ERROR', 'Keypair directory missing required PEM files.');
+    }
+    if (!stat.isFile()) {
+        throw new StewardError('BAD_FILE', 'Expected a regular, non-symlink file.');
+    }
+    if (stat.size > 64 * 1024) {
+        throw new StewardError('INPUT_TOO_LARGE', 'Key file exceeds 64 KiB limit.');
+    }
+    return fs.readFileSync(resolved, 'utf8').trim(); //NOSONAR
 }
 
 /**
@@ -158,29 +177,24 @@ export function loadKeypair(input) {
     if (checked.isInline) {
         return checked.pem;
     }
-    const resolved = checked.resolved;
-    const s = fs.lstatSync(resolved); //NOSONAR
-    if (s.isSymbolicLink()) {
-        throw new StewardError('BAD_FILE', 'Refusing symbolic link.');
-    }
-
-    if (s.isDirectory()) {
+    const { resolved, stat } = checked;
+    if (stat.isDirectory()) {
         const { privPath, pubPath } = resolveKeypairPaths(resolved);
         if (!fs.existsSync(privPath) || !fs.existsSync(pubPath)) {
             throw new StewardError('CRYPTO_ERROR', 'Keypair directory missing required PEM files.');
         }
-        const privPem = resolveKeyPem(privPath);
-        const pubPem = resolveKeyPem(pubPath);
+        const privPem = resolveKeyPem(privPath, 'file');
+        const pubPem = resolveKeyPem(pubPath, 'file');
         const keyId = deriveKeyId(pubPem);
         return { privateKeyPem: privPem, publicKeyPem: pubPem, keyId };
     }
 
-    return resolveKeyPem(resolved);
+    return resolveKeyPem(resolved, 'file');
 }
 
-
 /**
- * Safely saves an Ed25519 keypair to an output directory, protecting against directory traversal.
+ * Safely saves an Ed25519 keypair to an output directory, protecting against symlink overwrites
+ * and enforcing strict 0600 permissions on the private key.
  *
  * @param {string} outDir - Output directory path.
  * @param {{ privateKeyPem: string, publicKeyPem: string, keyId?: string }} keyPair - Key pair to save.
@@ -201,19 +215,38 @@ export function saveKeypair(outDir, keyPair) {
     }
 
     const baseDir = path.resolve(outDir);
-    const normalizedDir = path.normalize(baseDir);
-    if (normalizedDir !== baseDir) {
-        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
-    }
     if (!path.isAbsolute(baseDir)) {
         throw new StewardError('BAD_PATH', 'Expected absolute output directory.');
+    }
+
+    try {
+        const dirStat = fs.lstatSync(baseDir); //NOSONAR
+        if (dirStat.isSymbolicLink() || !dirStat.isDirectory()) {
+            throw new StewardError('BAD_FILE', 'Output directory must be a regular directory, not a symbolic link.');
+        }
+    } catch (err) {
+        if (err instanceof StewardError || err.code !== 'ENOENT') throw err;
     }
 
     const { privPath, pubPath } = resolveKeypairPaths(baseDir);
 
     fs.mkdirSync(baseDir, { recursive: true, mode: 0o700 }); //NOSONAR
+
+    for (const target of [privPath, pubPath]) {
+        try {
+            const st = fs.lstatSync(target); //NOSONAR
+            if (st.isSymbolicLink() || !st.isFile()) {
+                throw new StewardError('BAD_FILE', 'Refusing to overwrite symbolic link or non-regular file.');
+            }
+        } catch (err) {
+            if (err instanceof StewardError || err.code !== 'ENOENT') throw err;
+        }
+    }
+
     fs.writeFileSync(privPath, keyPair.privateKeyPem, { mode: 0o600 }); //NOSONAR
+    fs.chmodSync(privPath, 0o600); //NOSONAR
     fs.writeFileSync(pubPath, keyPair.publicKeyPem, { mode: 0o644 }); //NOSONAR
+    fs.chmodSync(pubPath, 0o644); //NOSONAR
 
     const keyId = keyPair.keyId || deriveKeyId(keyPair.publicKeyPem);
     return { out: baseDir, privPath, pubPath, keyId };
@@ -223,15 +256,14 @@ export function saveKeypair(outDir, keyPair) {
  * Signs the project's trust bundle (policy and verification plan) using an Ed25519 private key.
  *
  * @param {string} root - Project root.
- * @param {string} privateKeyPem - Private key PEM.
+ * @param {string} privateKeyPem - Private key PEM, file path, or keypair directory.
  * @returns {object} Signature metadata record.
  */
 export function signBundle(root, privateKeyPem) {
     const bundle = loadBundle(root);
-    const privPem = resolveKeyPem(privateKeyPem);
+    const privPem = resolveKeyPem(privateKeyPem, 'private');
     const { signature } = signData(bundle.hash, privPem);
 
-    // Compute corresponding public key if possible, or derive key ID
     let keyId = 'unknown';
     try {
         const keyObj = crypto.createPrivateKey(privPem);
@@ -257,22 +289,27 @@ export function signBundle(root, privateKeyPem) {
  * Verifies the signature of the project's trust bundle against an authorized public key.
  *
  * @param {string} root - Project root.
- * @param {string} publicKeyInput - Public key path or PEM.
+ * @param {string} publicKeyInput - Public key path, directory, or PEM.
  * @param {object} [sigRecord] - Optional explicit signature record.
  * @returns {{ valid: boolean, bundleHash: string, signedAt: string, keyId: string }}
  */
 export function verifyBundleSignature(root, publicKeyInput, sigRecord = null) {
     const bundle = loadBundle(root);
-    const pubPem = resolveKeyPem(publicKeyInput);
+    const pubPem = resolveKeyPem(publicKeyInput, 'public');
     const sigPath = safePath(root, '.steward/state/bundle.sig.json');
-    insist(sigRecord || fs.existsSync(sigPath), 'NO_SIGNATURE', 'Bundle signature not found.');
-    const record = sigRecord || parseJSON(readText(sigPath), 'bundle signature');
+    insist(sigRecord !== null || fs.existsSync(sigPath), 'NO_SIGNATURE', 'Bundle signature not found.');
+    const record = sigRecord !== null ? sigRecord : parseJSON(readText(sigPath), 'bundle signature');
 
-    insist(record.version === 1 && record.target === 'bundle' && record.alg === 'ed25519', 'CRYPTO_ERROR', 'Invalid signature envelope.');
+    insist(
+        isObject(record) && record.version === 1 && record.target === 'bundle' && record.alg === 'ed25519' && isIsoTimestamp(record.signedAt),
+        'CRYPTO_ERROR',
+        'Invalid signature envelope.'
+    );
     insist(record.bundleHash === bundle.hash, 'APPROVAL_MISMATCH', 'Signed bundle hash differs from current bundle.');
 
     const valid = verifySignature(bundle.hash, record.signature, pubPem);
     insist(valid, 'SIGNATURE_INVALID', 'Ed25519 signature verification failed for policy bundle.');
+    insist(record.keyId === deriveKeyId(pubPem), 'APPROVAL_MISMATCH', 'Signature record key ID does not match verifier public key.');
 
     return {
         valid: true,
@@ -287,15 +324,15 @@ export function verifyBundleSignature(root, publicKeyInput, sigRecord = null) {
  *
  * @param {string} root - Project root.
  * @param {string} evidenceHash - SHA-256 hash of the verification journal row.
- * @param {string} privateKeyInput - Private key path or PEM.
+ * @param {string} privateKeyInput - Private key path, directory, or PEM.
  * @returns {object} Signed evidence record.
  */
 export function signVerificationEvidence(root, evidenceHash, privateKeyInput) {
-    const rows = readJournal(root);
+    const rows = readJournal(root, { fresh: true });
     const row = rows.find(r => r.hash === evidenceHash && r.type === 'verification');
     insist(row, 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
 
-    const privPem = resolveKeyPem(privateKeyInput);
+    const privPem = resolveKeyPem(privateKeyInput, 'private');
     const payload = `${evidenceHash}:${row.data.runId}:${row.data.workspace.hash}`;
     const { signature } = signData(payload, privPem);
 
@@ -327,27 +364,33 @@ export function signVerificationEvidence(root, evidenceHash, privateKeyInput) {
  *
  * @param {string} root - Project root.
  * @param {string} evidenceHash - SHA-256 hash of verification journal row.
- * @param {string} publicKeyInput - Public key path or PEM.
+ * @param {string} publicKeyInput - Public key path, directory, or PEM.
  * @param {object} [sigRecord] - Optional explicit signature record.
  * @returns {{ valid: boolean, evidenceHash: string, keyId: string, signedAt: string }}
  */
 export function verifyVerificationEvidence(root, evidenceHash, publicKeyInput, sigRecord = null) {
-    const rows = readJournal(root);
+    const rows = readJournal(root, { fresh: true });
     const row = rows.find(r => r.hash === evidenceHash && r.type === 'verification');
     insist(row, 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
 
-    const pubPem = resolveKeyPem(publicKeyInput);
+    const pubPem = resolveKeyPem(publicKeyInput, 'public');
     const sigPath = safePath(root, `.steward/state/checks/${row.data.runId}/evidence.sig.json`);
-    insist(sigRecord || fs.existsSync(sigPath), 'NO_SIGNATURE', `Evidence signature not found for run ${row.data.runId}.`);
-    const record = sigRecord || parseJSON(readText(sigPath), 'evidence signature');
+    insist(sigRecord !== null || fs.existsSync(sigPath), 'NO_SIGNATURE', `Evidence signature not found for run ${row.data.runId}.`);
+    const record = sigRecord !== null ? sigRecord : parseJSON(readText(sigPath), 'evidence signature');
 
-    insist(record.version === 1 && record.target === 'evidence' && record.alg === 'ed25519', 'CRYPTO_ERROR', 'Invalid evidence signature record.');
+    insist(
+        isObject(record) && record.version === 1 && record.target === 'evidence' && record.alg === 'ed25519' && isIsoTimestamp(record.signedAt),
+        'CRYPTO_ERROR',
+        'Invalid evidence signature record.'
+    );
     insist(record.evidenceHash === evidenceHash, 'APPROVAL_MISMATCH', 'Signature record evidence hash mismatch.');
     insist(record.runId === row.data.runId, 'APPROVAL_MISMATCH', 'Signature record run ID mismatch.');
+    insist(record.workspaceHash === row.data.workspace.hash, 'APPROVAL_MISMATCH', 'Signature record workspace hash mismatch.');
 
     const payload = `${evidenceHash}:${row.data.runId}:${row.data.workspace.hash}`;
     const valid = verifySignature(payload, record.signature, pubPem);
     insist(valid, 'SIGNATURE_INVALID', 'Ed25519 signature verification failed for verification evidence.');
+    insist(record.keyId === deriveKeyId(pubPem), 'APPROVAL_MISMATCH', 'Signature record key ID does not match verifier public key.');
 
     return {
         valid: true,
@@ -356,3 +399,4 @@ export function verifyVerificationEvidence(root, evidenceHash, publicKeyInput, s
         signedAt: record.signedAt
     };
 }
+

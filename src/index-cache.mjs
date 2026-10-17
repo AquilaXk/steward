@@ -1,16 +1,30 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { readJSON, sha256, canonical } from './fs.mjs';
+import { readJSON, sha256, canonical, safePath, rootOf } from './fs.mjs';
 import { validateJournalRow, RECORD_TYPES } from './schema.mjs';
 import { insist, StewardError } from './errors.mjs';
 
 const DIRECTORY = '.steward/state/journal';
+const JOURNAL_FILE_RE = /^\d{8}-[a-f0-9-]+\.json$/;
+const ISO_PREFIX_RE = /^\d{4}-\d\d-\d\dT/;
 
 /**
- * Global in-memory cache registry keyed by project root path.
+ * Global in-memory cache registry keyed by canonical project root path.
  * @type {Map<string, JournalCache>}
  */
 const caches = new Map();
+
+function deepFreeze(value) {
+    if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
+        Object.freeze(value);
+        if (Array.isArray(value)) {
+            for (let i = 0; i < value.length; i++) deepFreeze(value[i]);
+        } else {
+            for (const key of Object.keys(value)) deepFreeze(value[key]);
+        }
+    }
+    return value;
+}
 
 /**
  * Creates an empty journal cache structure.
@@ -32,9 +46,7 @@ function createEmptyCache() {
 }
 
 function extractRowTags(row) {
-    if (Array.isArray(row.data?.tags)) return row.data.tags;
-    if (row.data?.tag) return [row.data.tag];
-    return [];
+    return Array.isArray(row.data?.tags) ? row.data.tags : [];
 }
 
 function indexRowSession(index, row) {
@@ -65,9 +77,12 @@ function indexRow(index, row) {
     }
     index.byType.get(row.type).push(row);
 
-    // Index by record ID
+    // Index by record ID (preserve all revisions for history queries)
     if (row.data?.id) {
-        index.byRecordId.set(row.data.id, row);
+        if (!index.byRecordId.has(row.data.id)) {
+            index.byRecordId.set(row.data.id, []);
+        }
+        index.byRecordId.get(row.data.id).push(row);
     }
 
     indexRowSession(index, row);
@@ -81,41 +96,24 @@ function indexRow(index, row) {
 
 /**
  * Safely resolves a validated journal filename relative to project root.
- * Guarantees the filename matches the strict journal format and prevents path traversal.
+ * Guarantees the filename matches the strict journal format and prevents symlink/path traversal.
  */
 function getRecordPath(root, name) {
     if (typeof name !== 'string') {
         throw new StewardError('BAD_PATH', 'Invalid journal filename');
     }
     const fileName = path.basename(name);
-    if (fileName !== name || !/^\d{8}-[a-f0-9-]+\.json$/.test(fileName)) {
+    if (fileName !== name || !JOURNAL_FILE_RE.test(fileName)) {
         throw new StewardError('BAD_PATH', 'Invalid journal filename');
     }
-    const baseDir = path.resolve(root, DIRECTORY);
-    const resolved = path.resolve(baseDir, fileName);
-    if (!resolved.startsWith(baseDir + path.sep)) {
-        throw new StewardError('PATH_ESCAPE', 'Path leaves journal directory');
-    }
-    const normalized = path.normalize(resolved);
-    if (normalized !== resolved) {
-        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
-    }
-    return resolved;
+    return safePath(root, `${DIRECTORY}/${fileName}`);
 }
 
 /**
  * Lists candidate journal files from disk, ignoring OS metadata and temp files.
  */
 function listJournalFiles(root) {
-    const baseRoot = path.resolve(root);
-    const resolvedDir = path.resolve(baseRoot, DIRECTORY);
-    if (!resolvedDir.startsWith(baseRoot + path.sep)) {
-        throw new StewardError('PATH_ESCAPE', 'Dir leaves root');
-    }
-    const normalizedDir = path.normalize(resolvedDir);
-    if (normalizedDir !== resolvedDir) {
-        throw new StewardError('BAD_PATH', 'Path traversal attempt detected');
-    }
+    const resolvedDir = safePath(root, DIRECTORY);
     try {
         const names = fs.readdirSync(resolvedDir).filter(n => !n.startsWith('.tmp-')).sort(); //NOSONAR
         return names.filter(n => !n.startsWith('.') && n !== 'Thumbs.db' && n !== 'desktop.ini');
@@ -165,7 +163,7 @@ function loadJournalRow(root, name, expectedSeq, previousHash) {
     const { hash, ...payload } = row;
     insist(row.seq === expectedSeq && row.previous === previousHash && hash === sha256(canonical(payload)), 'JOURNAL_CORRUPT', `Journal integrity check failed at record ${expectedSeq}.`);
     insist(name === `${String(row.seq).padStart(8, '0')}-${row.id}.json`, 'JOURNAL_CORRUPT', 'Journal filename identity mismatch.');
-    return { row, mtimeMs: stat.mtimeMs, size: stat.size };
+    return { row: deepFreeze(row), mtimeMs: stat.mtimeMs, size: stat.size };
 }
 
 /**
@@ -176,6 +174,7 @@ function loadJournalRow(root, name, expectedSeq, previousHash) {
  * @returns {{ rows: object[], cache: object }} Synced journal rows and index.
  */
 export function syncJournalCache(root) {
+    root = rootOf(root);
     const names = listJournalFiles(root);
     if (names === null) {
         caches.delete(root);
@@ -202,7 +201,7 @@ export function syncJournalCache(root) {
         previous = row.hash;
     }
 
-    return { rows: cache.rows, cache };
+    return { rows: cache.rows.slice(), cache };
 }
 
 /**
@@ -210,7 +209,54 @@ export function syncJournalCache(root) {
  * @param {string} root - Project root directory.
  */
 export function invalidateJournalCache(root) {
-    caches.delete(root);
+    try {
+        caches.delete(rootOf(root));
+    } catch {
+        caches.delete(path.resolve(root));
+    }
+}
+
+function parseTimestampBound(value, label) {
+    if (value === undefined) return undefined;
+    if (typeof value === 'number') {
+        insist(Number.isFinite(value), 'BAD_QUERY', `Invalid ${label} timestamp.`);
+        return value;
+    }
+    if (typeof value === 'string') {
+        const parsed = Date.parse(value);
+        insist(value.length <= 80 && ISO_PREFIX_RE.test(value) && Number.isFinite(parsed), 'BAD_QUERY', `Invalid ${label} timestamp.`);
+        return parsed;
+    }
+    insist(false, 'BAD_QUERY', `Invalid ${label} timestamp.`);
+}
+
+/**
+ * Selects the smallest candidate bucket across all active indexed filters.
+ * Returns [] immediately if any specified indexed filter has 0 matches.
+ */
+function selectSmallestCandidateSet(rows, index, { type, tag, session, recordId }) {
+    let best = rows;
+    if (type !== undefined) {
+        const bucket = index.byType.get(type);
+        if (!bucket || bucket.length === 0) return [];
+        if (bucket.length < best.length) best = bucket;
+    }
+    if (tag !== undefined) {
+        const bucket = index.byTag.get(tag);
+        if (!bucket || bucket.length === 0) return [];
+        if (bucket.length < best.length) best = bucket;
+    }
+    if (session !== undefined) {
+        const bucket = index.bySession.get(session);
+        if (!bucket || bucket.length === 0) return [];
+        if (bucket.length < best.length) best = bucket;
+    }
+    if (recordId !== undefined) {
+        const bucket = index.byRecordId.get(recordId);
+        if (!bucket || bucket.length === 0) return [];
+        if (bucket.length < best.length) best = bucket;
+    }
+    return best;
 }
 
 /**
@@ -236,37 +282,25 @@ function matchesQueryFilter(row, { type, recordId, session, needle, sinceMs, unt
  * @returns {object} Query results matching schema.
  */
 export function queryJournalIndexed(root, { type, text = '', limit = 20, history = false, recordId, sessionId, tag, since, until, now = Date.now() } = {}) {
+    root = rootOf(root);
     insist(type === undefined || [...RECORD_TYPES, 'verification'].includes(type), 'BAD_QUERY', 'Unknown record type.');
     insist(Number.isInteger(limit) && limit >= 1 && limit <= 100, 'BAD_QUERY', 'limit must be an integer from 1 to 100.');
     insist(typeof text === 'string' && text.length <= 256, 'BAD_QUERY', 'Query text exceeds 256 characters.');
     insist(Number.isFinite(now), 'BAD_QUERY', 'Invalid query time.');
     insist(sessionId === undefined || (typeof sessionId === 'string' && sessionId.trim() && sessionId.length <= 256), 'BAD_QUERY', 'Invalid session ID.');
+    insist(tag === undefined || (typeof tag === 'string' && tag.trim() && tag.length <= 128), 'BAD_QUERY', 'Invalid tag filter.');
+
+    const sinceMs = parseTimestampBound(since, 'since');
+    const untilMs = parseTimestampBound(until, 'until');
 
     const { rows, cache } = syncJournalCache(root);
     const session = sessionId === undefined ? undefined : sha256(sessionId);
     const needle = text.toLocaleLowerCase('en-US');
-    let sinceMs;
-    if (since !== undefined) {
-        sinceMs = typeof since === 'number' ? since : Date.parse(since);
-    }
-    let untilMs;
-    if (until !== undefined) {
-        untilMs = typeof until === 'number' ? until : Date.parse(until);
-    }
 
-    // Narrow candidate pool using in-memory indices when possible
-    let candidates = rows;
-    if (type !== undefined) {
-        candidates = cache.index.byType.get(type) || [];
-    } else if (tag !== undefined && cache.index.byTag.has(tag)) {
-        candidates = cache.index.byTag.get(tag) || [];
-    } else if (sessionId !== undefined && cache.index.bySession.has(session)) {
-        candidates = cache.index.bySession.get(session) || [];
-    }
-
+    const candidates = selectSmallestCandidateSet(rows, cache.index, { type, tag, session, recordId });
     const filterContext = { type, recordId, session, needle, sinceMs, untilMs, tag };
 
-    const matches = candidates.map(row => ({
+    const matches = candidates.map(row => Object.freeze({
         ...row,
         superseded: cache.index.supersededHashes.has(row.hash),
         expired: row.type === 'knowledge' && row.data.expiresAt !== null && Date.parse(row.data.expiresAt) <= now
@@ -285,3 +319,4 @@ export function queryJournalIndexed(root, { type, text = '', limit = 20, history
         rows: matches.slice(0, limit)
     };
 }
+

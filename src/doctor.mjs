@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
-import { safePath, readJSON } from './fs.mjs';
+import { safePath, readJSON, rootOf } from './fs.mjs';
 import { insist } from './errors.mjs';
 import { requireTrust } from './trust.mjs';
 import { readJournal, journalHead } from './journal.mjs';
@@ -39,7 +39,7 @@ function inspectHost(root, host) {
             result.problems.push('Hooks are disabled in this configuration.');
         const skillsRoot = receipt.skillSource === 'plugin' ? path.join(PACKAGE_ROOT, host === 'claude' ? '.claude-plugin/skills' : 'procedures') :
             safePath(root, host === 'codex' ? '.agents/skills' : '.claude/skills');
-        for (const name of fs.readdirSync(path.join(PACKAGE_ROOT, 'procedures'))) {
+        for (const name of fs.readdirSync(path.join(PACKAGE_ROOT, 'procedures')).sort()) {
             if (!fs.existsSync(path.join(skillsRoot, name, 'SKILL.md')))
                 result.problems.push(`Missing skill: ${name}. Restore it through the matching installation mode.`);
         }
@@ -53,6 +53,7 @@ function inspectHost(root, host) {
 }
 
 export function doctor(root, host = null) {
+    root = rootOf(root);
     insist(host === null || ['codex', 'claude'].includes(host), 'BAD_HOST', 'Doctor supports codex or claude.');
     const bundle = requireTrust(root);
     const rows = readJournal(root);
