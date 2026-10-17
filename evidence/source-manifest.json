@@ -415,8 +415,8 @@
     },
     {
       "path": "src/audit.mjs",
-      "bytes": 5011,
-      "sha256": "987be7777d8b4e15a5f6b48e3b7ab5a3de294f1827a47d4b16aa08611437b651"
+      "bytes": 5061,
+      "sha256": "c7fd932ca8c2499daf72d95ba7cb973a218a5731f7a49c62e2b946a54e999553"
     },
     {
       "path": "src/crypto.mjs",
@@ -440,8 +440,8 @@
     },
     {
       "path": "src/fs.mjs",
-      "bytes": 7126,
-      "sha256": "97c1f4b4243bad21a83b6dce8a5ce9bf713b423f9cf54ddafed7ebae1dc5d98e"
+      "bytes": 7336,
+      "sha256": "f648d68f33176471db31cf0476f2ac4c8ab1d2c5f286a3cbb8f3fb515d52a1e0"
     },
     {
       "path": "src/index-cache.mjs",
@@ -480,8 +480,8 @@
     },
     {
       "path": "src/setup.mjs",
-      "bytes": 17969,
-      "sha256": "155dd2182d418bf1cf744dbf8eea8d8256b66b7fa9b2c4674c932ebc1ae89345"
+      "bytes": 18233,
+      "sha256": "93e6c43e6d62e0409b3e0584b39bc640e720a11dd7b1c8052982931c5ab9b203"
     },
     {
       "path": "src/skills.mjs",
