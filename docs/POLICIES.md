@@ -32,8 +32,12 @@ session rules only inject. A rule can have an effect of `inject` or `deny`.
 
 `textAny` is case-insensitive literal substring matching. `wordsAny` compares normalized
 Unicode token sequences, so `npm` does not match `pnpm`. `pathPrefixes` compares literal
-project-relative path segments, so `memory` does not match `memory-old`. Paths and tools
-are tool-event predicates. An `always:true` match may name tools, but cannot also have
+project-relative path segments, so `memory` does not match `memory-old`. `patternsAny`
+and `globsAny` evaluate linear-time glob patterns (`*`, `?`, `[a-z]`, `[!a-z]`, `\`)
+against command strings and POSIX-tokenized shell arguments (`;`, `|`, `&`, `<`, `>`,
+`(`, `)` delimit unquoted tokens, and single-quoted strings remain strictly literal).
+Exceeding the glob step limit fails closed (`GLOB_COMPLEXITY`). Paths and tools are
+tool-event predicates. An `always:true` match may name tools, but cannot also have
 content predicates. Omit tools to address all tools. Tool names do not accept wildcards.
 
 The canonical aliases are:
@@ -46,11 +50,14 @@ The canonical aliases are:
 
 Other names are matched case-insensitively as exact names. The generic interface
 normalizes supplied file paths too. The pure engine expects a normalized event.
-A patch move includes both old and new paths. Unknown patch envelopes are rejected.
+`Write` and `Edit` tool events include proposed content in `text` so content predicates
+evaluate against written payloads as well as unified patches. A patch move includes both
+old and new paths. Unknown patch envelopes are rejected.
 
-There is intentionally no arbitrary JavaScript regex matcher. This avoids introducing
-user-supplied backtracking expressions into the synchronous hook path. It also means
-legacy regular expressions need an explicit rewrite, not a best-effort conversion.
+There is intentionally no arbitrary JavaScript regex matcher. Linear-time glob matching
+(`src/matcher.mjs`) avoids introducing user-supplied backtracking expressions into the
+synchronous hook path. Legacy regular expressions need an explicit rewrite, not a
+best-effort conversion.
 
 A denial refers to the original matching rule regardless of the guidance budget.
 Optional guidance that does not fit is omitted with `byte_budget` or `rule_limit`.

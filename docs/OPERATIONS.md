@@ -31,8 +31,9 @@ capacity. No history is reported as no observations, not as a successful live ch
 The conservative
 retention ceiling is approximately 20,000 receipts; concurrent writers may briefly
 overrun the directory-count check. Once full, activation fails explicitly. Archive
-receipts outside the project state directory during a quiet maintenance window; there
-is no automatic deletion command that might erase incident evidence.
+receipts outside the project state directory during a quiet maintenance window, or run
+`audit prune --keep <N>` explicitly to retain the newest `N` receipts. Steward never
+prunes receipts automatically in the background.
 
 A crash while holding `journal.lock` requires operator recovery. Stop all writers,
 verify that no process owns the lock, retain a copy of the state and remove the empty
@@ -101,18 +102,23 @@ digest; unscoped events select only unscoped records. Use `checkpoint --file FIL
 verify their task and source freshness before using them.
 
 Use `journal query --type knowledge --text <term> --limit 20` for bounded recall.
-The CLI validates the whole chain, then returns newest matches, their total and a
-truncation flag. Limits are 1–100 (default 20); this bounds returned records, not
-storage scanning or total serialized bytes. It performs literal case-insensitive
-matching over data fields, without embeddings or a model. Expired knowledge and
-superseded records are excluded unless `--history` is explicit. Returned freshness
-labels are not a claim that an external source was rechecked.
+Additional filters include `--tag <tag>`, `--since <ISO>`, `--until <ISO>`,
+`--record-id <id>`, and `--session-id <id>`. The CLI validates the chain, then returns
+newest matches, their total and a truncation flag. Limits are 1–100 (default 20); this
+bounds returned records, not storage scanning or total serialized bytes. It performs
+literal case-insensitive matching over data fields, without embeddings or a model.
+Expired knowledge and superseded records are excluded unless `--history` is explicit.
+Returned freshness labels are not a claim that an external source was rechecked.
 
 New schedules can use `id` and `supersedes: null`. A revision preserves that ID and
 references the latest hash; reused initial IDs, changed identities and forks fail.
 `journal query --type schedule --record-id <id>` returns the current revision;
 `--history` includes its past records. Legacy records without IDs remain readable.
 There is no background reminder service or automatic retention deletion.
+
+Use `keygen --out <dir>`, `sign-bundle`, `verify-bundle`, `sign-evidence`, and
+`verify-evidence` when Ed25519 cryptographic attestation of approved bundles or
+verification runs is required across machines or CI gates.
 
 ## Versions
 

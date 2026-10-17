@@ -57,11 +57,16 @@ under `evidence/` rather than assuming a CI badge means those tests ran on every
 
 ## Remaining operational limits
 
-The source snapshot excludes only root `.git`, root `node_modules`, Steward state and
-installation receipts. Nested dependency or build directories can cause unnecessary
-changes or hit the 128 MiB / 20,000-file limits. No configurable snapshot scope exists
-yet. Add only reviewed, explicit rules when implementing one; never silently omit a
+The source snapshot excludes `.git`, `node_modules` (at any directory depth), Steward
+state, installation receipts, and explicit path prefixes listed in `plan.exclude`
+(such as `["dist", "coverage"]`). Unexcluded build directories or large binary trees can
+still cause unnecessary snapshot changes or hit the 128 MiB / 20,000-file limits. Add only
+reviewed, explicit `exclude` prefixes in `.steward/verify.json`; never silently omit a
 path to make evidence pass. Symlink target contents are not captured as ordinary files.
+
+Operators can optionally sign and verify verification evidence using Ed25519 keys
+(`sign-evidence` and `verify-evidence`), binding `evidenceHash`, `runId`, and
+`workspaceHash` to a specific public key fingerprint.
 
 The runner bounds the direct subprocess. It does not implement cross-platform process
 group supervision for all descendants. A trusted command that starts background children

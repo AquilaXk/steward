@@ -27,10 +27,11 @@ external scripts, aliases, encodings and shell writes can bypass a narrow predic
 There is no guarantee of stopping prompt injection or malicious code. Retrieved files
 and saved notes remain data to evaluate, not fresh authority.
 
-The same operating-system user can modify runtime code, forge local trust, rewrite
-state or recompute a complete hash chain. Decision authority fields are claims about
-provenance, not a signed user identity. An external anchor is needed to detect a
-removed suffix, and a protected external history is needed against full rewrites.
+The same operating-system user can modify runtime code, forge unsigned local trust,
+rewrite state or recompute a complete hash chain. Decision authority fields are claims
+about provenance, not a signed user identity. An external anchor is needed to detect a
+removed suffix, and an externally held Ed25519 public key (`verify-bundle`,
+`verify-evidence`) or protected external history is needed to detect full rewrites.
 
 Symlink checks are best-effort local checks and do not eliminate hostile TOCTOU races,
 hard-link tricks or mount changes. Verification commands run with local user privileges;

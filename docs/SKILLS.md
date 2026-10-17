@@ -50,9 +50,11 @@ installs the selected host's hooks. Existing project configuration is preserved.
 ## Upgrade and evaluation
 
 Installers preserve existing skill files. Review skipped files rather than assuming
-new behavior reached an older installation. A managed, hash-aware update command is
-not yet implemented. Do not hand-edit both native copies independently without recording
-which is authoritative; the package sources are the default canonical version.
+new behavior reached an older installation. Run `update --host <host>` to refresh
+installer-owned hooks and unmodified managed skill files; modified managed skills stop
+the update with `INSTALL_CONFLICT` so customizations are never silently overwritten.
+Do not hand-edit both native copies independently without recording which is
+authoritative; the package sources are the default canonical version.
 
 Use the behavioral cases in `evals/agent-workflow.json` to test actual activation and
 non-activation, task completion, unnecessary pauses, appropriate checks and real
