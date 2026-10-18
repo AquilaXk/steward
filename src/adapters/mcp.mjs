@@ -9,6 +9,7 @@ import { runVerification, completionGate } from '../verify.mjs';
 import { doctor } from '../doctor.mjs';
 import { PACKAGE_ROOT } from '../setup.mjs';
 import { insist, publicError } from '../errors.mjs';
+import { object } from '../schema.mjs';
 
 const MAX_LINE_BYTES = 1024 * 1024;
 
@@ -265,7 +266,7 @@ async function executeCheckpoint(root, args) {
     const checkpointData = {
         summary: args.summary,
         next: args.next,
-        blockers: Array.isArray(args.blockers) ? args.blockers : [],
+        blockers: args.blockers ?? [],
         ...(args.tags !== undefined ? { tags: args.tags } : {})
     };
     const sessionId = optStr(args.sessionId);
@@ -287,7 +288,7 @@ async function executeScheduleManage(root, args) {
         title: args.title,
         dueAt: args.dueAt,
         status: args.status,
-        members: Array.isArray(args.members) ? args.members : [],
+        members: args.members ?? [],
         ...(args.tags !== undefined ? { tags: args.tags } : {})
     };
     const schedId = optStr(args.id);
@@ -303,6 +304,22 @@ async function executeScheduleManage(root, args) {
         data: schedData
     });
 }
+
+const TOOL_ALIASES = {
+    steward_eval: 'steward_policy_eval',
+    steward_evaluate: 'steward_policy_eval',
+    steward_gate: 'steward_completion_gate'
+};
+
+const TOOL_SCHEMA_KEYS = Object.fromEntries([
+    ...STEWARD_TOOLS.map(t => [t.name, Object.keys(t.inputSchema.properties || {})]),
+    ...Object.entries(TOOL_ALIASES).map(([alias, canonical]) => {
+        const tool = STEWARD_TOOLS.find(t => t.name === canonical);
+        return [alias, Object.keys(tool?.inputSchema.properties || {})];
+    }),
+    ['steward_status', []],
+    ['steward_doctor', []]
+]);
 
 const TOOL_DISPATCHERS = {
     steward_policy_eval: (root, args) => executePolicyEval(root, args),
@@ -327,7 +344,7 @@ const TOOL_DISPATCHERS = {
         data: {
             claim: args.claim,
             basis: args.basis,
-            sources: Array.isArray(args.sources) ? args.sources : [],
+            sources: args.sources ?? [],
             expiresAt: optStr(args.expiresAt) ?? null,
             ...(args.tags !== undefined ? { tags: args.tags } : {})
         }
@@ -337,9 +354,9 @@ const TOOL_DISPATCHERS = {
         type: 'goal',
         data: {
             objective: args.objective,
-            acceptance: Array.isArray(args.acceptance) ? args.acceptance : [],
+            acceptance: args.acceptance ?? [],
             status: args.status,
-            evidence: Array.isArray(args.evidence) ? args.evidence : [],
+            evidence: args.evidence ?? [],
             ...(args.tags !== undefined ? { tags: args.tags } : {})
         }
     }),
@@ -347,10 +364,10 @@ const TOOL_DISPATCHERS = {
         type: 'handoff',
         data: {
             task: args.task,
-            scope: Array.isArray(args.scope) ? args.scope : [],
-            constraints: Array.isArray(args.constraints) ? args.constraints : [],
-            acceptance: Array.isArray(args.acceptance) ? args.acceptance : [],
-            evidence: Array.isArray(args.evidence) ? args.evidence : [],
+            scope: args.scope ?? [],
+            constraints: args.constraints ?? [],
+            acceptance: args.acceptance ?? [],
+            evidence: args.evidence ?? [],
             ...(args.tags !== undefined ? { tags: args.tags } : {})
         }
     }),
@@ -358,7 +375,7 @@ const TOOL_DISPATCHERS = {
         type: 'question',
         data: {
             question: args.question,
-            assumptions: Array.isArray(args.assumptions) ? args.assumptions : [],
+            assumptions: args.assumptions ?? [],
             resolution: optStr(args.resolution) ?? null,
             supersedes: optStr(args.supersedes) ?? null,
             ...(args.tags !== undefined ? { tags: args.tags } : {})
@@ -381,7 +398,9 @@ export async function executeTool(root, name, args = {}) {
     insist(args === undefined || (args !== null && typeof args === 'object' && !Array.isArray(args)), 'SCHEMA', 'Tool arguments must be an object.');
     const handler = typeof name === 'string' && Object.hasOwn(TOOL_DISPATCHERS, name) ? TOOL_DISPATCHERS[name] : null;
     insist(handler, 'USAGE', `Unknown MCP tool: ${name}`);
-    return handler(root, args ?? {});
+    const resolvedArgs = args ?? {};
+    object(resolvedArgs, TOOL_SCHEMA_KEYS[name] ?? [], name);
+    return handler(root, resolvedArgs);
 }
 
 const RESOURCE_HANDLERS = {

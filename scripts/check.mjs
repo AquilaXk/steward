@@ -94,6 +94,7 @@ try {
         validateEntry(json(file));
     validateEntry({ type: 'checkpoint', data: json('examples/checkpoint.json') });
     validateEvent(json('examples/event.json'));
+    assert(read('docs/SKILLS.md').includes('steward_goal_manage'), 'docs/SKILLS.md must document 11-tool MCP parity.');
     const pkg = json('package.json'), lock = json('package-lock.json');
     assert.equal(pkg.name, 'steward');
     assert.equal(VERSION, pkg.version);

@@ -164,8 +164,8 @@
     },
     {
       "path": "assets/banner.svg",
-      "bytes": 7717,
-      "sha256": "3ef124397076f59cf4a1c7f8122a8a2acf77e01ff053ac0a7220a8ca03bad1a4"
+      "bytes": 7718,
+      "sha256": "f18bfd10776c9e2e1f6f59fa574b9597604d730f9e5795c16bc5a9cc1fdeb297"
     },
     {
       "path": "bin/steward.mjs",
@@ -180,7 +180,7 @@
     {
       "path": "docs/ARCHITECTURE.md",
       "bytes": 3957,
-      "sha256": "8a46da1cd7288b3131c2f11bf85629097907316bd418b65e22abf987a907ee02"
+      "sha256": "61d9a30b25f84f445387e0616c6ec5eaba93d6ced12c2a0eec11af2e011ff684"
     },
     {
       "path": "docs/HOSTS.md",
@@ -209,8 +209,8 @@
     },
     {
       "path": "docs/SKILLS.md",
-      "bytes": 4475,
-      "sha256": "d301da43c1a3d13fd2c2c34235f8d6099b896555811a0ec4f5bfdbdfb99604d8"
+      "bytes": 4962,
+      "sha256": "a6e9059640fb044c1d701481caa81bdfc28f023cd533c29ca440131bcde2976f"
     },
     {
       "path": "docs/VERIFICATION.md",
@@ -399,8 +399,8 @@
     },
     {
       "path": "scripts/check.mjs",
-      "bytes": 12662,
-      "sha256": "d034374577ab0c755a10e9e769b7cb1efde3e022dcaf3b59b965a5bedf0c1a72"
+      "bytes": 12782,
+      "sha256": "70c162ea8489db02ba0ab3d218c998c4a09c86901c2bdf6d67d4f813551b13ec"
     },
     {
       "path": "scripts/demo.mjs",
@@ -429,8 +429,8 @@
     },
     {
       "path": "src/adapters/mcp.mjs",
-      "bytes": 30900,
-      "sha256": "006cb0c6f90e30cd846964fd8bf12269e84fdc9072149b0e9501781d50766e17"
+      "bytes": 31300,
+      "sha256": "a85382339d6e85eac5ecdbe1ac37df2515b95dbf00630ea05276f28bc4152c00"
     },
     {
       "path": "src/audit.mjs",
@@ -569,8 +569,8 @@
     },
     {
       "path": "test/mcp.test.mjs",
-      "bytes": 22397,
-      "sha256": "5f6224bdaf301915da1975b63ea93890d360f6604e89165dc4096bcca206a091"
+      "bytes": 23324,
+      "sha256": "872c063d4ee2074d5f934b370b292eb6dbf4e3d0dd06433a8e220a14cf3a9a3e"
     },
     {
       "path": "test/onboarding.test.mjs",
@@ -597,5 +597,7 @@
       "bytes": 6140,
       "sha256": "f001fcfc944f9f9f2288ade27a17cae8b34152c9ac3f79a0dc636aea44c317de"
     }
-  ]
+  ],
+  "fileCount": 119,
+  "sourceTreeSha256": "0e39d4c42eb84206ec64e8ba3a9e8989b0d93ebe2aef45be9114e699b1b485e6"
 }

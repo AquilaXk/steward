@@ -41,8 +41,14 @@ only if measured host runs show unnecessary context or friction.
 ## Command resolution
 
 Installed procedures read `.steward/USAGE.md` for the absolute runner and example
-locations. `checkpoint` and `verify` are CLI subcommands, not standalone executables.
-Example entries must be changed to actual user data before they are recorded.
+locations (`decision.json`, `goal.json`, `schedule.json`, `handoff.json`,
+`knowledge.json`, `question.json` and `checkpoint.json`). `checkpoint` and `verify`
+are CLI subcommands, not standalone executables. Example entries must be changed to
+actual user data before they are recorded. When a host exposes the local MCP server,
+each procedure maps directly to the eleven MCP tools (`steward_policy_eval`,
+`steward_recall`, `steward_record_decision`, `steward_checkpoint`, `steward_verify`,
+`steward_completion_gate`, `steward_record_knowledge`, `steward_schedule_manage`,
+`steward_goal_manage`, `steward_record_handoff` and `steward_record_question`).
 For first-time setup, explicitly invoke `steward-policy`; it resolves the actual
 toolkit root, configures project checks, presents the exact approval bundle and
 installs the selected host's hooks. Existing project configuration is preserved.

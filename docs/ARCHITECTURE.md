@@ -66,7 +66,7 @@ stored output hashes.
 ## Deliberate scope
 
 `src/adapters/mcp.mjs` provides a local, zero-dependency stdio JSON-RPC 2.0 MCP server
-exposing Steward's eight tools and five resources with a 1 MiB message ceiling and
+exposing Steward's eleven tools and six resources with a 1 MiB message ceiling and
 trusted-bundle enforcement. There is no remote network listener, provider SDK, web UI,
 semantic vector index, unattended background scheduler, automatic deployment or global
 skill registry. Local hooks, the local stdio MCP adapter, and the generic JSON interface

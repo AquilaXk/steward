@@ -619,5 +619,34 @@ test('MCP executes steward_goal_manage, steward_record_handoff, steward_record_q
     });
     assert.ok(trustStatusRes.result, 'steward://trust/status on untrusted project should return structured resource');
     assert.equal(JSON.parse(trustStatusRes.result.contents[0].text).trusted, false);
+
+    const unknownPropRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 116,
+        method: 'tools/call',
+        params: {
+            name: 'steward_recall',
+            arguments: { tags: ['arch'] }
+        }
+    });
+    assert.equal(unknownPropRes.result.isError, true);
+    assert.match(unknownPropRes.result.content[0].text, /SCHEMA/);
+
+    const badArrayRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 117,
+        method: 'tools/call',
+        params: {
+            name: 'steward_record_handoff',
+            arguments: {
+                task: 'Check fail-closed array validation',
+                scope: ['src/adapters/mcp.mjs'],
+                constraints: 'not-an-array',
+                acceptance: ['Fails closed']
+            }
+        }
+    });
+    assert.equal(badArrayRes.result.isError, true);
+    assert.match(badArrayRes.result.content[0].text, /SCHEMA/);
 });
 
