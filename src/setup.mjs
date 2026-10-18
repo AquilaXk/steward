@@ -241,7 +241,7 @@ function applyInstallation(root, writes) {
 }
 
 export const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PreCompact'];
-export const ANTIGRAVITY_HOOK_EVENTS = ['SessionStart', 'PreInvocation', 'PreToolUse'];
+export const ANTIGRAVITY_HOOK_EVENTS = ['SessionStart', 'PreInvocation', 'PreToolUse', 'Stop'];
 export const INSTALL_HOSTS = ['codex', 'claude', 'antigravity'];
 
 export function hostHookEvents(host) {
@@ -434,6 +434,28 @@ function hasActiveSharedProjectSkillsSibling(root, host) {
     }
 }
 
+function collectCandidateSkillDirs(file, dirs) {
+    let dir = path.posix.dirname(file);
+    while (dir && dir !== '.' && dir !== '.claude' && dir !== '.agents') {
+        dirs.add(dir);
+        dir = path.posix.dirname(dir);
+    }
+}
+
+function pruneEmptySkillDirectories(root, removed) {
+    const dirs = new Set();
+    for (const file of removed) {
+        collectCandidateSkillDirs(file, dirs);
+    }
+    const sorted = [...dirs].sort((a, b) => b.length - a.length);
+    for (const relDir of sorted) {
+        const target = safePath(root, relDir);
+        if (fs.existsSync(target) && fs.readdirSync(target).length === 0) { //NOSONAR
+            fs.rmdirSync(target); //NOSONAR
+        }
+    }
+}
+
 function performHostUninstall(root, host, receiptPath, old, stage, writes) {
     const ownership = skillOwnership(root, host);
     const retainSharedSkills = hasActiveSharedProjectSkillsSibling(root, host);
@@ -456,6 +478,7 @@ function performHostUninstall(root, host, receiptPath, old, stage, writes) {
         stageClaudeBlockRemoval(root, old, stage);
     }
     applyInstallation(root, writes);
+    pruneEmptySkillDirectories(root, removed);
     return {
         host,
         uninstalled: true,

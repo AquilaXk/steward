@@ -76,6 +76,7 @@ export interface EvaluationResult {
     snapshot?: CompactionSnapshot;
     simulation?: boolean;
     activated?: boolean;
+    error?: boolean;
 }
 
 export function evaluate(policy: Policy, event: EventInput): EvaluationResult;

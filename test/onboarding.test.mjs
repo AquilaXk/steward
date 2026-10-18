@@ -131,4 +131,10 @@ test('both marketplaces resolve the packaged toolkit and share its version', () 
     assert.equal(codex.plugins[0].source.path, './');
     assert.equal(claude.plugins[0].source, './');
     assert(fs.existsSync(path.join(PACKAGE, codex.plugins[0].source.path, 'bin/steward.mjs')));
+    const agPlugin = read('plugin.json');
+    assert.equal(agPlugin.name, pkg.name);
+    assert.equal(agPlugin.version, pkg.version);
+    assert.equal(agPlugin.logo, 'assets/logo.svg');
+    assert(fs.existsSync(path.join(PACKAGE, agPlugin.logo)));
 });
+

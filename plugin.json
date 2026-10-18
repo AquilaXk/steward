@@ -1,0 +1,12 @@
+{
+  "name": "steward",
+  "displayName": "Steward",
+  "version": "0.2.0",
+  "description": "Local, evidence-aware policy enforcement, SHA-256 hash-chained persistent memory journal, and source-bound completion verification for coding agents.",
+  "logo": "assets/logo.svg",
+  "suggestedPrompts": [
+    "Check Steward doctor status and verify policy bundle trust for the current workspace",
+    "Recall recent architectural decisions and open questions from the Steward journal",
+    "Run Steward verification checks and check the source-bound completion gate"
+  ]
+}
