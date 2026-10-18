@@ -295,10 +295,10 @@ node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
 
 **제공 MCP 도구 (Tools):**
 
-- `steward_policy_eval`: 프롬프트, 도구 호출, 세션 이벤트를 활성 정책 규칙에 따라 평가합니다.
-- `steward_recall`: `type`, `text`, `tag`, `since`, `until`, `sessionId`, `recordId`, `history` 필터로 저널 기록을 조회합니다.
+- `steward_policy_eval`: 프롬프트, 도구 호출, 세션, 종료(`stop`) 이벤트를 활성 정책 규칙에 따라 평가합니다.
+- `steward_recall`: `type`, `text`, `tag`, `since`, `until`, `sessionId` (또는 `session`), `recordId`, `history` 필터로 저널 기록을 조회합니다.
 - `steward_record_decision`: 근거 참조 및 인용문을 포함하여 확인된 아키텍처 결정을 저널에 기록합니다.
-- `steward_checkpoint`: 세션 진행 요약, 다음 구체적 행동, 차단 요소를 체크포인트로 저장합니다.
+- `steward_checkpoint`: 세션 진행 요약, 다음 구체적 행동, 차단 요소를 체크포인트로 저장합니다(`sessionId` 또는 `session`).
 - `steward_verify`: 승인된 검증 계획 명령을 실행하고 실행 결과의 암호학적 증거를 캡처합니다.
 - `steward_completion_gate`: 기록된 증거가 검증 계획 및 소스 스냅샷 조건을 충족하는지 검증합니다.
 - `steward_record_knowledge`: 근거 유형 및 만료 시각을 명시하여 검증된 도메인 사실을 기록합니다.
@@ -312,9 +312,11 @@ node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
 - `steward://policy`: 활성 정책 규칙 및 컨텍스트 예산 설정 조회.
 - `steward://verification-plan`: 승인된 검증 검사 목록 및 타임아웃 예산 조회.
 - `steward://journal/head`: 현재 저널 시퀀스 번호 및 최신 헤드 해시 조회.
-- `steward://checkpoint/latest`: 가장 최근에 저장된 세션 진행 체크포인트 조회.
+- `steward://checkpoint/latest`: 가장 최근에 저장된 세션 진행 체크포인트 조회(`?sessionId=<id>` 또는 `?session=<id>` 지원).
 - `steward://doctor`: 헬스체크 및 로컬 신뢰 상태 보고서 조회.
 - `steward://trust/status`: 미승인 상태에서도 예외 없이 구조화된 신뢰·번들 진단 보고서 조회.
+
+모든 MCP 도구는 선택적 `project` 디렉터리 파라미터를 수용하며, 모든 `steward://` 리소스는 멀티 워크스페이스 세션을 위한 `?project=<urlencoded-path>` 쿼리를 지원합니다.
 
 ### 인메모리 색인 캐시 및 회상
 
@@ -391,6 +393,10 @@ steward/
 ├── .codex-plugin/       # Codex 플러그인 명세
 ├── .claude-plugin/      # Claude 플러그인과 마켓플레이스
 ├── .agents/plugins/     # Codex 마켓플레이스
+├── plugin.json          # Antigravity 플러그인 명세
+├── mcp_config.json      # 포터블 stdio MCP 서버 설정
+├── rules/               # 번들된 Antigravity 런타임 거버넌스 규칙
+├── skills/              # 번들된 플러그인 스킬 사본 (procedures/에서 생성)
 ├── bin/                 # CLI 진입점 (steward.mjs)
 ├── index.d.ts           # 라이브러리 연동용 TypeScript 타입 선언
 ├── src/                 # 코어 엔진, 신뢰, 저널, 검증, 암호화, MCP 및 어댑터

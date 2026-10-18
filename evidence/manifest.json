@@ -148,13 +148,13 @@
     },
     {
       "path": "README.ko.md",
-      "bytes": 26578,
-      "sha256": "c44565450b3a8843f2e485f2efc951faa44d7d9ceb5255ba430b482ce9a3413e"
+      "bytes": 27223,
+      "sha256": "0bf97f0fe43867bdf9b08ac1f167607418a01b46d837c67aca347d17065a35fb"
     },
     {
       "path": "README.md",
-      "bytes": 23384,
-      "sha256": "e9f6c4bea26de1b8f6899df58f3eba7b231f49326d278cf0af241bf29e49852e"
+      "bytes": 23943,
+      "sha256": "6a27e9defef000674f20bb839e1a8680c6c30a337f238fe2ebdacc2de36edaf1"
     },
     {
       "path": "SECURITY.md",
@@ -279,7 +279,7 @@
     {
       "path": "evidence/source-manifest.json",
       "bytes": 20703,
-      "sha256": "a8438fa2ed4469f20ca991ddab7c237bc792d18943237e14cf2a8cf470601da2"
+      "sha256": "5d641f9ddf450ec5601a2aca2395ea7bfed2803c128f39c2f0198815c8ddaacb"
     },
     {
       "path": "evidence/test-results.tap",

@@ -297,10 +297,10 @@ node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
 
 **Exposed MCP Tools:**
 
-- `steward_policy_eval`: Evaluate prompt, tool, or session events against active policy rules.
-- `steward_recall`: Query journal records with `type`, `text`, `tag`, `since`, `until`, `sessionId`, `recordId`, and `history` filters.
+- `steward_policy_eval`: Evaluate prompt, tool, session, or stop events against active policy rules.
+- `steward_recall`: Query journal records with `type`, `text`, `tag`, `since`, `until`, `sessionId` (or `session`), `recordId`, and `history` filters.
 - `steward_record_decision`: Append an attributed decision with authority reference and quote.
-- `steward_checkpoint`: Persist session summary, next concrete action, and blockers.
+- `steward_checkpoint`: Persist session summary, next concrete action, and blockers (`sessionId` or `session`).
 - `steward_verify`: Run approved verification checks and capture execution evidence.
 - `steward_completion_gate`: Check if recorded evidence satisfies plan and source snapshot.
 - `steward_record_knowledge`: Record verified domain assertions with basis and expiration timestamps.
@@ -314,9 +314,11 @@ node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
 - `steward://policy`: Active policy rules and budget configuration.
 - `steward://verification-plan`: Approved verification checks and timeout budgets.
 - `steward://journal/head`: Current sequence count and latest head hash.
-- `steward://checkpoint/latest`: Most recent session progress checkpoint.
+- `steward://checkpoint/latest`: Most recent session progress checkpoint (supports `?sessionId=<id>` or `?session=<id>`).
 - `steward://doctor`: Health check and local trust status report.
 - `steward://trust/status`: Non-throwing trust and bundle diagnostic report.
+
+All MCP tools accept an optional `project` directory parameter, and all `steward://` resources accept `?project=<urlencoded-path>` for multi-workspace sessions.
 
 ### In-memory index cache and recall
 
@@ -394,6 +396,10 @@ steward/
 ├── .codex-plugin/       # Codex plugin manifest
 ├── .claude-plugin/      # Claude plugin and marketplace
 ├── .agents/plugins/     # Codex marketplace
+├── plugin.json          # Antigravity plugin manifest
+├── mcp_config.json      # Portable stdio MCP server configuration
+├── rules/               # Bundled Antigravity runtime governance rule
+├── skills/              # Bundled plugin skill copies (generated from procedures/)
 ├── bin/                 # CLI entrypoint (steward.mjs)
 ├── index.d.ts           # TypeScript type definitions for library consumers
 ├── src/                 # Engine, trust, journal, verify, crypto, mcp and adapters
