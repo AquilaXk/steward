@@ -50,6 +50,24 @@ export function deriveKeyId(publicKeyPem) {
     return sha256(publicKeyPem.trim()).slice(0, 32);
 }
 
+function parseEd25519PrivateKey(privateKeyPem) {
+    insist(typeof privateKeyPem === 'string' && privateKeyPem.includes('PRIVATE KEY'), 'CRYPTO_ERROR', 'Invalid private key PEM.');
+    let keyObj;
+    try {
+        keyObj = crypto.createPrivateKey(privateKeyPem);
+    } catch {
+        throw new StewardError('CRYPTO_ERROR', 'Invalid Ed25519 private key PEM.');
+    }
+    insist(keyObj.asymmetricKeyType === 'ed25519', 'CRYPTO_ERROR', 'Expected an Ed25519 private key.');
+    return keyObj;
+}
+
+function deriveKeyIdFromPrivateKey(privateKeyPem) {
+    const keyObj = parseEd25519PrivateKey(privateKeyPem);
+    const pubPem = crypto.createPublicKey(keyObj).export({ type: 'spki', format: 'pem' });
+    return deriveKeyId(pubPem);
+}
+
 /**
  * Signs payload data using an Ed25519 private key.
  *
@@ -58,9 +76,9 @@ export function deriveKeyId(publicKeyPem) {
  * @returns {{ alg: string, signature: string }}
  */
 export function signData(data, privateKeyPem) {
-    insist(typeof privateKeyPem === 'string' && privateKeyPem.includes('PRIVATE KEY'), 'CRYPTO_ERROR', 'Invalid private key PEM.');
+    const keyObj = parseEd25519PrivateKey(privateKeyPem);
     const buffer = toSignableBuffer(data);
-    const signature = crypto.sign(null, buffer, privateKeyPem);
+    const signature = crypto.sign(null, buffer, keyObj);
     return {
         alg: 'ed25519',
         signature: signature.toString('hex')
@@ -259,14 +277,10 @@ export function saveKeypair(outDir, keyPair) {
 export function signBundle(root, privateKeyPem) {
     const bundle = loadBundle(root);
     const privPem = resolveKeyPem(privateKeyPem, 'private');
-    const { signature } = signData(bundle.hash, privPem);
-
-    let keyId = 'unknown';
-    try {
-        const keyObj = crypto.createPrivateKey(privPem);
-        const pubPem = crypto.createPublicKey(keyObj).export({ type: 'spki', format: 'pem' });
-        keyId = deriveKeyId(pubPem);
-    } catch {}
+    const keyId = deriveKeyIdFromPrivateKey(privPem);
+    const signedAt = new Date().toISOString();
+    const payload = `steward.bundle.v1:${bundle.hash}:${keyId}:${signedAt}`;
+    const { signature } = signData(payload, privPem);
 
     const record = {
         version: 1,
@@ -274,7 +288,7 @@ export function signBundle(root, privateKeyPem) {
         target: 'bundle',
         bundleHash: bundle.hash,
         keyId,
-        signedAt: new Date().toISOString(),
+        signedAt,
         signature
     };
 
@@ -298,15 +312,16 @@ export function verifyBundleSignature(root, publicKeyInput, sigRecord = null) {
     const record = sigRecord !== null ? sigRecord : parseJSON(readText(sigPath), 'bundle signature');
 
     insist(
-        isObject(record) && record.version === 1 && record.target === 'bundle' && record.alg === 'ed25519' && isIsoTimestamp(record.signedAt),
+        isObject(record) && record.version === 1 && record.target === 'bundle' && record.alg === 'ed25519' && typeof record.keyId === 'string' && isIsoTimestamp(record.signedAt),
         'CRYPTO_ERROR',
         'Invalid signature envelope.'
     );
     insist(record.bundleHash === bundle.hash, 'APPROVAL_MISMATCH', 'Signed bundle hash differs from current bundle.');
-
-    const valid = verifySignature(bundle.hash, record.signature, pubPem);
-    insist(valid, 'SIGNATURE_INVALID', 'Ed25519 signature verification failed for policy bundle.');
     insist(record.keyId === deriveKeyId(pubPem), 'APPROVAL_MISMATCH', 'Signature record key ID does not match verifier public key.');
+
+    const payload = `steward.bundle.v1:${bundle.hash}:${record.keyId}:${record.signedAt}`;
+    const valid = verifySignature(payload, record.signature, pubPem);
+    insist(valid, 'SIGNATURE_INVALID', 'Ed25519 signature verification failed for policy bundle.');
 
     return {
         valid: true,
@@ -330,15 +345,10 @@ export function signVerificationEvidence(root, evidenceHash, privateKeyInput) {
     insist(row, 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
 
     const privPem = resolveKeyPem(privateKeyInput, 'private');
-    const payload = `${evidenceHash}:${row.data.runId}:${row.data.workspace.hash}`;
+    const keyId = deriveKeyIdFromPrivateKey(privPem);
+    const signedAt = new Date().toISOString();
+    const payload = `steward.evidence.v1:${evidenceHash}:${row.data.runId}:${row.data.workspace.hash}:${keyId}:${signedAt}`;
     const { signature } = signData(payload, privPem);
-
-    let keyId = 'unknown';
-    try {
-        const keyObj = crypto.createPrivateKey(privPem);
-        const pubPem = crypto.createPublicKey(keyObj).export({ type: 'spki', format: 'pem' });
-        keyId = deriveKeyId(pubPem);
-    } catch {}
 
     const record = {
         version: 1,
@@ -348,7 +358,7 @@ export function signVerificationEvidence(root, evidenceHash, privateKeyInput) {
         runId: row.data.runId,
         workspaceHash: row.data.workspace.hash,
         keyId,
-        signedAt: new Date().toISOString(),
+        signedAt,
         signature
     };
 
@@ -376,18 +386,18 @@ export function verifyVerificationEvidence(root, evidenceHash, publicKeyInput, s
     const record = sigRecord !== null ? sigRecord : parseJSON(readText(sigPath), 'evidence signature');
 
     insist(
-        isObject(record) && record.version === 1 && record.target === 'evidence' && record.alg === 'ed25519' && isIsoTimestamp(record.signedAt),
+        isObject(record) && record.version === 1 && record.target === 'evidence' && record.alg === 'ed25519' && typeof record.keyId === 'string' && isIsoTimestamp(record.signedAt),
         'CRYPTO_ERROR',
         'Invalid evidence signature record.'
     );
     insist(record.evidenceHash === evidenceHash, 'APPROVAL_MISMATCH', 'Signature record evidence hash mismatch.');
     insist(record.runId === row.data.runId, 'APPROVAL_MISMATCH', 'Signature record run ID mismatch.');
     insist(record.workspaceHash === row.data.workspace.hash, 'APPROVAL_MISMATCH', 'Signature record workspace hash mismatch.');
+    insist(record.keyId === deriveKeyId(pubPem), 'APPROVAL_MISMATCH', 'Signature record key ID does not match verifier public key.');
 
-    const payload = `${evidenceHash}:${row.data.runId}:${row.data.workspace.hash}`;
+    const payload = `steward.evidence.v1:${evidenceHash}:${row.data.runId}:${row.data.workspace.hash}:${record.keyId}:${record.signedAt}`;
     const valid = verifySignature(payload, record.signature, pubPem);
     insist(valid, 'SIGNATURE_INVALID', 'Ed25519 signature verification failed for verification evidence.');
-    insist(record.keyId === deriveKeyId(pubPem), 'APPROVAL_MISMATCH', 'Signature record key ID does not match verifier public key.');
 
     return {
         valid: true,

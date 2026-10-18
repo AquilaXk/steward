@@ -159,19 +159,23 @@ export const STEWARD_RESOURCES = [
     { uri: 'steward://doctor', name: 'System Doctor', mimeType: 'application/json', description: 'Health check and trust status report.' }
 ];
 
+function optStr(val) {
+    return typeof val === 'string' && !val.trim() ? undefined : val;
+}
+
 /**
  * Executes the steward_policy_eval tool.
  */
 function executePolicyEval(root, args) {
     root = rootOf(root);
     const { policy } = requireTrust(root);
-    insist(args && typeof args === 'object' && !Array.isArray(args), 'SCHEMA', 'Tool arguments must be an object.');
+    const toolVal = optStr(args.tool);
     const raw = {
         event: args.event,
         text: args.text,
-        tool: args.event === 'tool' ? (args.tool ?? 'generic') : (args.tool ?? null),
+        tool: args.event === 'tool' ? (toolVal ?? 'generic') : (toolVal ?? null),
         paths: args.paths ?? [],
-        sessionId: args.sessionId ?? null
+        sessionId: optStr(args.sessionId) ?? null
     };
     const eventObj = normalizeInput('generic', raw, root);
     return evaluate(policy, eventObj);
@@ -182,15 +186,15 @@ function executePolicyEval(root, args) {
  */
 function executeRecall(root, args) {
     return queryJournal(root, {
-        type: args.type,
+        type: optStr(args.type),
         text: args.text,
-        tag: args.tag,
-        since: args.since,
-        until: args.until,
+        tag: optStr(args.tag),
+        since: optStr(args.since),
+        until: optStr(args.until),
         limit: args.limit,
         history: args.history,
-        recordId: args.recordId,
-        sessionId: args.sessionId
+        recordId: optStr(args.recordId),
+        sessionId: optStr(args.sessionId)
     });
 }
 
@@ -204,9 +208,10 @@ async function executeCheckpoint(root, args) {
         blockers: Array.isArray(args.blockers) ? args.blockers : [],
         ...(args.tags !== undefined ? { tags: args.tags } : {})
     };
-    if (args.sessionId !== undefined && args.sessionId !== null) {
-        insist(typeof args.sessionId === 'string' && args.sessionId.trim() && args.sessionId.length <= 256, 'USAGE', 'Invalid session ID.');
-        checkpointData.session = sha256(args.sessionId);
+    const sessionId = optStr(args.sessionId);
+    if (sessionId !== undefined && sessionId !== null) {
+        insist(typeof sessionId === 'string' && sessionId.length <= 256, 'USAGE', 'Invalid session ID.');
+        checkpointData.session = sha256(sessionId);
     }
     return appendEntry(root, {
         type: 'checkpoint',
@@ -225,11 +230,13 @@ async function executeScheduleManage(root, args) {
         members: Array.isArray(args.members) ? args.members : [],
         ...(args.tags !== undefined ? { tags: args.tags } : {})
     };
-    if (args.id) {
-        schedData.id = args.id;
-        schedData.supersedes = args.supersedes ?? null;
-    } else if (args.supersedes) {
-        schedData.supersedes = args.supersedes;
+    const schedId = optStr(args.id);
+    const supersedes = optStr(args.supersedes) ?? null;
+    if (schedId) {
+        schedData.id = schedId;
+        schedData.supersedes = supersedes;
+    } else if (supersedes) {
+        schedData.supersedes = supersedes;
     }
     return appendEntry(root, {
         type: 'schedule',
@@ -245,20 +252,20 @@ const TOOL_DISPATCHERS = {
         data: {
             statement: args.statement,
             authority: args.authority,
-            supersedes: args.supersedes ?? null,
+            supersedes: optStr(args.supersedes) ?? null,
             ...(args.tags !== undefined ? { tags: args.tags } : {})
         }
     }),
     steward_checkpoint: (root, args) => executeCheckpoint(root, args),
     steward_verify: (root) => runVerification(root),
-    steward_completion_gate: (root, args) => completionGate(root, args.evidence || null),
+    steward_completion_gate: (root, args) => completionGate(root, optStr(args.evidence) ?? null),
     steward_record_knowledge: (root, args) => appendEntry(root, {
         type: 'knowledge',
         data: {
             claim: args.claim,
             basis: args.basis,
             sources: Array.isArray(args.sources) ? args.sources : [],
-            expiresAt: args.expiresAt ?? null,
+            expiresAt: optStr(args.expiresAt) ?? null,
             ...(args.tags !== undefined ? { tags: args.tags } : {})
         }
     }),
@@ -275,9 +282,10 @@ const TOOL_DISPATCHERS = {
  */
 export async function executeTool(root, name, args = {}) {
     root = rootOf(root);
+    insist(args === undefined || (args !== null && typeof args === 'object' && !Array.isArray(args)), 'SCHEMA', 'Tool arguments must be an object.');
     const handler = typeof name === 'string' && Object.hasOwn(TOOL_DISPATCHERS, name) ? TOOL_DISPATCHERS[name] : null;
     insist(handler, 'USAGE', `Unknown MCP tool: ${name}`);
-    return handler(root, args || {});
+    return handler(root, args ?? {});
 }
 
 const RESOURCE_HANDLERS = {

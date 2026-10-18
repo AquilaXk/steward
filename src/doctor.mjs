@@ -32,6 +32,18 @@ function resolveSkillsRoot(root, host, skillSource) {
     return safePath(root, localDir);
 }
 
+const SHA256_RE = /^[a-f0-9]{64}$/;
+
+function isValidReceipt(receipt, host) {
+    return (
+        receipt.version === 1 &&
+        receipt.host === host &&
+        Array.isArray(receipt.commands) &&
+        typeof receipt.configHash === 'string' &&
+        SHA256_RE.test(receipt.configHash)
+    );
+}
+
 function inspectHost(root, host) {
     const configPath = host === 'codex' ? '.codex/hooks.json' : '.claude/settings.local.json';
     const receiptPath = `.steward/install-${host}.json`;
@@ -44,7 +56,7 @@ function inspectHost(root, host) {
     try {
         const receipt = readJSON(safePath(root, receiptPath));
         const config = readJSON(safePath(root, configPath));
-        if (receipt.version !== 1 || receipt.host !== host || !Array.isArray(receipt.commands)) {
+        if (!isValidReceipt(receipt, host)) {
             result.problems.push('Invalid installation receipt. Review and reinstall this host.');
             return result;
         }

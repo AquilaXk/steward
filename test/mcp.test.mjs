@@ -455,3 +455,63 @@ test('MCP tools support tags and tag/temporal filtering in steward_recall', asyn
     assert.deepEqual(recallData.rows[0].data.tags, ['architecture', 'runtime']);
 });
 
+test('MCP executeTool rejects non-object arguments and normalizes empty-string optional arguments', async (t) => {
+    const { root } = sandbox(t);
+
+    const nonObjRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 100,
+        method: 'tools/call',
+        params: {
+            name: 'steward_recall',
+            arguments: 'not-an-object'
+        }
+    });
+    assert.equal(nonObjRes.result.isError, true);
+    assert.match(nonObjRes.result.content[0].text, /SCHEMA/);
+
+    const arrayArgsRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 101,
+        method: 'tools/call',
+        params: {
+            name: 'steward_recall',
+            arguments: []
+        }
+    });
+    assert.equal(arrayArgsRes.result.isError, true);
+    assert.match(arrayArgsRes.result.content[0].text, /SCHEMA/);
+
+    const emptyOptRecall = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 102,
+        method: 'tools/call',
+        params: {
+            name: 'steward_recall',
+            arguments: {
+                type: '',
+                tag: '   ',
+                since: '',
+                until: '',
+                recordId: '',
+                sessionId: ''
+            }
+        }
+    });
+    assert.equal(emptyOptRecall.result.isError, false);
+
+    const emptyOptCp = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 103,
+        method: 'tools/call',
+        params: {
+            name: 'steward_checkpoint',
+            arguments: {
+                summary: 'Checkpoint with empty sessionId',
+                next: 'Verify',
+                sessionId: '   '
+            }
+        }
+    });
+    assert.equal(emptyOptCp.result.isError, false);
+});

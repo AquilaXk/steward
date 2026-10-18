@@ -69,10 +69,7 @@ jobs:
             echo "NPM_TOKEN is not configured; skipping npm registry publish."
             exit 0
           fi
-          cp package.json package.json.bak
-          trap 'mv -f package.json.bak package.json' EXIT
-          node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); delete pkg.private; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');"
-          npm publish --provenance --access public
+          npm publish steward-*.tgz --provenance --access public
       - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

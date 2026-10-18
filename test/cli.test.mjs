@@ -152,4 +152,38 @@ test('CLI hook without --event preserves stdin event kind when encoding errors',
     assert.equal(out.hookSpecificOutput.permissionDecision, 'deny');
 });
 
+test('report uses prototype-safe emitted counter and doctor validates installation receipt configHash', async (t) => {
+    const { audit, report } = await import('../src/audit.mjs');
+    const { installHooks } = await import('../src/setup.mjs');
+    const { doctor } = await import('../src/doctor.mjs');
+    const { root } = sandbox(t);
 
+    write(root, '.steward/policy.json', policy([
+        rule({ id: 'constructor', effect: 'inject', body: 'Constructor rule.', on: ['prompt'], match: { always: true } })
+    ]));
+    const b = loadBundle(root);
+    trustBundle(root, b.hash);
+
+    audit(root, 'claude', { event: 'prompt' }, {
+        decision: 'allow',
+        matched: ['constructor'],
+        emitted: ['constructor'],
+        omitted: [],
+        bytes: 20
+    }, b.hash);
+
+    const rep = report(root);
+    assert.equal(rep.emitted.constructor, 1);
+
+    installHooks(root, 'claude');
+    assert.equal(doctor(root, 'claude').localHealthy, true);
+
+    // Corrupt receipt.configHash and verify doctor marks host broken
+    const receiptFile = path.join(root, '.steward/install-claude.json');
+    const receiptObj = JSON.parse(fs.readFileSync(receiptFile, 'utf8'));
+    receiptObj.configHash = 'not-a-sha256';
+    fs.writeFileSync(receiptFile, JSON.stringify(receiptObj, null, 2) + '\n');
+    const docBadReceipt = doctor(root, 'claude');
+    assert.equal(docBadReceipt.localHealthy, false);
+    assert.equal(docBadReceipt.hosts[0].status, 'broken');
+});

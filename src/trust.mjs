@@ -5,6 +5,7 @@ import { safePath, readText, parseJSON, sha256, canonical, atomicWrite, rootOf }
 import { validatePolicy, validatePlan } from './schema.mjs';
 import { insist } from './errors.mjs';
 export function loadBundle(root) {
+    root = rootOf(root);
     const policyPath = safePath(root, '.steward/policy.json'), planPath = safePath(root, '.steward/verify.json');
     const policy = validatePolicy(parseJSON(readText(policyPath), 'policy.json'));
     const plan = validatePlan(parseJSON(readText(planPath), 'verify.json'));

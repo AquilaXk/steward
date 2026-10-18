@@ -35,6 +35,8 @@ function createEmptyCache() {
         rows: [],
         mtimes: new Map(),
         sizes: new Map(),
+        inos: new Map(),
+        ctimes: new Map(),
         index: {
             byType: new Map(),
             byRecordId: new Map(),
@@ -123,6 +125,15 @@ function listJournalFiles(root) {
     }
 }
 
+function isFileStatFresh(cache, name, stat) {
+    return (
+        stat.mtimeMs === cache.mtimes.get(name) &&
+        stat.size === cache.sizes.get(name) &&
+        stat.ino === cache.inos.get(name) &&
+        stat.ctimeMs === cache.ctimes.get(name)
+    );
+}
+
 /**
  * Checks whether the existing in-memory cache is still fresh and matches disk state.
  */
@@ -138,7 +149,7 @@ function isCacheUpToDate(root, cache, names) {
         try {
             const filePath = getRecordPath(root, name);
             const stat = fs.statSync(filePath); //NOSONAR
-            if (stat.mtimeMs !== cache.mtimes.get(name) || stat.size !== cache.sizes.get(name)) {
+            if (!isFileStatFresh(cache, name, stat)) {
                 return false;
             }
         } catch {
@@ -163,7 +174,7 @@ function loadJournalRow(root, name, expectedSeq, previousHash) {
     const { hash, ...payload } = row;
     insist(row.seq === expectedSeq && row.previous === previousHash && hash === sha256(canonical(payload)), 'JOURNAL_CORRUPT', `Journal integrity check failed at record ${expectedSeq}.`);
     insist(name === `${String(row.seq).padStart(8, '0')}-${row.id}.json`, 'JOURNAL_CORRUPT', 'Journal filename identity mismatch.');
-    return { row: deepFreeze(row), mtimeMs: stat.mtimeMs, size: stat.size };
+    return { row: deepFreeze(row), mtimeMs: stat.mtimeMs, size: stat.size, ino: stat.ino, ctimeMs: stat.ctimeMs };
 }
 
 /**
@@ -192,11 +203,13 @@ export function syncJournalCache(root) {
 
     for (let i = startIndex; i < names.length; i++) {
         const name = names[i];
-        const { row, mtimeMs, size } = loadJournalRow(root, name, cache.rows.length + 1, previous);
+        const { row, mtimeMs, size, ino, ctimeMs } = loadJournalRow(root, name, cache.rows.length + 1, previous);
         cache.files.push(name);
         cache.rows.push(row);
         cache.mtimes.set(name, mtimeMs);
         cache.sizes.set(name, size);
+        cache.inos.set(name, ino);
+        cache.ctimes.set(name, ctimeMs);
         indexRow(cache.index, row);
         previous = row.hash;
     }

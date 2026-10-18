@@ -129,4 +129,60 @@ test('normalizeInput preserves file content in text for Write and Edit tool even
     const p = policy([rule({ id: 'no-secret', effect: 'deny', body: 'No secret.', on: ['tool'], match: { tools: ['Write'], patternsAny: ['*PRIVATE_KEY*'] } })]);
     assert.equal(evaluate(p, normWrite).decision, 'deny');
 });
+test('normalizeTool and normalizeInput handle MultiEdit, NotebookEdit, prototype keys, and multi-slash pathPrefixes', async (t) => {
+    const { sandbox } = await import('./helpers.mjs');
+    const { normalizeInput } = await import('../src/adapters.mjs');
+    const { normalizeTool } = await import('../src/engine.mjs');
+    const { root } = sandbox(t);
 
+    assert.equal(normalizeTool('constructor'), 'constructor');
+    assert.equal(normalizeTool('__proto__'), '__proto__');
+    assert.equal(normalizeTool('MultiEdit'), 'file.write');
+    assert.equal(normalizeTool('NotebookEdit'), 'file.write');
+
+    assert.throws(() => normalizeInput('claude', {
+        hook_event_name: 'constructor',
+        tool_name: 'Bash',
+        tool_input: { command: 'ls' }
+    }, root), { code: 'BAD_EVENT' });
+
+    const normMulti = normalizeInput('claude', {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'MultiEdit',
+        tool_input: {
+            file_path: '.steward/policy.json',
+            edits: [
+                { old_string: 'allow', new_string: 'deny PRIVATE_KEY_LEAK' }
+            ]
+        }
+    }, root, 'PreToolUse');
+    assert.deepEqual(normMulti.paths, ['.steward/policy.json']);
+    assert.ok(normMulti.text.includes('PRIVATE_KEY_LEAK'));
+
+    const normNotebook = normalizeInput('claude', {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'NotebookEdit',
+        tool_input: {
+            notebook_path: 'notebooks/analysis.ipynb',
+            new_source: 'export SECRET_TOKEN=123'
+        }
+    }, root, 'PreToolUse');
+    assert.deepEqual(normNotebook.paths, ['notebooks/analysis.ipynb']);
+    assert.ok(normNotebook.text.includes('SECRET_TOKEN'));
+
+    const p = policy([
+        rule({ id: 'protect-steward', effect: 'deny', body: 'Protect steward.', on: ['tool'], match: { tools: ['file.write'], pathPrefixes: ['.steward///'] } }),
+        rule({ id: 'protect-nb', effect: 'deny', body: 'No secret in notebook.', on: ['tool'], match: { tools: ['file.write'], pathPrefixes: ['notebooks///'], patternsAny: ['*SECRET_TOKEN*'] } })
+    ]);
+    assert.equal(evaluate(p, normMulti).decision, 'deny');
+    assert.equal(evaluate(p, normNotebook).decision, 'deny');
+});
+test('tokenizeCommand elides POSIX backslash-newline line continuations outside single quotes', async () => {
+    const { tokenizeCommand } = await import('../src/matcher.mjs');
+    assert.deepEqual(tokenizeCommand('git push --fo\\\nrce origin main'), ['git', 'push', '--force', 'origin', 'main']);
+    assert.deepEqual(tokenizeCommand('git push --fo\\\r\nrce origin main'), ['git', 'push', '--force', 'origin', 'main']);
+    assert.deepEqual(tokenizeCommand('git "pu\\\nsh" "--fo\\\nrce"'), ['git', 'push', '--force']);
+    assert.deepEqual(tokenizeCommand("git 'pu\\\nsh' --force"), ['git', 'pu\\\nsh', '--force']);
+    const p = policy([rule({ id: 'no-force', effect: 'deny', body: 'No force.', on: ['tool'], match: { tools: ['shell'], patternsAny: ['--force'] } })]);
+    assert.equal(evaluate(p, { ...event('git push --fo\\\nrce origin main'), event: 'tool', tool: 'Bash' }).decision, 'deny');
+});

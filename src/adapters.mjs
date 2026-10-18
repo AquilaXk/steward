@@ -37,22 +37,32 @@ function populatePatchEvent(result, ti, root, cwd) {
     result.text = patch;
 }
 
+function extractToolText(ti) {
+    const editsText = Array.isArray(ti.edits)
+        ? ti.edits.flatMap(e => [e?.old_string, e?.new_string])
+        : [];
+    return [ti.command, ti.url, ti.description, ti.content, ti.new_string, ti.old_string, ti.new_source, ...editsText]
+        .filter(v => typeof v === 'string' && v.length > 0)
+        .join('\n');
+}
+
 function populateToolEvent(result, raw, root, cwd) {
     insist(typeof raw.tool_name === 'string' && raw.tool_name, 'BAD_INPUT', 'tool_name is missing.');
     const ti = raw.tool_input;
     insist(isObject(ti), 'BAD_INPUT', 'tool_input must be an object.');
     result.tool = raw.tool_name;
     const kind = normalizeTool(result.tool);
-    result.text = [ti.command, ti.url, ti.description, ti.content, ti.new_string, ti.old_string].filter(v => typeof v === 'string' && v.length > 0).join('\n');
+    result.text = extractToolText(ti);
     if (kind === 'shell')
         insist(typeof ti.command === 'string' && ti.command.trim(), 'BAD_INPUT', 'Shell command is missing.');
     if (result.tool.toLowerCase() === 'apply_patch') {
         populatePatchEvent(result, ti, root, cwd);
     }
     else if (kind === 'file.write' || kind === 'file.read') {
-        insist(typeof ti.file_path === 'string' && ti.file_path, 'BAD_INPUT', 'File operation path is missing.');
-        result.paths = [relativePath(root, ti.file_path, cwd)];
-        result.text = [ti.file_path, result.text].filter(Boolean).join('\n');
+        const rawPath = ti.file_path ?? ti.notebook_path;
+        insist(typeof rawPath === 'string' && rawPath, 'BAD_INPUT', 'File operation path is missing.');
+        result.paths = [relativePath(root, rawPath, cwd)];
+        result.text = [rawPath, result.text].filter(Boolean).join('\n');
     }
     result.paths = [...new Set(result.paths)];
 }
@@ -67,7 +77,7 @@ export function normalizeInput(host, raw, root, expectedEvent = null) {
     insist(isObject(raw), 'BAD_INPUT', 'Hook input must be an object.');
     if (expectedEvent)
         insist(raw.hook_event_name === expectedEvent, 'EVENT_MISMATCH', 'Hook event does not match the registered handler.');
-    const event = events[raw.hook_event_name];
+    const event = typeof raw.hook_event_name === 'string' && Object.hasOwn(events, raw.hook_event_name) ? events[raw.hook_event_name] : null;
     insist(event, 'BAD_EVENT', 'Unsupported host event.');
     const cwd = resolveHookCwd(root, raw.cwd);
     const result = { event, text: '', tool: null, paths: [], sessionId: raw.session_id ?? null };
@@ -99,4 +109,4 @@ export function encode(host, event, result) {
     const hookEventName = { tool: 'PreToolUse', prompt: 'UserPromptSubmit', session: 'SessionStart' }[event];
     return { stdout: JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: result.context } }), stderr: '', exitCode: 0 };
 }
-export const eventKind = (hostEvent) => events[hostEvent] || 'prompt';
+export const eventKind = (hostEvent) => (typeof hostEvent === 'string' && Object.hasOwn(events, hostEvent) ? events[hostEvent] : 'prompt');
