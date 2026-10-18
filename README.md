@@ -113,7 +113,7 @@ The demo creates a temporary project, runs three synthetic arithmetic tests, rec
 and restores a checkpoint, and rejects evidence after a source change. It removes its
 fixture afterward and does not launch a native agent application.
 
-For the full local software suite (221 tests covering engine, journal, index cache,
+For the full local software suite (222 tests covering engine, journal, index cache,
 MCP server, Ed25519 crypto, pattern matcher, and CLI integration), run `npm run verify`
 (or `npm test`). See the [verification record](evidence/VERIFICATION.md) for observed results
 and their scope.
@@ -289,10 +289,10 @@ It exposes Steward's capabilities as 11 standard MCP Tools and 6 Resources:
 node bin/steward.mjs mcp --project /absolute/path/to/project
 ```
 
-Print client configuration for Claude Desktop, Cursor, or Antigravity:
+Print client configuration for Claude Code, Cursor, Codex, or Antigravity:
 
 ```sh
-node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
+node bin/steward.mjs mcp --config --host claude   # or cursor, codex, antigravity
 ```
 
 **Exposed MCP Tools:**

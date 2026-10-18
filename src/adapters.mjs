@@ -112,6 +112,7 @@ function extractToolText(ti) {
     return [
         ti.command,
         ti.CommandLine,
+        ti.cmd,
         ti.url,
         ti.Url,
         ti.description,
@@ -144,6 +145,17 @@ function extractRawToolCall(raw) {
     return { toolName: raw.tool_name, toolInput: raw.tool_input };
 }
 
+function resolveSingleStringField(values, missingMessage, conflictMessage, requireTrimmed = false) {
+    const defined = values.filter(v => v !== undefined);
+    insist(
+        defined.length > 0 && defined.every(v => typeof v === 'string' && (requireTrimmed ? v.trim().length > 0 : v.length > 0)),
+        'BAD_INPUT',
+        missingMessage
+    );
+    insist(new Set(defined).size === 1, 'BAD_INPUT', conflictMessage);
+    return defined[0];
+}
+
 function populateToolEvent(result, raw, root, cwd) {
     const { toolName, toolInput: ti } = extractRawToolCall(raw);
     insist(typeof toolName === 'string' && toolName, 'BAD_INPUT', 'tool_name is missing.');
@@ -152,15 +164,22 @@ function populateToolEvent(result, raw, root, cwd) {
     const kind = normalizeTool(result.tool);
     result.text = extractToolText(ti);
     if (kind === 'shell') {
-        const cmd = ti.command ?? ti.CommandLine;
-        insist(typeof cmd === 'string' && cmd.trim(), 'BAD_INPUT', 'Shell command is missing.');
+        resolveSingleStringField(
+            [ti.command, ti.CommandLine, ti.cmd],
+            'Shell command is missing.',
+            'Shell command fields disagree.',
+            true
+        );
     }
     if (result.tool.toLowerCase() === 'apply_patch') {
         populatePatchEvent(result, ti, root, cwd);
     }
     else if (kind === 'file.write' || kind === 'file.read') {
-        const rawPath = ti.file_path ?? ti.notebook_path ?? ti.TargetFile ?? ti.AbsolutePath;
-        insist(typeof rawPath === 'string' && rawPath, 'BAD_INPUT', 'File operation path is missing.');
+        const rawPath = resolveSingleStringField(
+            [ti.file_path, ti.notebook_path, ti.TargetFile, ti.AbsolutePath, ti.path],
+            'File operation path is missing.',
+            'File operation path fields disagree.'
+        );
         result.paths = [relativePath(root, rawPath, cwd)];
         result.text = [rawPath, result.text].filter(Boolean).join('\n');
     }
@@ -263,7 +282,7 @@ export function encode(host, event, result) {
         return encodeAntigravityResponse(event, result);
     if (result.decision === 'deny')
         return encodeDenyResponse(host, event, result.reason);
-    if (event === 'compact' || !result.context)
+    if (event === 'compact' || event === 'stop' || !result.context)
         return { stdout: '{}', stderr: '', exitCode: 0 };
     const hookEventName = { tool: 'PreToolUse', prompt: 'UserPromptSubmit', session: 'SessionStart' }[event];
     return { stdout: JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: result.context } }), stderr: '', exitCode: 0 };

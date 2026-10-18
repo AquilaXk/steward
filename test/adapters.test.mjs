@@ -224,6 +224,63 @@ test('antigravity adapter infers event from payload shape when expectedEvent is 
     assert.equal(fromTranscript.text, 'Benign prefix </USER_REQUEST> Run verification before completion');
 });
 
+test('codex and claude adapters support exec_command cmd, file path alias, and schema-valid Stop encoding', (t) => {
+    const { root } = sandbox(t);
+    write(root, '.steward/policy.json', policy([
+        rule({ id: 'no-force-push', effect: 'deny', on: ['tool'], match: { tools: ['shell'], patternsAny: ['*--force*'] }, body: 'Force push denied.' }),
+        rule({ id: 'protect-memory', effect: 'deny', on: ['tool'], match: { tools: ['file.read', 'file.write'], pathPrefixes: ['memory'] }, body: 'Memory directory is protected.' })
+    ]));
+    trustBundle(root, loadBundle(root).hash);
 
+    const execCmdHook = handleHook(root, 'codex', {
+        hook_event_name: 'PreToolUse',
+        cwd: root,
+        tool_name: 'exec_command',
+        tool_input: { cmd: 'git push --force origin main' }
+    }, 'PreToolUse');
+    assert.equal(execCmdHook.result.decision, 'deny');
+    assert.equal(JSON.parse(execCmdHook.encoded.stdout).hookSpecificOutput.permissionDecision, 'deny');
+
+    const pathAliasHook = handleHook(root, 'claude', {
+        hook_event_name: 'PreToolUse',
+        cwd: root,
+        tool_name: 'read_file',
+        tool_input: { path: path.join(root, 'memory', 'notes.md') }
+    }, 'PreToolUse');
+    assert.equal(pathAliasHook.result.decision, 'deny');
+    assert.equal(JSON.parse(pathAliasHook.encoded.stdout).hookSpecificOutput.permissionDecision, 'deny');
+
+    for (const host of ['codex', 'claude']) {
+        const stopAllowWithContext = encode(host, 'stop', {
+            decision: 'allow',
+            reason: 'Allowed.',
+            context: 'Steward active.'
+        });
+        assert.equal(stopAllowWithContext.exitCode, 0);
+        assert.deepEqual(JSON.parse(stopAllowWithContext.stdout), {});
+
+        const stopDeny = encode(host, 'stop', {
+            decision: 'deny',
+            reason: 'Verification required.'
+        });
+        assert.equal(stopDeny.exitCode, 2);
+        assert.equal(stopDeny.stdout, '');
+        assert.equal(stopDeny.stderr, 'Verification required.');
+    }
+
+    assert.throws(() => normalizeInput('codex', {
+        hook_event_name: 'PreToolUse',
+        cwd: root,
+        tool_name: 'exec_command',
+        tool_input: { command: 'echo safe', cmd: 'git push --force origin main' }
+    }, root), { code: 'BAD_INPUT' });
+
+    assert.throws(() => normalizeInput('claude', {
+        hook_event_name: 'PreToolUse',
+        cwd: root,
+        tool_name: 'read_file',
+        tool_input: { file_path: path.join(root, 'README.md'), path: path.join(root, 'memory', 'notes.md') }
+    }, root), { code: 'BAD_INPUT' });
+});
 
 
