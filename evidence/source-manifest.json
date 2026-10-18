@@ -298,8 +298,8 @@
     },
     {
       "path": "package.json",
-      "bytes": 1305,
-      "sha256": "bb7dc0b5a251b1ad5407e7967b12833ae5922c54ad2ca3e88095076e5d93bd86"
+      "bytes": 1334,
+      "sha256": "4a1ae0038ba16a89514ac6946e9b0ab9c4845b049357da971d018ec66d9a3ead"
     },
     {
       "path": "plugin.json",
@@ -377,6 +377,11 @@
       "sha256": "397d6c7ae78b88d666bf8c78b5d7ffb984fe54fbba9956f6621e847a0f03ea6b"
     },
     {
+      "path": "rules/AGENTS.md",
+      "bytes": 3858,
+      "sha256": "19d49b318edf84f638add7a5fac11040b3fe880dc3d249aff1cb51a3ea8b17ae"
+    },
+    {
       "path": "schemas/README.md",
       "bytes": 844,
       "sha256": "92961312f4065a3b5fff3dead2143ebdc5dc71ba26dedb30e0292a565433b4b5"
@@ -403,13 +408,13 @@
     },
     {
       "path": "scripts/build-skills.mjs",
-      "bytes": 432,
-      "sha256": "15f20ad0849e44b8ae43d29236a5215ceae5b0a413d1e1fc3bafc5641fa8e4b3"
+      "bytes": 491,
+      "sha256": "7327a2ea45a5ba3e7b2675806d359c4317f64e17ff624fc849180d38fde0d57b"
     },
     {
       "path": "scripts/check.mjs",
-      "bytes": 13128,
-      "sha256": "bfb884c2526bb13f4ffb794554eb61de6e7d1893218fabc1de6b8094fcc7c4fc"
+      "bytes": 13803,
+      "sha256": "569e1ae15812fe3f15510c2266eb0ca5f1bff99bb7f5770f755b95c1bbd9c05c"
     },
     {
       "path": "scripts/demo.mjs",
@@ -427,19 +432,59 @@
       "sha256": "263f304d4c36a62f5c585ab6ee31d540abd4794c89ff6c091a2b98b0b62a51d6"
     },
     {
+      "path": "skills/steward-checkpoint/SKILL.md",
+      "bytes": 1824,
+      "sha256": "7832fac4c48d9f1300c5b06e32a545c1cdf0bb752ac312cb42772ffc76f9a4e8"
+    },
+    {
+      "path": "skills/steward-decisions/SKILL.md",
+      "bytes": 1285,
+      "sha256": "3ea3bc3ad97a82c61f9c9908244f5b49cd94e1278db3bd39156d16e456eb600a"
+    },
+    {
+      "path": "skills/steward-delegate/SKILL.md",
+      "bytes": 1729,
+      "sha256": "ac27600a7a861b8ce1df6c955e900d2d21df8ce0ab8ec478ff933eacaf64ed11"
+    },
+    {
+      "path": "skills/steward-policy/SKILL.md",
+      "bytes": 5013,
+      "sha256": "12c49005eeb6f5ce91d22969486e584905ce19c6d93c82d44b72d46210013cc3"
+    },
+    {
+      "path": "skills/steward-recall/SKILL.md",
+      "bytes": 1917,
+      "sha256": "0d29a59085371bf3490676adc56dee15d685781645cfeb85edd92291dda6b609"
+    },
+    {
+      "path": "skills/steward-schedule/SKILL.md",
+      "bytes": 1855,
+      "sha256": "6ceeaabfe62d3c9d502e49347433c099048941eee35908157e86795a142c1982"
+    },
+    {
+      "path": "skills/steward-verify/SKILL.md",
+      "bytes": 2030,
+      "sha256": "10dd7951fea64f5743ac79938b17c628cd737cc249e1355e7c049528130526a9"
+    },
+    {
+      "path": "skills/steward-work/SKILL.md",
+      "bytes": 1775,
+      "sha256": "09c3c77dc6a85d4b0b90217a160612e8a64e5793e107c61d0f3fd1f9f4647d63"
+    },
+    {
       "path": "sonar-project.properties",
       "bytes": 497,
       "sha256": "c3246eeae1d81c6c1a80bc6fa1a0a6a279009c17969ceec4aa935ef4732a4bcd"
     },
     {
       "path": "src/adapters.mjs",
-      "bytes": 8885,
-      "sha256": "1f82e540bfcbbe2dc84406c559d43126b757d88821d11a6b8d8343c35ff797c2"
+      "bytes": 9455,
+      "sha256": "874ee44a3d21ae7ee1b200ac15ee1da4fbb475c7731bf5de80244ce3f4968134"
     },
     {
       "path": "src/adapters/mcp.mjs",
-      "bytes": 34445,
-      "sha256": "f9350a6571b17d2824335d2669b70336e650588b64dc41762c14f4cc40d6585a"
+      "bytes": 34870,
+      "sha256": "5af475e11ad21215c852339418589261406f18e404bb936198d8953f01581069"
     },
     {
       "path": "src/audit.mjs",
@@ -453,8 +498,8 @@
     },
     {
       "path": "src/doctor.mjs",
-      "bytes": 7257,
-      "sha256": "45e744d3ac1faf385fb98f0124e1c8d3297be100bb5b8c86c2763bbc86e6c713"
+      "bytes": 7358,
+      "sha256": "dc33334569aba3c4a97e338b9a8bb971e5b8223e00d07e2e72b74913e914c2de"
     },
     {
       "path": "src/engine.mjs",
@@ -513,8 +558,8 @@
     },
     {
       "path": "src/skills.mjs",
-      "bytes": 552,
-      "sha256": "1510bdeeadcad832fa4abb8cf0d88a47d25433d8c5b57a43df27bd9b78381012"
+      "bytes": 905,
+      "sha256": "f127c013bac42c9b68e41857ccd887a3b651e0442c33df71c403967f6423f2e1"
     },
     {
       "path": "src/trust.mjs",
@@ -533,8 +578,8 @@
     },
     {
       "path": "test/adapters.test.mjs",
-      "bytes": 13714,
-      "sha256": "7d9990dc41b7ac1c099edad37253a25daa9fdbb4b5151d13c7fde968fdbe50ba"
+      "bytes": 14438,
+      "sha256": "4890d77abcfca5227bd799fc76d112ff14873431c9dcff56fc410c4995a8c7bb"
     },
     {
       "path": "test/cli.test.mjs",
@@ -578,13 +623,13 @@
     },
     {
       "path": "test/mcp.test.mjs",
-      "bytes": 30056,
-      "sha256": "6157723a1c078fb47a6c275782aaa30e6aa22108abf3db6ce69cfd581a13cc11"
+      "bytes": 31664,
+      "sha256": "ae4bbb4ab34a8e52234566c0792df9847be740ece6dc9fda0f41eb42197fa368"
     },
     {
       "path": "test/onboarding.test.mjs",
-      "bytes": 6964,
-      "sha256": "83ce35c813a618d6ea1c62e984bc0513a7f4302f3d720a1c5276102aef727ced"
+      "bytes": 7209,
+      "sha256": "3d317a25235300b2d1d3b5a9af73049a785fa3de51d9f982d8f1bcc350989ac2"
     },
     {
       "path": "test/recall.test.mjs",

@@ -69,7 +69,7 @@ test('plugin setup configures the runner without duplicate project skills', t =>
     assert.equal(initialized.status, 0, initialized.stderr);
     assert.equal(fs.existsSync(path.join(root, '.agents/skills')), false);
     trustBundle(root, loadBundle(root).hash);
-    for (const host of ['codex', 'claude']) {
+    for (const host of ['codex', 'claude', 'antigravity']) {
         const installed = cli(root, ['install', '--host', host, '--plugin']);
         assert.equal(installed.status, 0, installed.stderr);
         const result = JSON.parse(installed.stdout);
@@ -136,5 +136,9 @@ test('both marketplaces resolve the packaged toolkit and share its version', () 
     assert.equal(agPlugin.version, pkg.version);
     assert.equal(agPlugin.logo, 'assets/logo.svg');
     assert(fs.existsSync(path.join(PACKAGE, agPlugin.logo)));
+    assert(pkg.files.includes('skills/'));
+    assert(pkg.files.includes('rules/'));
+    assert(fs.existsSync(path.join(PACKAGE, 'rules/AGENTS.md')));
+    assert(fs.existsSync(path.join(PACKAGE, 'skills/steward-work/SKILL.md')));
 });
 
