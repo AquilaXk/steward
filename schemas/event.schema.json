@@ -10,7 +10,8 @@
         "prompt",
         "tool",
         "session",
-        "compact"
+        "compact",
+        "stop"
       ]
     },
     "text": {

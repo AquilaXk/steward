@@ -47,11 +47,12 @@
               "enum": [
                 "prompt",
                 "tool",
-                "session"
+                "session",
+                "stop"
               ]
             },
             "minItems": 1,
-            "maxItems": 3,
+            "maxItems": 4,
             "uniqueItems": true
           },
           "effect": {

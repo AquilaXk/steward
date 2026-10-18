@@ -137,23 +137,45 @@ test('antigravity adapter infers event from payload shape when expectedEvent is 
     }, root);
     assert.equal(inferredPreInv.event, 'prompt');
 
+    const inferredStop = normalizeInput('antigravity', {
+        conversationId: 'conv-456',
+        terminationReason: 'NO_TOOL_CALL'
+    }, root);
+    assert.equal(inferredStop.event, 'stop');
+    assert.equal(inferredStop.text, 'NO_TOOL_CALL');
+    assert.equal(inferredStop.sessionId, 'conv-456');
+
     const inferredSession = normalizeInput('antigravity', {
         conversationId: 'conv-456',
         workspacePaths: [root]
     }, root);
     assert.equal(inferredSession.event, 'session');
 
-    const stopHookDeny = encode('antigravity', 'stop', { decision: 'deny', reason: 'Verification gate not yet satisfied.' });
-    assert.equal(stopHookDeny.exitCode, 0);
-    assert.deepEqual(JSON.parse(stopHookDeny.stdout), {
+    write(root, '.steward/policy.json', policy([
+        rule({ id: 'require-verification-before-stop', effect: 'deny', on: ['stop'], match: { textAny: ['NO_TOOL_CALL'] }, body: 'Verification gate not yet satisfied.' })
+    ]));
+    trustBundle(root, loadBundle(root).hash);
+
+    const stopDenied = handleHook(root, 'antigravity', {
+        conversationId: 'conv-456',
+        terminationReason: 'NO_TOOL_CALL'
+    });
+    assert.equal(stopDenied.result.decision, 'deny');
+    assert.equal(stopDenied.encoded.exitCode, 0);
+    assert.deepEqual(JSON.parse(stopDenied.encoded.stdout), {
         decision: 'continue',
-        reason: 'Verification gate not yet satisfied.'
+        reason: 'Policy require-verification-before-stop: Verification gate not yet satisfied.'
     });
 
-    const stopHookAllow = encode('antigravity', 'stop', { decision: 'allow', reason: '' });
-    assert.equal(stopHookAllow.exitCode, 0);
-    assert.deepEqual(JSON.parse(stopHookAllow.stdout), { decision: 'allow' });
+    const stopAllowed = handleHook(root, 'antigravity', {
+        conversationId: 'conv-456',
+        terminationReason: 'MAX_STEPS'
+    }, 'Stop');
+    assert.equal(stopAllowed.result.decision, 'allow');
+    assert.equal(stopAllowed.encoded.exitCode, 0);
+    assert.deepEqual(JSON.parse(stopAllowed.encoded.stdout), { decision: 'allow' });
 });
+
 
 
 

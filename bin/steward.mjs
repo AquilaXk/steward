@@ -5,7 +5,7 @@ import { rootOf, parseJSON, readText, readJSON, sha256 } from '../src/fs.mjs';
 import { insist, publicError, StewardError } from '../src/errors.mjs';
 import { loadBundle, trustBundle } from '../src/trust.mjs';
 import { handleHook } from '../src/service.mjs';
-import { encode, eventKind, normalizeInput } from '../src/adapters.mjs';
+import { encode, eventKind, inferAntigravityEvent, normalizeInput } from '../src/adapters.mjs';
 import { evaluate } from '../src/engine.mjs';
 import { appendEntry, readJournal, journalHead, queryJournal } from '../src/journal.mjs';
 import { VERSION } from '../src/version.mjs';
@@ -185,7 +185,7 @@ try {
             const raw = await input();
             const expectedEvent = opts.event || null;
             if (!opts.event && raw && typeof raw === 'object' && !Array.isArray(raw)) {
-                opts.event = raw.hook_event_name || raw.event || (host === 'antigravity' && raw.toolCall ? 'PreToolUse' : null);
+                opts.event = raw.hook_event_name || raw.event || (host === 'antigravity' ? inferAntigravityEvent(raw) : null);
             }
             const { encoded } = handleHook(root, host, raw, expectedEvent);
             if (encoded.stdout)

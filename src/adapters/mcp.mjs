@@ -487,7 +487,7 @@ function parseResourceTarget(root, uri) {
     }
     if (params.has('sessionId')) {
         const sid = params.get('sessionId');
-        insist(sid && sid.trim() && sid.length <= 256, 'USAGE', 'Invalid sessionId query parameter.');
+        insist(sid?.trim() && sid.length <= 256, 'USAGE', 'Invalid sessionId query parameter.');
     }
     return { baseUri, targetRoot: resolveTargetRoot(root, params.get('project') ?? undefined), params };
 }

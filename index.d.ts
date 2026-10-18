@@ -9,7 +9,7 @@ export const VERSION: string;
 // Policy Engine & Schema
 // ==========================================
 
-export type RuleEvent = 'prompt' | 'tool' | 'session';
+export type RuleEvent = 'prompt' | 'tool' | 'session' | 'stop';
 export type EventType = RuleEvent | 'compact';
 export type RuleEffect = 'inject' | 'deny';
 
