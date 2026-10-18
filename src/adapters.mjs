@@ -47,6 +47,9 @@ function extractToolText(ti) {
     const editsText = Array.isArray(ti.edits)
         ? ti.edits.flatMap(e => [e?.old_string, e?.new_string])
         : [];
+    const chunksText = Array.isArray(ti.ReplacementChunks)
+        ? ti.ReplacementChunks.flatMap(c => [c?.TargetContent, c?.ReplacementContent])
+        : [];
     return [
         ti.command,
         ti.CommandLine,
@@ -60,7 +63,8 @@ function extractToolText(ti) {
         ti.new_string,
         ti.old_string,
         ti.new_source,
-        ...editsText
+        ...editsText,
+        ...chunksText
     ]
         .filter(v => typeof v === 'string' && v.length > 0)
         .join('\n');
@@ -126,11 +130,7 @@ function encodeAntigravityResponse(event, result) {
         if (event === 'tool') {
             return { stdout: JSON.stringify({ decision: 'deny', reason: result.reason }), stderr: '', exitCode: 0 };
         }
-        return {
-            stdout: JSON.stringify({ injectSteps: [{ ephemeralMessage: result.reason }] }),
-            stderr: result.reason,
-            exitCode: 0
-        };
+        return { stdout: '', stderr: result.reason, exitCode: 2 };
     }
     if (event === 'tool') {
         return { stdout: JSON.stringify({ decision: 'allow' }), stderr: '', exitCode: 0 };

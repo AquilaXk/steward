@@ -42,7 +42,8 @@ test('antigravity adapter normalizes PreToolUse toolCall payloads and enforces p
     const { root } = sandbox(t);
     write(root, '.steward/policy.json', policy([
         rule({ id: 'protect-memory', effect: 'deny', on: ['tool'], match: { tools: ['file.write'], pathPrefixes: ['memory'] }, body: 'Memory directory is protected.' }),
-        rule({ id: 'no-force-push', effect: 'deny', on: ['tool'], match: { tools: ['shell'], patternsAny: ['*--force*'] }, body: 'Force push denied.' })
+        rule({ id: 'no-force-push', effect: 'deny', on: ['tool'], match: { tools: ['shell'], patternsAny: ['*--force*'] }, body: 'Force push denied.' }),
+        rule({ id: 'no-secret-token', effect: 'deny', on: ['tool'], match: { tools: ['file.write'], patternsAny: ['*TOP_SECRET_TOKEN*'] }, body: 'Secret token denied.' })
     ]));
     trustBundle(root, loadBundle(root).hash);
 
@@ -90,4 +91,35 @@ test('antigravity adapter normalizes PreToolUse toolCall payloads and enforces p
     assert.ok(Array.isArray(sessionOut.injectSteps));
     assert.ok(sessionOut.injectSteps[0].ephemeralMessage.includes(checkpoint.data.next));
 });
+
+test('antigravity adapter extracts ReplacementChunks and fails closed with exit 2 on non-tool denials', (t) => {
+    const { root } = sandbox(t);
+    write(root, '.steward/policy.json', policy([
+        rule({ id: 'no-secret-token', effect: 'deny', on: ['tool'], match: { tools: ['file.write'], patternsAny: ['*TOP_SECRET_TOKEN*'] }, body: 'Secret token denied.' })
+    ]));
+    trustBundle(root, loadBundle(root).hash);
+
+    const multiReplaceHook = handleHook(root, 'antigravity', {
+        conversationId: 'conv-123',
+        toolCall: {
+            name: 'multi_replace_file_content',
+            args: {
+                TargetFile: path.join(root, 'src', 'app.js'),
+                ReplacementChunks: [{ TargetContent: 'const x = 1;', ReplacementContent: 'const token = "TOP_SECRET_TOKEN";' }]
+            }
+        }
+    }, 'PreToolUse');
+    assert.equal(multiReplaceHook.result.decision, 'deny');
+    assert.deepEqual(JSON.parse(multiReplaceHook.encoded.stdout), {
+        decision: 'deny',
+        reason: 'Policy no-secret-token: Secret token denied.'
+    });
+
+    const denyPrompt = encode('antigravity', 'prompt', { decision: 'deny', reason: 'Prompt blocked by policy.' });
+    assert.equal(denyPrompt.exitCode, 2);
+    assert.equal(denyPrompt.stdout, '');
+    assert.equal(denyPrompt.stderr, 'Prompt blocked by policy.');
+});
+
+
 

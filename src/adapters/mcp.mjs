@@ -1,5 +1,6 @@
+import fs from 'node:fs';
 import path from 'node:path';
-import { rootOf, sha256 } from '../fs.mjs';
+import { rootOf, safePath, sha256 } from '../fs.mjs';
 import { VERSION } from '../version.mjs';
 import { evaluate } from '../engine.mjs';
 import { normalizeInput } from '../adapters.mjs';
@@ -401,6 +402,20 @@ const TOOL_DISPATCHERS = {
     steward_doctor: (root) => doctor(root, null, { allowUntrusted: true })
 };
 
+function resolveTargetRoot(baseRoot, projectParam) {
+    const canonicalBase = rootOf(baseRoot);
+    const rawProject = optStr(projectParam);
+    if (!rawProject) return canonicalBase;
+    insist(!rawProject.includes('\0'), 'BAD_PATH', 'Path contains null bytes.');
+    const targetRoot = rootOf(path.resolve(canonicalBase, rawProject));
+    if (targetRoot !== canonicalBase) {
+        const hasPolicy = fs.existsSync(safePath(targetRoot, '.steward/policy.json'));
+        const hasPlan = fs.existsSync(safePath(targetRoot, '.steward/verify.json'));
+        insist(hasPolicy && hasPlan, 'BAD_PROJECT', 'Target project is not an initialized Steward workspace.');
+    }
+    return targetRoot;
+}
+
 /**
  * Handles an MCP tool invocation.
  *
@@ -416,7 +431,7 @@ export async function executeTool(root, name, args = {}) {
     const resolvedArgs = args ?? {};
     object(resolvedArgs, TOOL_SCHEMA_KEYS[name] ?? [], name);
     insist(resolvedArgs.project === undefined || typeof resolvedArgs.project === 'string', 'SCHEMA', `${name}.project must be a string.`);
-    const targetRoot = rootOf(optStr(resolvedArgs.project) ?? root);
+    const targetRoot = resolveTargetRoot(root, resolvedArgs.project);
     return handler(targetRoot, resolvedArgs);
 }
 
@@ -466,8 +481,7 @@ function parseResourceTarget(root, uri) {
     for (const key of params.keys()) {
         insist(key === 'project', 'USAGE', `Unsupported MCP resource query parameter: ${key}`);
     }
-    const projectParam = optStr(params.get('project') ?? undefined);
-    return { baseUri, targetRoot: rootOf(projectParam ?? root) };
+    return { baseUri, targetRoot: resolveTargetRoot(root, params.get('project') ?? undefined) };
 }
 
 /**

@@ -718,4 +718,39 @@ test('MCP tools and resources support per-call project workspace override (ADV-4
     assert.ok(badQueryRes.error, 'Expected unknown query param on resource URI to fail closed');
 });
 
+test('MCP project override rejects uninitialized directories and null bytes', async (t) => {
+    const { root: primaryRoot, temp: uninitDir } = sandbox(t);
+    const uninitRes = await handleMcpMessage(primaryRoot, {
+        jsonrpc: '2.0',
+        id: 207,
+        method: 'tools/call',
+        params: {
+            name: 'steward_record_decision',
+            arguments: {
+                project: uninitDir,
+                statement: 'Attempt write to uninitialized directory',
+                authority: { kind: 'user', reference: 'QA audit', quote: 'Should fail' }
+            }
+        }
+    });
+    assert.equal(uninitRes.result.isError, true);
+    assert.match(uninitRes.result.content[0].text, /BAD_PROJECT/);
+
+    const nullByteRes = await handleMcpMessage(primaryRoot, {
+        jsonrpc: '2.0',
+        id: 208,
+        method: 'tools/call',
+        params: {
+            name: 'steward_doctor',
+            arguments: {
+                project: '/tmp/bad\0path'
+            }
+        }
+    });
+    assert.equal(nullByteRes.result.isError, true);
+    assert.match(nullByteRes.result.content[0].text, /BAD_PATH/);
+});
+
+
+
 
