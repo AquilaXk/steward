@@ -138,7 +138,16 @@ test('both marketplaces resolve the packaged toolkit and share its version', () 
     assert(fs.existsSync(path.join(PACKAGE, agPlugin.logo)));
     assert(pkg.files.includes('skills/'));
     assert(pkg.files.includes('rules/'));
+    assert(pkg.files.includes('mcp_config.json'));
     assert(fs.existsSync(path.join(PACKAGE, 'rules/AGENTS.md')));
     assert(fs.existsSync(path.join(PACKAGE, 'skills/steward-work/SKILL.md')));
+    assert.deepEqual(read('mcp_config.json'), {
+        mcpServers: {
+            steward: {
+                command: 'node',
+                args: ['bin/steward.mjs', 'mcp']
+            }
+        }
+    });
 });
 

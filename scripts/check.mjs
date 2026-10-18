@@ -119,6 +119,8 @@ try {
     assert.equal(agManifest.logo, 'assets/logo.svg');
     assert(fs.existsSync(path.join(root, agManifest.logo)), 'Missing Antigravity plugin logo.');
     assert(read('rules/AGENTS.md').trim(), 'Missing Antigravity plugin rules/AGENTS.md.');
+    assert(pkg.files.includes('mcp_config.json'), 'Missing mcp_config.json in package.json#files.');
+    assert.deepEqual(json('mcp_config.json'), { mcpServers: { steward: { command: 'node', args: ['bin/steward.mjs', 'mcp'] } } }, 'mcp_config.json drifted from portable Antigravity plugin MCP spec.');
     const codexMarketplace = json('.agents/plugins/marketplace.json');
     const claudeMarketplace = json('.claude-plugin/marketplace.json');
     for (const marketplace of [codexMarketplace, claudeMarketplace]) {

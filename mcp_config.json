@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "steward": {
+      "command": "node",
+      "args": [
+        "bin/steward.mjs",
+        "mcp"
+      ]
+    }
+  }
+}

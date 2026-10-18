@@ -128,7 +128,7 @@ test('formatMcpConfig outputs valid client configurations', () => {
 
     const antigravityCfg = formatMcpConfig({ host: 'antigravity', project: '/tmp/test-proj' });
     assert(antigravityCfg.mcpServers.steward.args.includes('mcp'));
-    assert.equal(antigravityCfg.servers.steward.transport, 'stdio');
+    assert.equal(antigravityCfg.servers, undefined);
 });
 
 test('startMcpServer executes stream communication end-to-end', async (t) => {
@@ -718,7 +718,7 @@ test('MCP tools and resources support per-call project workspace override (ADV-4
     assert.ok(badQueryRes.error, 'Expected unknown query param on resource URI to fail closed');
 });
 
-test('MCP project override rejects uninitialized directories and null bytes', async (t) => {
+test('MCP project override and default root reject uninitialized directories and null bytes', async (t) => {
     const { root: primaryRoot, temp: uninitDir } = sandbox(t);
     const uninitRes = await handleMcpMessage(primaryRoot, {
         jsonrpc: '2.0',
@@ -735,6 +735,30 @@ test('MCP project override rejects uninitialized directories and null bytes', as
     });
     assert.equal(uninitRes.result.isError, true);
     assert.match(uninitRes.result.content[0].text, /BAD_PROJECT/);
+
+    const defaultUninitRes = await handleMcpMessage(uninitDir, {
+        jsonrpc: '2.0',
+        id: 2071,
+        method: 'tools/call',
+        params: {
+            name: 'steward_checkpoint',
+            arguments: {
+                summary: 'Should not pollute uninitialized startup root',
+                next: 'Fail closed with BAD_PROJECT'
+            }
+        }
+    });
+    assert.equal(defaultUninitRes.result.isError, true);
+    assert.match(defaultUninitRes.result.content[0].text, /BAD_PROJECT/);
+
+    const defaultUninitRead = await handleMcpMessage(uninitDir, {
+        jsonrpc: '2.0',
+        id: 2072,
+        method: 'resources/read',
+        params: { uri: 'steward://checkpoint/latest' }
+    });
+    assert.ok(defaultUninitRead.error);
+    assert.match(defaultUninitRead.error.message, /BAD_PROJECT/);
 
     const nullByteRes = await handleMcpMessage(primaryRoot, {
         jsonrpc: '2.0',
@@ -826,13 +850,71 @@ test('steward://checkpoint/latest resolves session-scoped checkpoints and MCP sc
         }
     });
     assert.equal(cpSessionAlias.result.isError, false, cpSessionAlias.result.content?.[0]?.text);
+    const aliasCheckpointRow = JSON.parse(cpSessionAlias.result.content[0].text);
+
     const aliasMatched = await handleMcpMessage(root, {
         jsonrpc: '2.0',
         id: 307,
         method: 'resources/read',
-        params: { uri: 'steward://checkpoint/latest?sessionId=conv-session-alias' }
+        params: { uri: 'steward://checkpoint/latest?session=conv-session-alias' }
     });
     assert.equal(JSON.parse(aliasMatched.result.contents[0].text).data.summary, 'Checkpoint using session alias');
+
+    const resourceConflict = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 3071,
+        method: 'resources/read',
+        params: { uri: 'steward://checkpoint/latest?session=conv-session-alias&sessionId=other-session' }
+    });
+    assert.ok(resourceConflict.error);
+    assert.match(resourceConflict.error.message, /USAGE/);
+
+    const recallWithSessionAlias = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 3072,
+        method: 'tools/call',
+        params: {
+            name: 'steward_recall',
+            arguments: {
+                type: 'checkpoint',
+                session: 'conv-session-alias'
+            }
+        }
+    });
+    assert.equal(recallWithSessionAlias.result.isError, false, recallWithSessionAlias.result.content?.[0]?.text);
+    assert.equal(JSON.parse(recallWithSessionAlias.result.content[0].text).total, 1);
+
+    const evalWithSessionAlias = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 3073,
+        method: 'tools/call',
+        params: {
+            name: 'steward_policy_eval',
+            arguments: {
+                event: 'stop',
+                text: 'NO_TOOL_CALL',
+                session: 'conv-session-alias'
+            }
+        }
+    });
+    assert.equal(evalWithSessionAlias.result.isError, false, evalWithSessionAlias.result.content?.[0]?.text);
+
+    const cpPrehashed = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 3074,
+        method: 'tools/call',
+        params: {
+            name: 'steward_checkpoint',
+            arguments: {
+                summary: 'Checkpoint with matching sessionId and prehashed session digest',
+                next: 'Verify no double hash',
+                sessionId: 'conv-session-alias',
+                session: aliasCheckpointRow.data.session
+            }
+        }
+    });
+    assert.equal(cpPrehashed.result.isError, false, cpPrehashed.result.content?.[0]?.text);
+    assert.equal(JSON.parse(cpPrehashed.result.content[0].text).data.session, aliasCheckpointRow.data.session);
 
     const cpConflict = await handleMcpMessage(root, {
         jsonrpc: '2.0',
@@ -851,3 +933,4 @@ test('steward://checkpoint/latest resolves session-scoped checkpoints and MCP sc
     assert.equal(cpConflict.result.isError, true);
     assert.match(cpConflict.result.content[0].text, /USAGE/);
 });
+

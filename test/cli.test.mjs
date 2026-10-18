@@ -301,6 +301,22 @@ test('CLI maps unknown parseArgs flags to USAGE, accepts --file/--input intercha
     assert.equal(untrustedStop.status, 2);
     assert.equal(untrustedStop.stdout, '');
     assert.match(untrustedStop.stderr, /Steward UNTRUSTED:/);
+
+    const uninitDir = path.join(temp, 'uninit-workspace');
+    fs.mkdirSync(uninitDir, { recursive: true });
+    const uninitCp = cli(uninitDir, ['checkpoint', '--input', cpFile]);
+    assert.equal(uninitCp.status, 1);
+    assert.equal(JSON.parse(uninitCp.stderr).error.code, 'BAD_PROJECT');
+    assert.equal(fs.existsSync(path.join(uninitDir, '.steward')), false);
+
+    const uninitJournal = cli(uninitDir, ['journal', 'add', '--input', decisionFile]);
+    assert.equal(uninitJournal.status, 1);
+    assert.equal(JSON.parse(uninitJournal.stderr).error.code, 'BAD_PROJECT');
+    assert.equal(fs.existsSync(path.join(uninitDir, '.steward')), false);
+
+    const cursorMcp = cli(root, ['mcp', '--config', '--host', 'cursor']);
+    assert.equal(cursorMcp.status, 0, cursorMcp.stderr);
+    assert.ok(JSON.parse(cursorMcp.stdout).mcpServers.steward);
 });
 
 

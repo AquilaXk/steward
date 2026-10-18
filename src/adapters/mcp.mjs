@@ -33,7 +33,8 @@ export const STEWARD_TOOLS = [
                 text: { type: 'string', description: 'The prompt text, command string, or description.' },
                 tool: { type: 'string', description: 'Tool name if event is "tool" (e.g., shell, file.write).' },
                 paths: { type: 'array', items: { type: 'string' }, description: 'Project paths accessed by the tool.' },
-                sessionId: { type: 'string', description: 'Optional session identifier.' }
+                sessionId: { type: ['string', 'null'], description: 'Optional session identifier.' },
+                session: { type: ['string', 'null'], description: 'Optional alias for sessionId.' }
             },
             required: ['event', 'text'],
             additionalProperties: false
@@ -54,7 +55,8 @@ export const STEWARD_TOOLS = [
                 limit: { type: 'integer', minimum: 1, maximum: 100, default: 20 },
                 history: { type: 'boolean', default: false, description: 'Include superseded and expired records.' },
                 recordId: { type: 'string', description: 'Filter by specific record ID.' },
-                sessionId: { type: 'string', description: 'Filter checkpoints by session ID.' }
+                sessionId: { type: ['string', 'null'], description: 'Filter checkpoints by session ID.' },
+                session: { type: ['string', 'null'], description: 'Optional alias for sessionId.' }
             },
             additionalProperties: false
         }
@@ -242,6 +244,24 @@ function optStr(val) {
     return typeof val === 'string' && !val.trim() ? undefined : val;
 }
 
+const SESSION_HASH_RE = /^[a-f0-9]{64}$/;
+
+function toSessionHash(val) {
+    return SESSION_HASH_RE.test(val) ? val : sha256(val);
+}
+
+function resolveSessionId(args, { allowPrehashed = false } = {}) {
+    const sid = optStr(args.sessionId) ?? null;
+    const sAlias = optStr(args.session) ?? null;
+    insist(sid === null || typeof sid === 'string', 'SCHEMA', 'Invalid sessionId.');
+    insist(sAlias === null || typeof sAlias === 'string', 'SCHEMA', 'Invalid session.');
+    if (sid !== null && sAlias !== null) {
+        const matches = sid === sAlias || (allowPrehashed && toSessionHash(sid) === toSessionHash(sAlias));
+        insist(matches, 'USAGE', 'Disagreeing sessionId and session values.');
+    }
+    return sid ?? sAlias;
+}
+
 /**
  * Executes the steward_policy_eval tool.
  */
@@ -254,7 +274,7 @@ function executePolicyEval(root, args) {
         text: args.text,
         tool: args.event === 'tool' ? (toolVal ?? 'generic') : (toolVal ?? null),
         paths: args.paths ?? [],
-        sessionId: optStr(args.sessionId) ?? null
+        sessionId: resolveSessionId(args)
     };
     const eventObj = normalizeInput('generic', raw, root);
     return evaluate(policy, eventObj);
@@ -264,6 +284,7 @@ function executePolicyEval(root, args) {
  * Executes the steward_recall tool.
  */
 function executeRecall(root, args) {
+    const sessionId = resolveSessionId(args, { allowPrehashed: true });
     return queryJournal(root, {
         type: optStr(args.type),
         text: args.text,
@@ -273,15 +294,8 @@ function executeRecall(root, args) {
         limit: args.limit,
         history: args.history,
         recordId: optStr(args.recordId),
-        sessionId: optStr(args.sessionId)
+        sessionId: sessionId ?? undefined
     });
-}
-
-function resolveCheckpointSessionId(args) {
-    const sid = optStr(args.sessionId) ?? null;
-    const sAlias = optStr(args.session) ?? null;
-    insist(sid === null || sAlias === null || sid === sAlias, 'USAGE', 'Disagreeing sessionId and session values.');
-    return sid ?? sAlias;
 }
 
 /**
@@ -294,10 +308,10 @@ async function executeCheckpoint(root, args) {
         blockers: args.blockers ?? [],
         ...(args.tags !== undefined ? { tags: args.tags } : {})
     };
-    const sessionId = resolveCheckpointSessionId(args);
+    const sessionId = resolveSessionId(args, { allowPrehashed: true });
     if (sessionId !== null) {
         insist(typeof sessionId === 'string' && sessionId.length <= 256, 'USAGE', 'Invalid session ID.');
-        checkpointData.session = sha256(sessionId);
+        checkpointData.session = toSessionHash(sessionId);
     }
     return appendEntry(root, {
         type: 'checkpoint',
@@ -413,14 +427,13 @@ const TOOL_DISPATCHERS = {
 function resolveTargetRoot(baseRoot, projectParam) {
     const canonicalBase = rootOf(baseRoot);
     const rawProject = optStr(projectParam);
-    if (!rawProject) return canonicalBase;
-    insist(!rawProject.includes('\0'), 'BAD_PATH', 'Path contains null bytes.');
-    const targetRoot = rootOf(path.resolve(canonicalBase, rawProject));
-    if (targetRoot !== canonicalBase) {
-        const hasPolicy = fs.existsSync(safePath(targetRoot, '.steward/policy.json'));
-        const hasPlan = fs.existsSync(safePath(targetRoot, '.steward/verify.json'));
-        insist(hasPolicy && hasPlan, 'BAD_PROJECT', 'Target project is not an initialized Steward workspace.');
+    if (rawProject) {
+        insist(!rawProject.includes('\0'), 'BAD_PATH', 'Path contains null bytes.');
     }
+    const targetRoot = rawProject ? rootOf(path.resolve(canonicalBase, rawProject)) : canonicalBase;
+    const hasPolicy = fs.existsSync(safePath(targetRoot, '.steward/policy.json'));
+    const hasPlan = fs.existsSync(safePath(targetRoot, '.steward/verify.json'));
+    insist(hasPolicy && hasPlan, 'BAD_PROJECT', 'Target project is not an initialized Steward workspace.');
     return targetRoot;
 }
 
@@ -441,6 +454,13 @@ export async function executeTool(root, name, args = {}) {
     insist(resolvedArgs.project === undefined || typeof resolvedArgs.project === 'string', 'SCHEMA', `${name}.project must be a string.`);
     const targetRoot = resolveTargetRoot(root, resolvedArgs.project);
     return handler(targetRoot, resolvedArgs);
+}
+
+function resolveResourceSessionParam(params) {
+    const sid = params?.get('sessionId') ?? null;
+    const sAlias = params?.get('session') ?? null;
+    insist(sid === null || sAlias === null || toSessionHash(sid) === toSessionHash(sAlias), 'USAGE', 'Disagreeing sessionId and session query parameters.');
+    return sid ?? sAlias;
 }
 
 const RESOURCE_HANDLERS = {
@@ -465,7 +485,7 @@ const RESOURCE_HANDLERS = {
         return { uri, mimeType: 'application/json', text: JSON.stringify(journalHead(rows), null, 2) };
     },
     'steward://checkpoint/latest': (root, uri, params) => {
-        const sessionId = params?.get('sessionId') ?? null;
+        const sessionId = resolveResourceSessionParam(params);
         const checkpoint = sessionId
             ? latestCheckpoint(root, sessionId)
             : (latestCheckpoint(root, null) ?? readJournal(root).findLast(r => r.type === 'checkpoint') ?? null);
@@ -481,22 +501,29 @@ const RESOURCE_HANDLERS = {
     }
 };
 
+function validateResourceSessionParams(params) {
+    for (const key of ['sessionId', 'session']) {
+        if (params.has(key)) {
+            const val = params.get(key);
+            insist(val?.trim() && val.length <= 256, 'USAGE', `Invalid ${key} query parameter.`);
+        }
+    }
+    resolveResourceSessionParam(params);
+}
+
 function parseResourceTarget(root, uri) {
     insist(typeof uri === 'string' && uri.trim(), 'USAGE', `Unknown MCP resource: ${uri}`);
     const qIndex = uri.indexOf('?');
     if (qIndex < 0) {
-        return { baseUri: uri, targetRoot: rootOf(root), params: new URLSearchParams() };
+        return { baseUri: uri, targetRoot: resolveTargetRoot(root, undefined), params: new URLSearchParams() };
     }
     const baseUri = uri.slice(0, qIndex);
     const params = new URLSearchParams(uri.slice(qIndex + 1));
     for (const key of params.keys()) {
-        const allowed = key === 'project' || (key === 'sessionId' && baseUri === 'steward://checkpoint/latest');
-        insist(allowed, 'USAGE', `Unsupported MCP resource query parameter: ${key}`);
+        const isSessionParam = (key === 'sessionId' || key === 'session') && baseUri === 'steward://checkpoint/latest';
+        insist(key === 'project' || isSessionParam, 'USAGE', `Unsupported MCP resource query parameter: ${key}`);
     }
-    if (params.has('sessionId')) {
-        const sid = params.get('sessionId');
-        insist(sid?.trim() && sid.length <= 256, 'USAGE', 'Invalid sessionId query parameter.');
-    }
+    validateResourceSessionParams(params);
     return { baseUri, targetRoot: resolveTargetRoot(root, params.get('project') ?? undefined), params };
 }
 
@@ -678,29 +705,13 @@ export function formatMcpConfig({ host = 'claude', project = process.cwd(), runn
         args: [resolvedRunner, 'mcp', '--project', resolvedRoot]
     };
 
-    switch (host.toLowerCase()) {
-        case 'antigravity':
-            return {
-                mcpServers: {
-                    steward: serverDef
-                },
-                servers: {
-                    steward: {
-                        transport: 'stdio',
-                        command: serverDef.command,
-                        args: serverDef.args
-                    }
-                }
-            };
-        case 'cursor':
-        case 'claude':
-        default:
-            return {
-                mcpServers: {
-                    steward: serverDef
-                }
-            };
-    }
+    const normalizedHost = String(host).toLowerCase();
+    insist(['claude', 'cursor', 'antigravity', 'codex', 'generic'].includes(normalizedHost), 'BAD_HOST', 'MCP config supports claude, cursor, codex, antigravity or generic.');
+    return {
+        mcpServers: {
+            steward: serverDef
+        }
+    };
 }
 
 /**
