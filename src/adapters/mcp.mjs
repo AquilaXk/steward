@@ -253,6 +253,8 @@ function toSessionHash(val) {
 function resolveSessionId(args, { allowPrehashed = false } = {}) {
     const sid = optStr(args.sessionId) ?? null;
     const sAlias = optStr(args.session) ?? null;
+    insist(sid === null || typeof sid === 'string', 'SCHEMA', 'Invalid sessionId.');
+    insist(sAlias === null || typeof sAlias === 'string', 'SCHEMA', 'Invalid session.');
     if (sid !== null && sAlias !== null) {
         const matches = sid === sAlias || (allowPrehashed && toSessionHash(sid) === toSessionHash(sAlias));
         insist(matches, 'USAGE', 'Disagreeing sessionId and session values.');

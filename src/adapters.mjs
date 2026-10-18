@@ -21,8 +21,8 @@ function unwrapUserRequest(content) {
     const start = content.indexOf(OPEN_USER_REQ);
     if (start < 0) return content;
     const bodyStart = start + OPEN_USER_REQ.length;
-    const end = content.indexOf(CLOSE_USER_REQ, bodyStart);
-    return end < 0 ? content : content.slice(bodyStart, end).trim();
+    const end = content.lastIndexOf(CLOSE_USER_REQ);
+    return end < bodyStart ? content : content.slice(bodyStart, end).trim();
 }
 
 function parseTranscriptLinePrompt(line) {
