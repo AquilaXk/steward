@@ -35,23 +35,37 @@ function skillOwnership(root, host) {
     return { relative, files };
 }
 
+function resolveExistingSkillAction(ctx, rel, target, bodyHash) {
+    const diskHash = sha256(readText(target));
+    if (!ctx.update) {
+        if (diskHash === bodyHash) {
+            ctx.ownership.files[rel] = bodyHash;
+        }
+        ctx.skipped.push(rel);
+        return 'skip';
+    }
+    if (!ctx.ownership.files[rel] && diskHash !== bodyHash) {
+        ctx.skipped.push(rel);
+        return 'skip';
+    }
+    insist(diskHash === ctx.ownership.files[rel] || diskHash === bodyHash, 'INSTALL_CONFLICT', `Customized skill preserved: ${rel}. Reconcile it before updating.`);
+    return 'replace';
+}
+
 function copySkillFile(ctx, suffix, absolute) {
     const rel = `${ctx.destination}/${suffix}`;
     const target = safePath(ctx.root, rel);
     const exists = fs.existsSync(target); //NOSONAR
-    if (exists && (!ctx.update || !ctx.ownership.files[rel])) {
-        ctx.skipped.push(rel);
-        return;
-    }
-    if (exists) {
-        insist(sha256(readText(target)) === ctx.ownership.files[rel], 'INSTALL_CONFLICT', `Customized skill preserved: ${rel}. Reconcile it before updating.`);
-    }
     let body = readText(absolute);
     if (ctx.host === 'claude' && suffix.endsWith('/SKILL.md')) {
         body = claudeSkill(body, suffix.split('/')[0]);
     }
+    const bodyHash = sha256(body);
+    if (exists && resolveExistingSkillAction(ctx, rel, target, bodyHash) === 'skip') {
+        return;
+    }
     ctx.write(ctx.root, rel, body, { replace: exists });
-    ctx.ownership.files[rel] = sha256(body);
+    ctx.ownership.files[rel] = bodyHash;
     (exists ? ctx.updated : ctx.created).push(rel);
 }
 
@@ -227,7 +241,12 @@ function applyInstallation(root, writes) {
 }
 
 export const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PreCompact'];
+export const ANTIGRAVITY_HOOK_EVENTS = ['SessionStart', 'PreInvocation', 'PreToolUse'];
 export const INSTALL_HOSTS = ['codex', 'claude', 'antigravity'];
+
+export function hostHookEvents(host) {
+    return host === 'antigravity' ? ANTIGRAVITY_HOOK_EVENTS : HOOK_EVENTS;
+}
 
 export function hostConfigPath(host) {
     if (host === 'codex') return '.codex/hooks.json';
@@ -279,10 +298,16 @@ function createStager(root, writes) {
     };
 }
 
-function loadHostConfig(root, rel) {
+function loadHostConfig(root, rel, host) {
     const target = safePath(root, rel);
     const config = fs.existsSync(target) ? readJSON(target) : {}; //NOSONAR
     insist(isPlainObject(config), 'INSTALL_CONFLICT', 'Existing host configuration is not an object.');
+    if (host === 'antigravity') {
+        if (config.steward !== undefined) {
+            insist(isPlainObject(config.steward), 'INSTALL_CONFLICT', 'Existing steward hook configuration is not an object.');
+        }
+        return config;
+    }
     config.hooks ??= {};
     insist(isPlainObject(config.hooks), 'INSTALL_CONFLICT', 'Existing hooks field is not an object.');
     return config;
@@ -308,7 +333,65 @@ function filterPreservedHookEntries(arr, oldCommands, currentCommand, uninstall)
     return preserved;
 }
 
+function filterPreservedFlatHookEntries(arr, oldCommands, currentCommand, uninstall) {
+    const preserved = [];
+    for (const handler of arr) {
+        insist(isPlainObject(handler) && typeof handler.command === 'string', 'INSTALL_CONFLICT', 'Existing hook entry has an unsupported shape.');
+        if (!oldCommands.includes(handler.command) && (uninstall || handler.command !== currentCommand)) {
+            preserved.push(handler);
+        }
+    }
+    return preserved;
+}
+
+function pruneEmptyStewardHook(config) {
+    const spec = config.steward;
+    if (!isPlainObject(spec)) return;
+    for (const event of ANTIGRAVITY_HOOK_EVENTS) {
+        if (Array.isArray(spec[event]) && spec[event].length === 0) {
+            delete spec[event];
+        }
+    }
+    const remainingKeys = Object.keys(spec).filter(k => k !== 'enabled');
+    if (remainingKeys.length === 0) {
+        delete config.steward;
+    }
+}
+
+function updateAntigravityEventHooks(root, config, oldCommands, uninstall) {
+    const spec = isPlainObject(config.steward) ? config.steward : {};
+    if (!uninstall) {
+        spec.enabled ??= true;
+    }
+    config.steward = spec;
+    const commands = [];
+    for (const event of ANTIGRAVITY_HOOK_EVENTS) {
+        const command = hookCommand(root, 'antigravity', event);
+        const arr = spec[event] ?? [];
+        insist(Array.isArray(arr), 'INSTALL_CONFLICT', `Existing ${event} config is not an array.`);
+        if (event === 'PreToolUse') {
+            const preserved = filterPreservedHookEntries(arr, oldCommands, command, uninstall);
+            spec[event] = uninstall
+                ? preserved
+                : [...preserved, { matcher: '*', hooks: [{ type: 'command', command, timeout: 10 }] }];
+        } else {
+            const preserved = filterPreservedFlatHookEntries(arr, oldCommands, command, uninstall);
+            spec[event] = uninstall
+                ? preserved
+                : [...preserved, { type: 'command', command, timeout: 10 }];
+        }
+        commands.push(command);
+    }
+    if (uninstall) {
+        pruneEmptyStewardHook(config);
+    }
+    return commands;
+}
+
 function updateHostEventHooks(root, host, config, oldCommands, uninstall) {
+    if (host === 'antigravity') {
+        return updateAntigravityEventHooks(root, config, oldCommands, uninstall);
+    }
     const commands = [];
     for (const event of HOOK_EVENTS) {
         const command = hookCommand(root, host, event);
@@ -338,13 +421,27 @@ function stageClaudeBlockRemoval(root, old, stage) {
     }
 }
 
+function hasActiveSharedProjectSkillsSibling(root, host) {
+    if (host === 'claude') return false;
+    const sibling = host === 'codex' ? 'antigravity' : 'codex';
+    const siblingReceipt = safePath(root, `.steward/install-${sibling}.json`);
+    if (!fs.existsSync(siblingReceipt)) return false; //NOSONAR
+    try {
+        const parsed = readJSON(siblingReceipt);
+        return isPlainObject(parsed) && parsed.skillSource === 'project';
+    } catch {
+        return false;
+    }
+}
+
 function performHostUninstall(root, host, receiptPath, old, stage, writes) {
     const ownership = skillOwnership(root, host);
+    const retainSharedSkills = hasActiveSharedProjectSkillsSibling(root, host);
     const removed = [], preserved = [];
     for (const [file, hash] of Object.entries(ownership.files)) {
         const fileTarget = safePath(root, file);
         if (!fs.existsSync(fileTarget)) continue; //NOSONAR
-        if (sha256(readText(fileTarget)) === hash) {
+        if (!retainSharedSkills && sha256(readText(fileTarget)) === hash) {
             stage(root, file, null);
             removed.push(file);
         } else {
@@ -390,7 +487,7 @@ function prepareInstallation(root, host, plugin, update, uninstall) {
     const writes = [];
     const stage = createStager(root, writes);
     const rel = hostConfigPath(host);
-    const config = loadHostConfig(root, rel);
+    const config = loadHostConfig(root, rel, host);
     const receiptPath = `.steward/install-${host}.json`;
     const { exists: hasReceipt, old } = loadInstallReceipt(root, receiptPath);
 

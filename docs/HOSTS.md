@@ -15,7 +15,9 @@ reviewed before local hook registration. Native trust is still required.
 
 `init` installs the eight canonical skill sources under `.agents/skills/steward-*`.
 `install --host codex` merges `.codex/hooks.json`. `install --host antigravity` merges
-`.agents/hooks.json`. `install --host claude` merges
+the `"steward"` named hook into `.agents/hooks.json` with flat `SessionStart` and
+`PreInvocation` handler arrays and a grouped `PreToolUse` (`matcher: "*"`) handler array.
+`install --host claude` merges
 `.claude/settings.local.json`, installs native `.claude/skills/steward-*` copies and
 adds `@AGENTS.md` to `CLAUDE.md` without replacing user notes. An old exact pointer
 written by this installer is replaced with the native import.
@@ -31,7 +33,7 @@ frontmatter controls. Run `npm run build:skills` after editing a procedure; `npm
 check` rejects stale generated files. Skill selection never authorizes a mutation.
 
 The installer records absolute executable/toolkit paths and generated usage instructions.
-Rerun it after relocation. It merges four synchronous command handlers with a ten-second
+Rerun it after relocation. It merges synchronous command handlers with a ten-second
 host timeout, preserves unrelated handlers, and only replaces exact commands recorded
 by its own receipt. It does not modify native host trust or grant permissions.
 
@@ -43,6 +45,7 @@ by its own receipt. It does not modify native host trust or grant permissions.
 | UserPromptSubmit / PreInvocation | Context or exit 2 with reason on stderr | Context or exit 2 with reason on stderr | `injectSteps` ephemeral context message |
 | PreToolUse | Context or `permissionDecision:deny` | Context or `permissionDecision:deny` | `decision:"allow"` or `decision:"deny"` with `reason` |
 | PreCompact | Persist existing state, then `{}`; `continue:false` on failure | Persist existing state, then `{}`; `decision:block` and exit 2 on failure | Persist existing state, then `{}` |
+| Stop | N/A | N/A | `decision:"continue"` with `reason` on denial, or `decision:"allow"` |
 
 The inability to block Claude SessionStart is not silently represented as success.
 Later prompt/tool handlers still validate their own trust and policy. Their protection

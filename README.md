@@ -113,7 +113,7 @@ The demo creates a temporary project, runs three synthetic arithmetic tests, rec
 and restores a checkpoint, and rejects evidence after a source change. It removes its
 fixture afterward and does not launch a native agent application.
 
-For the full local software suite (217 tests covering engine, journal, index cache,
+For the full local software suite (221 tests covering engine, journal, index cache,
 MCP server, Ed25519 crypto, pattern matcher, and CLI integration), run `npm run verify`
 (or `npm test`). See the [verification record](evidence/VERIFICATION.md) for observed results
 and their scope.
@@ -140,7 +140,7 @@ node bin/steward.mjs install --project /absolute/path/to/project --host codex
 node bin/steward.mjs doctor --project /absolute/path/to/project --host codex
 ```
 
-For Claude Code or Antigravity, use `--host claude` or `--host antigravity` in the installation command. Complete the host's
+For Claude Code or Antigravity, use `--host claude` or `--host antigravity` (or `--host all` across all three hosts) in `install`, `update`, `uninstall`, and `doctor`. Complete the host's
 own trust and permission review before relying on its hooks.
 
 | Host / Interface | Skills / Capabilities | Hook or Client Configuration |
@@ -154,7 +154,7 @@ own trust and permission review before relying on its hooks.
 Claude installation also imports the shared `AGENTS.md` from `CLAUDE.md`.
 Generated `.steward/USAGE.md` records the actual runner and example paths.
 The skill paths in the table apply to manual setup; plugin setup uses the bundled
-skills. After a toolkit or plugin update, run `update --host codex` (or `claude` / `antigravity`)
+skills. After a toolkit or plugin update, run `update --host codex` (or `claude` / `antigravity` / `all`)
 from its current path. Before removing a plugin, run `uninstall --host <host>` to
 remove its project hooks and unchanged managed skills while retaining project data.
 

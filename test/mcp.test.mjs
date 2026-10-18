@@ -751,6 +751,60 @@ test('MCP project override rejects uninitialized directories and null bytes', as
     assert.match(nullByteRes.result.content[0].text, /BAD_PATH/);
 });
 
+test('steward://checkpoint/latest resolves session-scoped checkpoints and MCP schemas declare nullable fields', async (t) => {
+    const { root } = sandbox(t, { plan: plan() });
 
+    const listRes = await handleMcpMessage(root, { jsonrpc: '2.0', id: 301, method: 'tools/list' });
+    const tools = listRes.result.tools;
+    const decisionTool = tools.find(x => x.name === 'steward_record_decision');
+    const knowledgeTool = tools.find(x => x.name === 'steward_record_knowledge');
+    assert.deepEqual(decisionTool.inputSchema.properties.supersedes.type, ['string', 'null']);
+    assert.deepEqual(knowledgeTool.inputSchema.properties.expiresAt.type, ['string', 'null']);
 
+    const cpCall = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 302,
+        method: 'tools/call',
+        params: {
+            name: 'steward_checkpoint',
+            arguments: {
+                summary: 'Session-scoped checkpoint via MCP',
+                next: 'Verify steward://checkpoint/latest returns this checkpoint',
+                blockers: [],
+                sessionId: 'conv-session-abc'
+            }
+        }
+    });
+    assert.equal(cpCall.result.isError, false, cpCall.result.content?.[0]?.text);
 
+    // Without ?sessionId=, steward://checkpoint/latest falls back to the latest checkpoint across sessions
+    const latestUnfiltered = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 303,
+        method: 'resources/read',
+        params: { uri: 'steward://checkpoint/latest' }
+    });
+    assert.ok(latestUnfiltered.result);
+    const cpUnfiltered = JSON.parse(latestUnfiltered.result.contents[0].text);
+    assert.ok(cpUnfiltered, 'Expected steward://checkpoint/latest to return the latest session checkpoint rather than null');
+    assert.equal(cpUnfiltered.data.summary, 'Session-scoped checkpoint via MCP');
+
+    // With ?sessionId=, steward://checkpoint/latest filters by the matching session
+    const latestMatching = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 304,
+        method: 'resources/read',
+        params: { uri: 'steward://checkpoint/latest?sessionId=conv-session-abc' }
+    });
+    assert.ok(latestMatching.result);
+    assert.equal(JSON.parse(latestMatching.result.contents[0].text).data.summary, 'Session-scoped checkpoint via MCP');
+
+    const latestOtherSession = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 305,
+        method: 'resources/read',
+        params: { uri: 'steward://checkpoint/latest?sessionId=other-session-xyz' }
+    });
+    assert.ok(latestOtherSession.result);
+    assert.equal(JSON.parse(latestOtherSession.result.contents[0].text), null);
+});

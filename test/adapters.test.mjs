@@ -121,5 +121,39 @@ test('antigravity adapter extracts ReplacementChunks and fails closed with exit 
     assert.equal(denyPrompt.stderr, 'Prompt blocked by policy.');
 });
 
+test('antigravity adapter infers event from payload shape when expectedEvent is omitted and encodes Stop hook contract', (t) => {
+    const { root } = sandbox(t);
+    const inferredTool = normalizeInput('antigravity', {
+        conversationId: 'conv-456',
+        toolCall: { name: 'run_command', args: { CommandLine: 'npm test', Cwd: root } }
+    }, root);
+    assert.equal(inferredTool.event, 'tool');
+    assert.equal(inferredTool.tool, 'run_command');
+
+    const inferredPreInv = normalizeInput('antigravity', {
+        conversationId: 'conv-456',
+        invocationNum: 2,
+        initialNumSteps: 5
+    }, root);
+    assert.equal(inferredPreInv.event, 'prompt');
+
+    const inferredSession = normalizeInput('antigravity', {
+        conversationId: 'conv-456',
+        workspacePaths: [root]
+    }, root);
+    assert.equal(inferredSession.event, 'session');
+
+    const stopHookDeny = encode('antigravity', 'stop', { decision: 'deny', reason: 'Verification gate not yet satisfied.' });
+    assert.equal(stopHookDeny.exitCode, 0);
+    assert.deepEqual(JSON.parse(stopHookDeny.stdout), {
+        decision: 'continue',
+        reason: 'Verification gate not yet satisfied.'
+    });
+
+    const stopHookAllow = encode('antigravity', 'stop', { decision: 'allow', reason: '' });
+    assert.equal(stopHookAllow.exitCode, 0);
+    assert.deepEqual(JSON.parse(stopHookAllow.stdout), { decision: 'allow' });
+});
+
 
 
