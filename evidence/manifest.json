@@ -279,7 +279,7 @@
     {
       "path": "evidence/source-manifest.json",
       "bytes": 20553,
-      "sha256": "60436e1aa52732fa90610faf7f96ba323b5bf5ed7c4eebf9d40445833f3955f3"
+      "sha256": "6ccb83016049600708f96a036e9d56e058592af49e55d8ef69cdcf54b5531b1f"
     },
     {
       "path": "evidence/test-results.tap",
@@ -603,8 +603,8 @@
     },
     {
       "path": "src/skills.mjs",
-      "bytes": 909,
-      "sha256": "05507a9a6a73b8d9e7d691d4ad18778342aeb0f30e95065ed891369a625966c8"
+      "bytes": 905,
+      "sha256": "f127c013bac42c9b68e41857ccd887a3b651e0442c33df71c403967f6423f2e1"
     },
     {
       "path": "src/trust.mjs",

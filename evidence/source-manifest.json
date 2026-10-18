@@ -558,8 +558,8 @@
     },
     {
       "path": "src/skills.mjs",
-      "bytes": 909,
-      "sha256": "05507a9a6a73b8d9e7d691d4ad18778342aeb0f30e95065ed891369a625966c8"
+      "bytes": 905,
+      "sha256": "f127c013bac42c9b68e41857ccd887a3b651e0442c33df71c403967f6423f2e1"
     },
     {
       "path": "src/trust.mjs",

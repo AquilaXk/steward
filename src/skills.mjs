@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
 
-const compareAscii = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+const compareAscii = (a, b) => a.localeCompare(b, 'en');
 
 export function claudeSkill(body, name) {
     return ['steward-policy', 'steward-schedule'].includes(name) ?
