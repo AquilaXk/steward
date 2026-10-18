@@ -6,10 +6,10 @@
     "pass": true,
     "node": "v24.19.0",
     "syntaxModules": 41,
-    "jsonFiles": 26,
+    "jsonFiles": 27,
     "skills": 8,
     "localLinks": 85,
     "dependencyCount": 0
   },
-  "rawOutput": "\n> steward@0.2.0 check\n> node scripts/check.mjs\n\n{\n  \"pass\": true,\n  \"node\": \"v24.19.0\",\n  \"syntaxModules\": 41,\n  \"jsonFiles\": 26,\n  \"skills\": 8,\n  \"localLinks\": 85,\n  \"dependencyCount\": 0\n}\n"
+  "rawOutput": "\n> steward@0.2.0 check\n> node scripts/check.mjs\n\n{\n  \"pass\": true,\n  \"node\": \"v24.19.0\",\n  \"syntaxModules\": 41,\n  \"jsonFiles\": 27,\n  \"skills\": 8,\n  \"localLinks\": 85,\n  \"dependencyCount\": 0\n}\n"
 }

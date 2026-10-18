@@ -278,6 +278,13 @@ function matchesQueryFilter(row, { type, recordId, session, needle, sinceMs, unt
     return true;
 }
 
+const SESSION_HASH_RE = /^[a-f0-9]{64}$/;
+
+function normalizeSessionHash(sessionId) {
+    if (sessionId === undefined) return undefined;
+    return SESSION_HASH_RE.test(sessionId) ? sessionId : sha256(sessionId);
+}
+
 /**
  * Queries the journal using in-memory metadata indexing for fast filtering.
  * Supports filtering by type, tag, timestamp bounds (since/until), session, and text.
@@ -299,7 +306,7 @@ export function queryJournalIndexed(root, { type, text = '', limit = 20, history
     const untilMs = parseTimestampBound(until, 'until');
 
     const { rows, cache } = syncJournalCache(root);
-    const session = sessionId === undefined ? undefined : sha256(sessionId);
+    const session = normalizeSessionHash(sessionId);
     const needle = text.toLocaleLowerCase('en-US');
 
     const candidates = selectSmallestCandidateSet(rows, cache.index, { type, tag, session, recordId });

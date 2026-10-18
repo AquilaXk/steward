@@ -50,15 +50,20 @@ export async function appendEntry(root, entry) {
     }
     return appendInternal(root, entry.type, entry.data);
 }
+const SESSION_HASH_RE = /^[a-f0-9]{64}$/;
+function toSessionHash(sessionId) {
+    if (sessionId == null) return null;
+    return SESSION_HASH_RE.test(sessionId) ? sessionId : sha256(sessionId);
+}
 function selectCheckpoint(rows, sessionId) {
-    const session = sessionId == null ? null : sha256(sessionId);
+    const session = toSessionHash(sessionId);
     return rows.findLast(r => r.type === 'checkpoint' && (r.data.session ?? null) === session) || null;
 }
 export function latestCheckpoint(root, sessionId = null) { return selectCheckpoint(readJournal(root), sessionId); }
 export function saveCompaction(root, sessionId) {
     root = rootOf(root);
     const rows = readJournal(root), checkpoint = selectCheckpoint(rows, sessionId);
-    const record = { version: 1, time: new Date().toISOString(), session: sessionId == null ? null : sha256(sessionId), ...journalHead(rows), checkpoint: checkpoint ? { hash: checkpoint.hash, data: checkpoint.data } : null, conversationCaptured: false };
+    const record = { version: 1, time: new Date().toISOString(), session: toSessionHash(sessionId), ...journalHead(rows), checkpoint: checkpoint ? { hash: checkpoint.hash, data: checkpoint.data } : null, conversationCaptured: false };
     const relative = `.steward/state/checkpoints/${randomUUID()}.json`;
     atomicWrite(root, relative, JSON.stringify(record, null, 2) + '\n');
     return { path: relative, ...journalHead(rows), hasCheckpoint: !!checkpoint };

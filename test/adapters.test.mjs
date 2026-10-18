@@ -208,6 +208,20 @@ test('antigravity adapter infers event from payload shape when expectedEvent is 
             arguments: { AbsolutePath: path.join(root, 'src/b.mjs') }
         }
     }, root), { code: 'BAD_INPUT' });
+
+    const transcriptRel = '.steward/state/test-transcript.jsonl';
+    write(root, transcriptRel, [
+        JSON.stringify({ step_index: 1, type: 'USER_INPUT', content: '<USER_REQUEST>\nFirst turn prompt\n</USER_REQUEST>' }),
+        JSON.stringify({ step_index: 2, type: 'PLANNER_RESPONSE', content: 'Working...' }),
+        JSON.stringify({ step_index: 3, type: 'USER_INPUT', content: '<USER_REQUEST>\nRun verification before completion\n</USER_REQUEST>\n<ADDITIONAL_METADATA>\nThe current local time is: 2026-10-18T20:54:16+09:00.\n</ADDITIONAL_METADATA>' })
+    ].join('\n') + '\n');
+    const fromTranscript = normalizeInput('antigravity', {
+        conversationId: 'conv-456',
+        invocationNum: 3,
+        transcriptPath: path.join(root, transcriptRel)
+    }, root);
+    assert.equal(fromTranscript.event, 'prompt');
+    assert.equal(fromTranscript.text, 'Run verification before completion');
 });
 
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
+import fs from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
-import { rootOf, parseJSON, readText, readJSON, sha256 } from '../src/fs.mjs';
+import { rootOf, safePath, parseJSON, readText, readJSON, sha256 } from '../src/fs.mjs';
 import { insist, publicError, StewardError } from '../src/errors.mjs';
 import { loadBundle, trustBundle } from '../src/trust.mjs';
 import { handleHook } from '../src/service.mjs';
@@ -73,6 +74,18 @@ function resolveSafePath(filePath) {
         throw new StewardError('BAD_PATH', 'Path contains null bytes.');
     }
     return path.resolve(filePath);
+}
+
+function requireInitializedProject(root) {
+    insist(
+        fs.existsSync(safePath(root, '.steward/policy.json')) && fs.existsSync(safePath(root, '.steward/verify.json')),
+        'BAD_PROJECT',
+        'Target project is not an initialized Steward workspace.'
+    );
+}
+
+function toSessionHash(sessionId) {
+    return /^[a-f0-9]{64}$/.test(sessionId) ? sessionId : sha256(sessionId);
 }
 
 async function input() {
@@ -204,6 +217,7 @@ try {
             if (sub === 'add') {
                 const fileArg = opts.file || opts.input;
                 insist(fileArg, 'USAGE', '--file is required.');
+                requireInitializedProject(root);
                 output(await appendEntry(root, readJSON(resolveSafePath(fileArg))));
             }
             else if (sub === 'list')
@@ -222,10 +236,11 @@ try {
         else if (command === 'checkpoint') {
             const fileArg = opts.file || opts.input;
             insist(fileArg, 'USAGE', '--file is required.');
+            requireInitializedProject(root);
             const data = readJSON(resolveSafePath(fileArg));
             if (opts['session-id'] !== undefined) {
                 insist(opts['session-id'].trim() && opts['session-id'].length <= 256, 'USAGE', 'Invalid session ID.');
-                const session = sha256(opts['session-id']);
+                const session = toSessionHash(opts['session-id']);
                 insist(data && typeof data === 'object' && !Array.isArray(data), 'SCHEMA', 'Checkpoint must be an object.');
                 insist(data.session === undefined || data.session === session, 'USAGE', 'Checkpoint session conflicts with --session-id.');
                 data.session = session;

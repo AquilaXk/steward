@@ -46,6 +46,7 @@
     ".claude-plugin",
     ".agents/plugins",
     "plugin.json",
+    "mcp_config.json",
     "CHANGELOG.md",
     "docs",
     "examples",

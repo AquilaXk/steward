@@ -1,3 +1,4 @@
+import * as fs from 'node:fs';
 import path from 'node:path';
 import { insist } from './errors.mjs';
 import { isObject } from './schema.mjs';
@@ -12,6 +13,63 @@ const events = {
     Stop: 'stop'
 };
 export const HOSTS = ['generic', 'codex', 'claude', 'antigravity'];
+const MAX_TRANSCRIPT_TAIL_BYTES = 256 * 1024;
+const OPEN_USER_REQ = '<USER_REQUEST>';
+const CLOSE_USER_REQ = '</USER_REQUEST>';
+
+function unwrapUserRequest(content) {
+    const start = content.indexOf(OPEN_USER_REQ);
+    if (start < 0) return content;
+    const bodyStart = start + OPEN_USER_REQ.length;
+    const end = content.indexOf(CLOSE_USER_REQ, bodyStart);
+    return end < 0 ? content : content.slice(bodyStart, end).trim();
+}
+
+function parseTranscriptLinePrompt(line) {
+    const trimmed = line.trim();
+    if (!trimmed.startsWith('{')) return null;
+    try {
+        const entry = JSON.parse(trimmed);
+        return entry?.type === 'USER_INPUT' && typeof entry.content === 'string'
+            ? unwrapUserRequest(entry.content)
+            : null;
+    } catch {
+        return null;
+    }
+}
+
+function readTranscriptTail(transcriptPath) {
+    if (typeof transcriptPath !== 'string' || !transcriptPath || transcriptPath.includes('\0') || !path.isAbsolute(transcriptPath)) {
+        return '';
+    }
+    let fd;
+    try {
+        fd = fs.openSync(transcriptPath, 'r'); //NOSONAR
+        const stat = fs.fstatSync(fd);
+        if (!stat.isFile() || stat.size === 0) return '';
+        const length = Math.min(stat.size, MAX_TRANSCRIPT_TAIL_BYTES);
+        const buf = Buffer.allocUnsafe(length);
+        const bytesRead = fs.readSync(fd, buf, 0, length, stat.size - length);
+        return buf.subarray(0, bytesRead).toString('utf8');
+    } catch {
+        return '';
+    } finally {
+        if (fd !== undefined) {
+            try { fs.closeSync(fd); } catch { /* ignore close error */ }
+        }
+    }
+}
+
+function extractAntigravityTranscriptPrompt(transcriptPath) {
+    const tail = readTranscriptTail(transcriptPath);
+    if (!tail) return '';
+    const lines = tail.split('\n');
+    for (let i = lines.length - 1; i >= 0; i--) {
+        const prompt = parseTranscriptLinePrompt(lines[i]);
+        if (prompt !== null) return prompt;
+    }
+    return '';
+}
 
 function resolveHookCwd(root, rawCwd) {
     if (rawCwd === undefined) return root;
@@ -26,7 +84,7 @@ function populatePromptEvent(result, raw, host) {
     const p = raw.prompt, t = raw.prompt_text;
     if (p !== undefined && t !== undefined)
         insist(p === t, 'AMBIGUOUS_PROMPT', 'prompt and prompt_text disagree.');
-    result.text = p ?? t ?? (host === 'antigravity' ? (raw.userPrompt ?? '') : undefined);
+    result.text = p ?? t ?? (host === 'antigravity' ? (raw.userPrompt ?? extractAntigravityTranscriptPrompt(raw.transcriptPath)) : undefined);
     insist(typeof result.text === 'string', 'BAD_INPUT', 'Prompt text is missing.');
 }
 
