@@ -1,23 +1,16 @@
 # Steward
 
-![Steward: carry the work, keep the evidence](assets/banner.svg)
+![Steward architecture overview](assets/banner.svg)
 
-**Local policy, durable memory and inspectable verification for coding agents.**
+**Local policy enforcement, hash-linked memory, and source-bound verification for coding agents.**
 
 Node.js 22+ · MIT · Zero runtime dependencies · English / 한국어
 
 [English](README.md) · [한국어](README.ko.md) · [CI](https://github.com/AquilaXk/steward/actions/workflows/ci.yml) · [Discussions](https://github.com/AquilaXk/steward/discussions)
 
-Coding agents can complete long tasks, but the working agreement, remembered decisions
-and evidence of completion often live in different places. Steward connects those
-pieces through small local commands, a native Model Context Protocol (MCP) server,
-programmatic TypeScript/Node.js APIs, and eight focused skills. Start with an isolated
-demo, inspect the files, then adopt only the procedures your project needs.
+During multi-step coding tasks, policy rules, recorded architectural decisions, and proof that checks actually passed are often scattered across chat history and ad-hoc files. Steward connects them through local CLI commands, a stdio Model Context Protocol (MCP) server, typed Node.js APIs, and eight agent skills. Run the isolated demo first, inspect the generated `.steward/` files, and adopt the procedures your project needs.
 
-> **What the evidence means.** Steward records policy decisions, saved notes and the
-> outcome of reviewed local commands. A passing gate binds those checks to the source,
-> executable permissions, plan and runtime. It does not certify a model, authenticate
-> the writer, establish deployment status or replace the host's sandbox.
+> **Verification scope.** Steward records policy evaluations, journal entries, and the output of reviewed local commands. A passing completion gate binds those checks to the current source tree snapshot, executable paths, verification plan, and runtime environment. Steward does not authenticate human identity, certify model behavior, verify remote deployment state, or replace OS-level sandboxing.
 
 ## Install
 
@@ -44,7 +37,7 @@ then ask it to set up the current project.
 
 **Model Context Protocol (MCP)**
 
-Generate ready-to-use client configuration for Claude Desktop, Cursor, or Antigravity:
+Generate client configuration for Claude Desktop, Cursor, or Antigravity:
 
 ```sh
 node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
@@ -64,28 +57,24 @@ if you are working from a clone.
 4. [Set up a project](#4-set-up-a-project)
 5. [Choose a skill](#5-choose-a-skill)
 6. [Understand the evidence](#6-understand-the-evidence)
-7. [Ecosystem, MCP and Developer Experience](#7-ecosystem-mcp-and-developer-experience)
+7. [Ecosystem, MCP and developer experience](#7-ecosystem-mcp-and-developer-experience)
 8. [Repository map](#8-repository-map)
 9. [Contribute and follow the project](#9-contribute-and-follow-the-project)
 10. [References and attribution](#10-references-and-attribution)
 
 ## 1. Why Steward exists
 
-A note that says “done” cannot tell you which commands passed or whether the source
-changed afterward. A saved decision can lose its authority when separated from the
-confirmation that produced it. A long instruction file can make a small task harder
-than it needs to be.
+When an agent reports that a task is `"done"`, chat logs alone do not show which verification commands ran or whether files changed after the test run. Architectural decisions also lose context when separated from the user approval that authorized them, and oversized instruction files consume context window even when a rule only applies to specific tools or paths.
 
-Steward keeps three responsibilities visible:
+Steward separates this state into three local subsystems:
 
-| Responsibility | Local mechanism | What you can inspect |
+| Subsystem | Local mechanism | Inspectable output |
 |---|---|---|
-| Policy | Validated rules, safe glob matchers, and exact bundle approval | Matching rule IDs, denials, injected context, and omitted guidance |
-| Memory | Typed, hash-linked journal with in-memory index cache | Decisions, questions, knowledge, goals, checkpoints, schedules, and handoffs |
-| Verification | Reviewed command arrays, output hashes, and a completion gate | Check status, output hashes, source identity, freshness, and Ed25519 signatures |
+| Policy | Validated rules, linear-time `Uint32` bitmap glob matchers, POSIX.1 shell lexer, and exact bundle approval | Matching rule IDs, denials, injected context, and budget-omitted guidance |
+| Memory | Typed, SHA-256 hash-linked journal with deep-frozen in-memory index cache | Decisions, questions, knowledge, goals, checkpoints, schedules, and handoffs |
+| Verification | Reviewed `argv` command arrays, output digests, source snapshot binding, and Ed25519 signatures | Check status, output hashes, source tree digest, freshness, and signature envelopes |
 
-The default policy provides working guidance. It is not a universal command blacklist.
-The initial verification plan deliberately fails until you configure real checks.
+The default policy supplies scoped working guidance rather than a global command blocklist, and the initial verification plan fails closed until you configure real project checks.
 
 ## 2. The workflow at a glance
 
@@ -288,18 +277,18 @@ or authenticated journal authorship. Retain an external journal anchor to detect
 suffix removal. See [security](SECURITY.md), [memory](docs/MEMORY.md) and
 [verification](docs/VERIFICATION.md) for the precise boundaries.
 
-## 7. Ecosystem, MCP and Developer Experience
+## 7. Ecosystem, MCP and developer experience
 
-### Model Context Protocol (MCP) Server
+### Model Context Protocol (MCP) server
 
-Steward provides a native, zero-dependency MCP server adapter running over stdio JSON-RPC 2.0 using newline-delimited JSON (`\n`) framing.
-It exposes Steward's eight core capabilities as standard MCP Tools and Resources:
+Steward includes a zero-dependency MCP server adapter over stdio JSON-RPC 2.0 using newline-delimited JSON (`\n`) framing.
+It exposes Steward's eight capabilities as standard MCP Tools and Resources:
 
 ```sh
 node bin/steward.mjs mcp --project /absolute/path/to/project
 ```
 
-Print ready-to-use client configuration for Claude Desktop, Cursor, or Antigravity:
+Print client configuration for Claude Desktop, Cursor, or Antigravity:
 
 ```sh
 node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
@@ -308,7 +297,7 @@ node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
 **Exposed MCP Tools:**
 
 - `steward_policy_eval`: Evaluate prompt, tool, or session events against active policy rules.
-- `steward_recall`: Query journal records with type, text, session, and freshness filters.
+- `steward_recall`: Query journal records with `type`, `text`, `tag`, `since`, `until`, `session`, `recordId`, and `history` filters.
 - `steward_record_decision`: Append an attributed decision with authority reference and quote.
 - `steward_checkpoint`: Persist session summary, next concrete action, and blockers.
 - `steward_verify`: Run approved verification checks and capture execution evidence.
@@ -324,16 +313,15 @@ node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
 - `steward://checkpoint/latest`: Most recent session progress checkpoint.
 - `steward://doctor`: Health check and local trust status report.
 
-### In-Memory Index Cache & High-Performance Recall
+### In-memory index cache and recall
 
-Steward automatically maintains an in-memory metadata index cache (`src/index-cache.mjs`) tracking
-records by `type`, `recordId`, `session`, `tag`, and `supersededHashes` alongside file modification times.
-Repeated queries avoid scanning the filesystem while invalidating cleanly on new appends and preserving
-strict cryptographic hash-chain integrity.
+Steward maintains an in-memory metadata index cache (`src/index-cache.mjs`) tracking
+records by `type`, `recordId`, `session`, `tag`, and `supersededHashes` alongside file `mtimeMs`, `size`, `ino`, and `ctimeMs`.
+Repeated queries avoid scanning the filesystem, freeze returned rows against caller mutation, and verify cryptographic hash-chain integrity on cache misses and gate checks.
 
-### Programmatic TypeScript & Node.js API
+### Programmatic TypeScript and Node.js API
 
-Import the pure core engine directly into your external TypeScript or Node.js codebase with full type safety:
+Import the core modules directly into a TypeScript or Node.js project:
 
 ```ts
 import {
@@ -363,9 +351,9 @@ import {
 
 Bundled `index.d.ts` declarations provide autocomplete and compile-time type validation for all policy, event, memory, and verification structures.
 
-### Safe CLI Argument Pattern Matching
+### Safe CLI argument pattern matching
 
-Policy rules optionally support linear-time safe glob matching (`patternsAny`, `globsAny`) to enforce fine-grained CLI argument boundaries without ReDoS risk. It handles character classes (`[a-z]`), wildcards (`*`), and escape sequences safely without backtracking regular expressions:
+Policy rules support linear-time glob matching (`patternsAny`, `globsAny`) with `Uint32Array(4)` ASCII bitmaps and a POSIX.1 shell tokenizer to enforce CLI argument boundaries without backtracking regular expressions:
 
 ```json
 {
@@ -382,16 +370,16 @@ Policy rules optionally support linear-time safe glob matching (`patternsAny`, `
 }
 ```
 
-### Ed25519 Asymmetric Digital Signatures
+### Ed25519 asymmetric digital signatures
 
-Sign policy bundles and verification evidence to defend against local device compromise:
+Sign policy bundles and verification evidence with domain-separated Ed25519 envelopes (`steward.bundle.v1` and `steward.evidence.v1`):
 
 ```sh
 node bin/steward.mjs keygen --out ./keys
-node bin/steward.mjs sign-bundle --key ./keys/steward-ed25519.priv.pem
-node bin/steward.mjs verify-bundle --verifier ./keys/steward-ed25519.pub.pem
-node bin/steward.mjs sign-evidence --evidence EVIDENCE_HASH --key ./keys/steward-ed25519.priv.pem
-node bin/steward.mjs verify-evidence --evidence EVIDENCE_HASH --verifier ./keys/steward-ed25519.pub.pem
+node bin/steward.mjs sign-bundle --project /absolute/path/to/project --key ./keys/private.pem
+node bin/steward.mjs verify-bundle --project /absolute/path/to/project --pub ./keys/public.pem
+node bin/steward.mjs sign-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --key ./keys/private.pem
+node bin/steward.mjs verify-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --pub ./keys/public.pem
 ```
 
 ## 8. Repository map

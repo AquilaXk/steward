@@ -1,21 +1,16 @@
 # Steward
 
-![Steward: 작업을 이어가고 검증 근거를 남기기](assets/banner.svg)
+![Steward 아키텍처 개요](assets/banner.svg)
 
-**코딩 에이전트를 위한 로컬 정책, 지속 가능한 기억, 확인 가능한 검증 도구.**
+**코딩 에이전트를 위한 로컬 정책 집행, 해시 체인 기억, 소스 바인딩 검증 도구.**
 
 Node.js 22+ · MIT · 런타임 의존성 없음 · English / 한국어
 
 [English](README.md) · [한국어](README.ko.md) · [CI](https://github.com/AquilaXk/steward/actions/workflows/ci.yml) · [Discussions](https://github.com/AquilaXk/steward/discussions)
 
-코딩 에이전트가 긴 작업을 수행할 때 작업 지침, 기억한 결정, 완료 근거는 서로 다른
-곳에 남기 쉽습니다. Steward는 작은 로컬 명령, 네이티브 모델 컨텍스트 프로토콜(MCP) 서버,
-프로그래밍 방식 TypeScript/Node.js API, 그리고 8개의 스킬로 이 정보를 연결합니다.
-격리된 데모부터 실행하고 파일을 살펴본 다음, 프로젝트에 필요한 절차만 적용하세요.
+다단계 코딩 작업에서는 정책 규칙, 아키텍처 결정, 검증 통과 근거가 대화 로그와 임시 파일에 흩어지기 쉽습니다. Steward는 로컬 CLI 명령, stdio 모델 컨텍스트 프로토콜(MCP) 서버, TypeScript/Node.js API, 그리고 8개의 에이전트 스킬로 이 상태를 연결합니다. 격리된 데모를 먼저 실행해 `.steward/` 파일을 확인한 뒤 프로젝트에 필요한 절차만 적용하세요.
 
-> **검증 결과의 의미.** Steward는 정책 판단, 저장한 메모, 검토된 로컬 명령의 결과를
-> 기록합니다. 완료 게이트는 검사 결과를 소스, 실행 권한, 계획, 런타임에 연결합니다.
-> 모델 인증, 작성자 신원 확인, 배포 상태 증명이나 호스트 샌드박스의 대체는 아닙니다.
+> **검증 범위.** Steward는 정책 평가 결과, 저널 항목, 검토된 로컬 명령의 실행 출력을 기록합니다. 완료 게이트는 검사 결과를 현재 소스 트리 스냅샷, 실행 파일 경로, 검증 계획, 런타임 환경에 연결합니다. 작성자 신원 인증, 모델 동작 보증, 원격 배포 상태 확인이나 OS 수준 샌드박스를 대체하지는 않습니다.
 
 ## 설치
 
@@ -42,7 +37,7 @@ codex plugin add steward@steward
 
 **모델 컨텍스트 프로토콜 (MCP)**
 
-Claude Desktop, Cursor, Antigravity 환경을 위한 원클릭 클라이언트 설정을 생성합니다:
+Claude Desktop, Cursor, Antigravity 환경을 위한 클라이언트 설정을 생성합니다:
 
 ```sh
 node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
@@ -68,20 +63,17 @@ node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
 
 ## 1. Steward가 필요한 이유
 
-“완료”라는 메모만으로는 어떤 명령이 통과했는지, 이후 소스가 바뀌었는지 알 수 없습니다.
-저장한 결정도 당시의 확인 근거와 분리되면 권한이 불명확해집니다.
-긴 지침 파일은 작은 작업을 필요 이상으로 복잡하게 만들기도 합니다.
+에이전트가 작업을 `"완료"`했다고 보고할 때 대화 기록만으로는 어떤 검증 명령이 실행되었는지, 테스트 이후 소스 파일이 다시 수정되었는지 확인할 수 없습니다. 아키텍처 결정도 승인 근거와 분리되면 맥락을 잃고, 비대한 단일 지침 파일은 특정 도구나 경로에만 필요한 규칙까지 매번 컨텍스트 윈도우에 적재합니다.
 
-Steward는 세 가지 책임을 분명하게 나눕니다.
+Steward는 이 상태를 세 가지 로컬 하위 시스템으로 분리합니다.
 
-| 책임 | 로컬 구현 | 확인할 수 있는 정보 |
+| 하위 시스템 | 로컬 구현 | 확인할 수 있는 정보 |
 |---|---|---|
-| 정책 | 검증된 규칙, 안전한 글롭 패턴 매칭, 정확한 번들 승인 | 일치한 규칙 ID, 거부, 주입된 지침, 생략된 지침 |
-| 기억 | 인메모리 색인 캐시가 적용된 타입 기반 해시 연결 저널 | 결정, 질문, 지식, 목표, 체크포인트, 일정, 인계 |
-| 검증 | 검토된 명령 배열, 출력 해시, 완료 게이트 | 검사 상태, 출력 해시, 소스 식별, 최신성, Ed25519 서명 |
+| 정책 | 검증된 규칙, 선형 시간 `Uint32` 비트맵 글롭 매처, POSIX.1 셸 토크나이저, 정확한 번들 승인 | 일치한 규칙 ID, 거부 사유, 주입된 지침, 예산 초과로 생략된 지침 |
+| 기억 | 불변(deep-frozen) 인메모리 색인 캐시가 결합된 타입 기반 SHA-256 해시 체인 저널 | 결정, 질문, 지식, 목표, 체크포인트, 일정, 인계 |
+| 검증 | 검토된 `argv` 명령 배열, 출력 해시, 소스 트리 스냅샷 바인딩, Ed25519 서명 | 검사 상태, 출력 해시, 소스 트리 해시, 최신성, 서명 Envelope |
 
-기본 정책은 작업 지침을 제공합니다. 모든 위험 명령을 막는 블랙리스트는 아닙니다.
-초기 검증 계획은 실제 검사를 설정하기 전까지 의도적으로 실패합니다.
+기본 정책은 전역 명령 차단 목록 대신 조건부 작업 지침을 제공하며, 초기 검증 계획은 실제 프로젝트 검사를 구성하기 전까지 실패(Fail-Closed)하도록 설정되어 있습니다.
 
 ## 2. 작업 흐름 한눈에 보기
 
@@ -287,14 +279,14 @@ node bin/steward.mjs checkpoint --project /absolute/path/to/project \
 
 ### 모델 컨텍스트 프로토콜 (MCP) 서버 어댑터
 
-Steward는 런타임 서드파티 의존성 없이 개행 구분(newline-delimited, `\n`) stdio JSON-RPC 2.0 기반 MCP 서버를 내장 제공합니다.
+Steward는 런타임 서드파티 의존성 없이 개행 구분(newline-delimited, `\n`) stdio JSON-RPC 2.0 기반 MCP 서버 어댑터를 제공합니다.
 8대 핵심 기능이 표준 MCP 도구(Tools) 및 리소스(Resources)로 노출됩니다:
 
 ```sh
 node bin/steward.mjs mcp --project /absolute/path/to/project
 ```
 
-Claude Desktop, Cursor, Antigravity 등 환경에 바로 연동할 수 있는 클라이언트 설정을 생성합니다:
+Claude Desktop, Cursor, Antigravity 환경용 클라이언트 설정을 출력합니다:
 
 ```sh
 node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
@@ -303,7 +295,7 @@ node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
 **제공 MCP 도구 (Tools):**
 
 - `steward_policy_eval`: 프롬프트, 도구 호출, 세션 이벤트를 활성 정책 규칙에 따라 평가합니다.
-- `steward_recall`: 타입, 텍스트, 세션, 최신성 필터로 저널 기록을 조회합니다.
+- `steward_recall`: `type`, `text`, `tag`, `since`, `until`, `session`, `recordId`, `history` 필터로 저널 기록을 조회합니다.
 - `steward_record_decision`: 근거 참조 및 인용문을 포함하여 확인된 아키텍처 결정을 저널에 기록합니다.
 - `steward_checkpoint`: 세션 진행 요약, 다음 구체적 행동, 차단 요소를 체크포인트로 저장합니다.
 - `steward_verify`: 승인된 검증 계획 명령을 실행하고 실행 결과의 암호학적 증거를 캡처합니다.
@@ -319,14 +311,14 @@ node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
 - `steward://checkpoint/latest`: 가장 최근에 저장된 세션 진행 체크포인트 조회.
 - `steward://doctor`: 헬스체크 및 로컬 신뢰 상태 보고서 조회.
 
-### 인메모리 색인 캐시 및 고속 회상
+### 인메모리 색인 캐시 및 회상
 
-Steward는 파일 수정 시각(mtime)을 추적하며 레코드를 `type`, `recordId`, `session`, `tag`, `supersededHashes`별로 인덱싱하는 인메모리 색인 캐시(`src/index-cache.mjs`)를 자동으로 유지합니다.
-반복적인 조회 시 불필요한 디스크 재탐색을 방지하면서, 새로운 쓰기 시 깨끗하게 무효화되고 엄격한 암호학적 해시 체인 무결성을 보장합니다.
+Steward는 파일 상태(`mtimeMs`, `size`, `ino`, `ctimeMs`)를 추적하며 레코드를 `type`, `recordId`, `session`, `tag`, `supersededHashes`별로 인덱싱하는 인메모리 색인 캐시(`src/index-cache.mjs`)를 유지합니다.
+반복 조회 시 불필요한 디스크 스캔을 생략하고, 반환 객체를 동결(`Object.freeze`)하여 호출자 변조를 차단하며, 캐시 미스 및 완료 게이트 실행 시 암호학적 해시 체인 전체를 검증합니다.
 
 ### 프로그래밍 방식 라이브러리 연동 및 TypeScript (`index.d.ts`)
 
-외부 TypeScript 또는 Node.js 프로젝트에서 순수 코어 엔진을 직접 라이브러리로 임포트할 수 있습니다:
+외부 TypeScript 또는 Node.js 프로젝트에서 코어 모듈을 직접 임포트할 수 있습니다:
 
 ```ts
 import {
@@ -358,7 +350,7 @@ import {
 
 ### 안전한 CLI 인자 패턴 매칭 (Linear-Time Glob)
 
-정책 엔진은 ReDoS(정규식 서비스 거부 공격) 위험이 없는 선형 시간 글롭 매칭(`patternsAny`, `globsAny`)을 지원하여 세밀한 CLI 플래그 및 명령 제어를 지원합니다. 백트래킹 정규식 없이 문자 클래스(`[a-z]`), 와일드카드(`*`), 이스케이프 시퀀스를 안전하게 처리합니다:
+정책 규칙은 `Uint32Array(4)` ASCII 비트맵과 POSIX.1 셸 토크나이저 기반의 선형 시간 글롭 매칭(`patternsAny`, `globsAny`)을 지원하여 백트래킹 정규식 없이 CLI 인자 경계를 검사합니다:
 
 ```json
 {
@@ -375,16 +367,16 @@ import {
 }
 ```
 
-### Ed25519 기반 비대칭 전자서명
+### Ed25519 비대칭 전자서명
 
-로컬 디바이스 탈취 및 과거 기록 위변조를 방지하기 위해 비대칭 키체인 서명 및 외부 검증을 제공합니다:
+도메인 분리 Ed25519 서명 Envelope(`steward.bundle.v1`, `steward.evidence.v1`)로 정책 번들과 검증 증거에 서명하고 검증합니다:
 
 ```sh
 node bin/steward.mjs keygen --out ./keys
-node bin/steward.mjs sign-bundle --key ./keys/steward-ed25519.priv.pem
-node bin/steward.mjs verify-bundle --verifier ./keys/steward-ed25519.pub.pem
-node bin/steward.mjs sign-evidence --evidence EVIDENCE_HASH --key ./keys/steward-ed25519.priv.pem
-node bin/steward.mjs verify-evidence --evidence EVIDENCE_HASH --verifier ./keys/steward-ed25519.pub.pem
+node bin/steward.mjs sign-bundle --project /absolute/path/to/project --key ./keys/private.pem
+node bin/steward.mjs verify-bundle --project /absolute/path/to/project --pub ./keys/public.pem
+node bin/steward.mjs sign-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --key ./keys/private.pem
+node bin/steward.mjs verify-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --pub ./keys/public.pem
 ```
 
 ## 8. 저장소 구성

@@ -149,13 +149,13 @@
     },
     {
       "path": "README.ko.md",
-      "bytes": 25409,
-      "sha256": "6d6540f0e3b0b7394bacc290ec6887f3a21d0058f149652faedecae6a53811db"
+      "bytes": 25743,
+      "sha256": "266eae1c35d2259919846d2c30fecca561808fbecb836c8256a44fa9d56e3079"
     },
     {
       "path": "README.md",
-      "bytes": 22328,
-      "sha256": "bff2e9f96c521b49256729c2e3181b83735713cc903742bffb57f8625730342e"
+      "bytes": 22670,
+      "sha256": "5c167944bd519f07d1164958ef201686acb21e50b2b8892a13dd9062293dd027"
     },
     {
       "path": "SECURITY.md",
@@ -164,8 +164,8 @@
     },
     {
       "path": "assets/banner.svg",
-      "bytes": 2197,
-      "sha256": "c2751148004c472ad27a81f4547e381131bccb8550b1ea7d4a32ba7579292510"
+      "bytes": 7717,
+      "sha256": "3ef124397076f59cf4a1c7f8122a8a2acf77e01ff053ac0a7220a8ca03bad1a4"
     },
     {
       "path": "bin/steward.mjs",
