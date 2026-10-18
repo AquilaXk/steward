@@ -188,6 +188,26 @@ test('antigravity adapter infers event from payload shape when expectedEvent is 
     assert.equal(stopErrored.exitCode, 2);
     assert.equal(stopErrored.stdout, '');
     assert.equal(stopErrored.stderr, 'Steward UNTRUSTED: Workspace bundle is not trusted.');
+
+    const withArguments = normalizeInput('antigravity', {
+        conversationId: 'conv-456',
+        toolCall: {
+            name: 'view_file',
+            arguments: { AbsolutePath: path.join(root, 'src/a.mjs') }
+        }
+    }, root);
+    assert.equal(withArguments.event, 'tool');
+    assert.equal(withArguments.tool, 'view_file');
+    assert.deepEqual(withArguments.paths, ['src/a.mjs']);
+
+    assert.throws(() => normalizeInput('antigravity', {
+        conversationId: 'conv-456',
+        toolCall: {
+            name: 'view_file',
+            args: { AbsolutePath: path.join(root, 'src/a.mjs') },
+            arguments: { AbsolutePath: path.join(root, 'src/b.mjs') }
+        }
+    }, root), { code: 'BAD_INPUT' });
 });
 
 

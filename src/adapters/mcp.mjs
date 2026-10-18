@@ -29,7 +29,7 @@ export const STEWARD_TOOLS = [
             type: 'object',
             properties: {
                 project: PROJECT_PROP,
-                event: { type: 'string', enum: ['prompt', 'tool', 'session'], description: 'The event type to evaluate.' },
+                event: { type: 'string', enum: ['prompt', 'tool', 'session', 'stop'], description: 'The event type to evaluate.' },
                 text: { type: 'string', description: 'The prompt text, command string, or description.' },
                 tool: { type: 'string', description: 'Tool name if event is "tool" (e.g., shell, file.write).' },
                 paths: { type: 'array', items: { type: 'string' }, description: 'Project paths accessed by the tool.' },
@@ -94,7 +94,8 @@ export const STEWARD_TOOLS = [
                 summary: { type: 'string', description: 'Concise summary of progress made so far.' },
                 next: { type: 'string', description: 'Concrete next action to execute.' },
                 blockers: { type: 'array', items: { type: 'string' }, description: 'Any blocking issues or open questions.' },
-                sessionId: { type: 'string', description: 'Optional session identifier to bind checkpoint restoration.' },
+                sessionId: { type: ['string', 'null'], description: 'Optional session identifier to bind checkpoint restoration.' },
+                session: { type: ['string', 'null'], description: 'Optional alias for sessionId (matches checkpoint journal schema).' },
                 tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
             },
             required: ['summary', 'next'],
@@ -276,6 +277,13 @@ function executeRecall(root, args) {
     });
 }
 
+function resolveCheckpointSessionId(args) {
+    const sid = optStr(args.sessionId) ?? null;
+    const sAlias = optStr(args.session) ?? null;
+    insist(sid === null || sAlias === null || sid === sAlias, 'USAGE', 'Disagreeing sessionId and session values.');
+    return sid ?? sAlias;
+}
+
 /**
  * Executes the steward_checkpoint tool.
  */
@@ -286,8 +294,8 @@ async function executeCheckpoint(root, args) {
         blockers: args.blockers ?? [],
         ...(args.tags !== undefined ? { tags: args.tags } : {})
     };
-    const sessionId = optStr(args.sessionId);
-    if (sessionId !== undefined && sessionId !== null) {
+    const sessionId = resolveCheckpointSessionId(args);
+    if (sessionId !== null) {
         insist(typeof sessionId === 'string' && sessionId.length <= 256, 'USAGE', 'Invalid session ID.');
         checkpointData.session = sha256(sessionId);
     }

@@ -2,7 +2,7 @@ import path from 'node:path';
 import { insist } from './errors.mjs';
 import { isObject } from './schema.mjs';
 import { normalizeTool, relativePath, validateEvent } from './engine.mjs';
-import { rootOf } from './fs.mjs';
+import { rootOf, canonical } from './fs.mjs';
 const events = {
     UserPromptSubmit: 'prompt',
     PreInvocation: 'prompt',
@@ -71,9 +71,17 @@ function extractToolText(ti) {
         .join('\n');
 }
 
+function resolveToolCallInput(toolCall) {
+    const a = toolCall.args, b = toolCall.arguments;
+    if (a !== undefined && b !== undefined) {
+        insist(isObject(a) && isObject(b) && canonical(a) === canonical(b), 'BAD_INPUT', 'toolCall.args and toolCall.arguments disagree.');
+    }
+    return a ?? b;
+}
+
 function extractRawToolCall(raw) {
     if (isObject(raw.toolCall)) {
-        return { toolName: raw.toolCall.name, toolInput: raw.toolCall.args };
+        return { toolName: raw.toolCall.name, toolInput: resolveToolCallInput(raw.toolCall) };
     }
     return { toolName: raw.tool_name, toolInput: raw.tool_input };
 }
@@ -125,6 +133,15 @@ function populateEventDetails(result, raw, host, root, cwd) {
     else if (result.event === 'stop' && typeof raw.terminationReason === 'string') result.text = raw.terminationReason;
 }
 
+function extractHookCwd(raw) {
+    if (raw.cwd !== undefined) return raw.cwd;
+    if (isObject(raw.toolCall)) {
+        const ti = resolveToolCallInput(raw.toolCall);
+        return isObject(ti) ? ti.Cwd : undefined;
+    }
+    return undefined;
+}
+
 export function normalizeInput(host, raw, root, expectedEvent = null) {
     root = rootOf(root);
     insist(HOSTS.includes(host), 'BAD_HOST', 'Host must be generic, codex, claude or antigravity.');
@@ -136,7 +153,7 @@ export function normalizeInput(host, raw, root, expectedEvent = null) {
     const rawEventName = resolveRawEventName(host, raw, expectedEvent);
     const event = typeof rawEventName === 'string' && Object.hasOwn(events, rawEventName) ? events[rawEventName] : null;
     insist(event, 'BAD_EVENT', 'Unsupported host event.');
-    const cwd = resolveHookCwd(root, raw.cwd ?? raw.toolCall?.args?.Cwd);
+    const cwd = resolveHookCwd(root, extractHookCwd(raw));
     const result = { event, text: '', tool: null, paths: [], sessionId: raw.session_id ?? raw.conversationId ?? null };
     populateEventDetails(result, raw, host, root, cwd);
     return validateEvent(result);

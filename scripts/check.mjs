@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import assert from 'node:assert/strict';
 import { validatePolicy, validatePlan, validateEntry, RECORD_TYPES } from '../src/schema.mjs';
 import { validateEvent } from '../src/engine.mjs';
-import { claudeArtifacts } from '../src/skills.mjs';
+import { claudeArtifacts, antigravityArtifacts } from '../src/skills.mjs';
 import { VERSION } from '../src/version.mjs';
 import * as publicApi from '../src/index.mjs';
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -118,6 +118,7 @@ try {
     assert.equal(agManifest.version, pkg.version, 'Antigravity plugin and package versions must agree.');
     assert.equal(agManifest.logo, 'assets/logo.svg');
     assert(fs.existsSync(path.join(root, agManifest.logo)), 'Missing Antigravity plugin logo.');
+    assert(read('rules/AGENTS.md').trim(), 'Missing Antigravity plugin rules/AGENTS.md.');
     const codexMarketplace = json('.agents/plugins/marketplace.json');
     const claudeMarketplace = json('.claude-plugin/marketplace.json');
     for (const marketplace of [codexMarketplace, claudeMarketplace]) {
@@ -132,6 +133,9 @@ try {
     const artifacts = claudeArtifacts(root);
     assert.equal(all.filter(f => f.startsWith('.claude-plugin/skills/')).length, artifacts.length);
     for (const { relative, body } of artifacts) assert.equal(read(relative), body, `Stale generated skill; run npm run build:skills: ${relative}`);
+    const agArtifacts = antigravityArtifacts(root);
+    assert.equal(all.filter(f => f.startsWith('skills/')).length, agArtifacts.length);
+    for (const { relative, body } of agArtifacts) assert.equal(read(relative), body, `Stale Antigravity skill; run npm run build:skills: ${relative}`);
     assert.equal(skills.length, 8);
     for (const file of skills) {
         const body = read(file);
@@ -147,6 +151,8 @@ try {
         assert.equal(schema.$schema, 'https://json-schema.org/draft/2020-12/schema');
         assert(schema.$id.startsWith('urn:steward:'));
     }
+    const policyEvalTool = publicApi.STEWARD_TOOLS.find(t => t.name === 'steward_policy_eval');
+    assert.deepEqual(policyEvalTool?.inputSchema?.properties?.event?.enum, ['prompt', 'tool', 'session', 'stop'], 'steward_policy_eval event.enum drifted from RULE_EVENTS.');
     const dts = read('index.d.ts');
     for (const symbolName of Object.keys(publicApi)) {
         assert.match(dts, new RegExp(String.raw`export\s+(?:declare\s+)?(?:const|function|class)\s+${symbolName}\b`), `Missing symbol in index.d.ts: ${symbolName}`);

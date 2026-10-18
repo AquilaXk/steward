@@ -807,4 +807,47 @@ test('steward://checkpoint/latest resolves session-scoped checkpoints and MCP sc
     });
     assert.ok(latestOtherSession.result);
     assert.equal(JSON.parse(latestOtherSession.result.contents[0].text), null);
+
+    const evalTool = tools.find(x => x.name === 'steward_policy_eval');
+    assert.deepEqual(evalTool.inputSchema.properties.event.enum, ['prompt', 'tool', 'session', 'stop']);
+
+    const cpSessionAlias = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 306,
+        method: 'tools/call',
+        params: {
+            name: 'steward_checkpoint',
+            arguments: {
+                summary: 'Checkpoint using session alias',
+                next: 'Verify session alias resolves identically to sessionId',
+                blockers: [],
+                session: 'conv-session-alias'
+            }
+        }
+    });
+    assert.equal(cpSessionAlias.result.isError, false, cpSessionAlias.result.content?.[0]?.text);
+    const aliasMatched = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 307,
+        method: 'resources/read',
+        params: { uri: 'steward://checkpoint/latest?sessionId=conv-session-alias' }
+    });
+    assert.equal(JSON.parse(aliasMatched.result.contents[0].text).data.summary, 'Checkpoint using session alias');
+
+    const cpConflict = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 308,
+        method: 'tools/call',
+        params: {
+            name: 'steward_checkpoint',
+            arguments: {
+                summary: 'Disagreeing session fields',
+                next: 'Should fail closed',
+                session: 'session-one',
+                sessionId: 'session-two'
+            }
+        }
+    });
+    assert.equal(cpConflict.result.isError, true);
+    assert.match(cpConflict.result.content[0].text, /USAGE/);
 });

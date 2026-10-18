@@ -58,9 +58,15 @@ function checkHostHookEvents(root, host, config, receiptCommands, problems) {
     }
 }
 
+const PLUGIN_SKILL_DIRS = {
+    claude: '.claude-plugin/skills',
+    antigravity: 'skills',
+    codex: 'procedures'
+};
+
 function resolveSkillsRoot(root, host, skillSource) {
     if (skillSource === 'plugin') {
-        const subDir = host === 'claude' ? '.claude-plugin/skills' : 'procedures';
+        const subDir = PLUGIN_SKILL_DIRS[host] ?? 'procedures';
         return path.join(PACKAGE_ROOT, subDir);
     }
     const localDir = host === 'claude' ? '.claude/skills' : '.agents/skills';

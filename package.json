@@ -40,6 +40,8 @@
     "schemas",
     "profiles",
     "procedures",
+    "skills/",
+    "rules/",
     ".codex-plugin",
     ".claude-plugin",
     ".agents/plugins",
