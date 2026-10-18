@@ -8,7 +8,8 @@ const events = {
     PreInvocation: 'prompt',
     PreToolUse: 'tool',
     SessionStart: 'session',
-    PreCompact: 'compact'
+    PreCompact: 'compact',
+    Stop: 'stop'
 };
 export const HOSTS = ['generic', 'codex', 'claude', 'antigravity'];
 
@@ -100,11 +101,28 @@ function populateToolEvent(result, raw, root, cwd) {
     result.paths = [...new Set(result.paths)];
 }
 
+export function inferAntigravityEvent(raw) {
+    if (!isObject(raw)) return undefined;
+    if (isObject(raw.toolCall)) return 'PreToolUse';
+    if (raw.invocationNum !== undefined || raw.userPrompt !== undefined) return 'PreInvocation';
+    if (raw.terminationReason !== undefined) return 'Stop';
+    if (typeof raw.conversationId === 'string') return 'SessionStart';
+    return undefined;
+}
+
 function resolveRawEventName(host, raw, expectedEvent) {
     if (expectedEvent && raw.hook_event_name !== undefined) {
         insist(raw.hook_event_name === expectedEvent, 'EVENT_MISMATCH', 'Hook event does not match the registered handler.');
     }
-    return raw.hook_event_name ?? (host === 'antigravity' ? expectedEvent : undefined);
+    if (raw.hook_event_name !== undefined) return raw.hook_event_name;
+    if (host === 'antigravity') return expectedEvent ?? inferAntigravityEvent(raw);
+    return undefined;
+}
+
+function populateEventDetails(result, raw, host, root, cwd) {
+    if (result.event === 'prompt') populatePromptEvent(result, raw, host);
+    else if (result.event === 'tool') populateToolEvent(result, raw, root, cwd);
+    else if (result.event === 'stop' && typeof raw.terminationReason === 'string') result.text = raw.terminationReason;
 }
 
 export function normalizeInput(host, raw, root, expectedEvent = null) {
@@ -120,12 +138,17 @@ export function normalizeInput(host, raw, root, expectedEvent = null) {
     insist(event, 'BAD_EVENT', 'Unsupported host event.');
     const cwd = resolveHookCwd(root, raw.cwd ?? raw.toolCall?.args?.Cwd);
     const result = { event, text: '', tool: null, paths: [], sessionId: raw.session_id ?? raw.conversationId ?? null };
-    if (event === 'prompt') populatePromptEvent(result, raw, host);
-    if (event === 'tool') populateToolEvent(result, raw, root, cwd);
+    populateEventDetails(result, raw, host, root, cwd);
     return validateEvent(result);
 }
 
 function encodeAntigravityResponse(event, result) {
+    if (event === 'stop') {
+        const payload = result.decision === 'deny'
+            ? { decision: 'continue', reason: result.reason }
+            : { decision: 'allow' };
+        return { stdout: JSON.stringify(payload), stderr: '', exitCode: 0 };
+    }
     if (result.decision === 'deny') {
         if (event === 'tool') {
             return { stdout: JSON.stringify({ decision: 'deny', reason: result.reason }), stderr: '', exitCode: 0 };

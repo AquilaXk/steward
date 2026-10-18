@@ -77,7 +77,7 @@ export const STEWARD_TOOLS = [
                     required: ['kind', 'reference', 'quote'],
                     additionalProperties: false
                 },
-                supersedes: { type: 'string', description: 'SHA-256 hash of a prior decision record being replaced, or null.' },
+                supersedes: { type: ['string', 'null'], description: 'SHA-256 hash of a prior decision record being replaced, or null.' },
                 tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
             },
             required: ['statement', 'authority'],
@@ -145,7 +145,7 @@ export const STEWARD_TOOLS = [
                         additionalProperties: false
                     }
                 },
-                expiresAt: { type: 'string', description: 'Optional ISO timestamp after which this knowledge expires.' },
+                expiresAt: { type: ['string', 'null'], description: 'Optional ISO timestamp after which this knowledge expires, or null.' },
                 tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
             },
             required: ['claim', 'basis'],
@@ -456,8 +456,11 @@ const RESOURCE_HANDLERS = {
         const rows = readJournal(root);
         return { uri, mimeType: 'application/json', text: JSON.stringify(journalHead(rows), null, 2) };
     },
-    'steward://checkpoint/latest': (root, uri) => {
-        const checkpoint = latestCheckpoint(root);
+    'steward://checkpoint/latest': (root, uri, params) => {
+        const sessionId = params?.get('sessionId') ?? null;
+        const checkpoint = sessionId
+            ? latestCheckpoint(root, sessionId)
+            : (latestCheckpoint(root, null) ?? readJournal(root).findLast(r => r.type === 'checkpoint') ?? null);
         return { uri, mimeType: 'application/json', text: JSON.stringify(checkpoint, null, 2) };
     },
     'steward://doctor': (root, uri) => {
@@ -474,14 +477,19 @@ function parseResourceTarget(root, uri) {
     insist(typeof uri === 'string' && uri.trim(), 'USAGE', `Unknown MCP resource: ${uri}`);
     const qIndex = uri.indexOf('?');
     if (qIndex < 0) {
-        return { baseUri: uri, targetRoot: rootOf(root) };
+        return { baseUri: uri, targetRoot: rootOf(root), params: new URLSearchParams() };
     }
     const baseUri = uri.slice(0, qIndex);
     const params = new URLSearchParams(uri.slice(qIndex + 1));
     for (const key of params.keys()) {
-        insist(key === 'project', 'USAGE', `Unsupported MCP resource query parameter: ${key}`);
+        const allowed = key === 'project' || (key === 'sessionId' && baseUri === 'steward://checkpoint/latest');
+        insist(allowed, 'USAGE', `Unsupported MCP resource query parameter: ${key}`);
     }
-    return { baseUri, targetRoot: resolveTargetRoot(root, params.get('project') ?? undefined) };
+    if (params.has('sessionId')) {
+        const sid = params.get('sessionId');
+        insist(sid?.trim() && sid.length <= 256, 'USAGE', 'Invalid sessionId query parameter.');
+    }
+    return { baseUri, targetRoot: resolveTargetRoot(root, params.get('project') ?? undefined), params };
 }
 
 /**
@@ -492,10 +500,10 @@ function parseResourceTarget(root, uri) {
  * @returns {object} Resource contents.
  */
 export function readResource(root, uri) {
-    const { baseUri, targetRoot } = parseResourceTarget(root, uri);
+    const { baseUri, targetRoot, params } = parseResourceTarget(root, uri);
     const handler = Object.hasOwn(RESOURCE_HANDLERS, baseUri) ? RESOURCE_HANDLERS[baseUri] : null;
     insist(handler, 'USAGE', `Unknown MCP resource: ${uri}`);
-    return handler(targetRoot, uri);
+    return handler(targetRoot, uri, params);
 }
 
 /**

@@ -9,7 +9,7 @@ export const VERSION: string;
 // Policy Engine & Schema
 // ==========================================
 
-export type RuleEvent = 'prompt' | 'tool' | 'session';
+export type RuleEvent = 'prompt' | 'tool' | 'session' | 'stop';
 export type EventType = RuleEvent | 'compact';
 export type RuleEffect = 'inject' | 'deny';
 
@@ -420,8 +420,8 @@ export interface EncodedOutput {
 }
 
 export function normalizeInput(host: HostType, raw: unknown, root: string, expectedEvent?: string | null): EventInput;
-export function encode(host: HostType, event: EventType, result: EvaluationResult): EncodedOutput;
-export function eventKind(hostEvent?: string | null): EventType;
+export function encode(host: HostType, event: EventType | 'stop', result: EvaluationResult): EncodedOutput;
+export function eventKind(hostEvent?: string | null): EventType | 'stop';
 export function handleHook(root: string, host: HostType, input: unknown, expectedEvent?: string | null): { result: EvaluationResult; encoded: EncodedOutput; receipt: string };
 
 // ==========================================

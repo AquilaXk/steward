@@ -28,7 +28,7 @@ export const normalizeTool = (name) => {
 };
 export function validateEvent(e) {
     object(e, ['event', 'text', 'tool', 'paths', 'sessionId'], 'event');
-    insist(['prompt', 'tool', 'session', 'compact'].includes(e.event), 'BAD_EVENT', 'Unsupported event.');
+    insist(['prompt', 'tool', 'session', 'compact', 'stop'].includes(e.event), 'BAD_EVENT', 'Unsupported event.');
     insist(typeof e.text === 'string' && Buffer.byteLength(e.text) <= 256 * 1024, 'BAD_EVENT', 'Invalid or oversized event text.');
     if (e.event === 'tool')
         text(e.tool, 'tool', 256);

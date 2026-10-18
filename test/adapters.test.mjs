@@ -121,5 +121,61 @@ test('antigravity adapter extracts ReplacementChunks and fails closed with exit 
     assert.equal(denyPrompt.stderr, 'Prompt blocked by policy.');
 });
 
+test('antigravity adapter infers event from payload shape when expectedEvent is omitted and encodes Stop hook contract', (t) => {
+    const { root } = sandbox(t);
+    const inferredTool = normalizeInput('antigravity', {
+        conversationId: 'conv-456',
+        toolCall: { name: 'run_command', args: { CommandLine: 'npm test', Cwd: root } }
+    }, root);
+    assert.equal(inferredTool.event, 'tool');
+    assert.equal(inferredTool.tool, 'run_command');
+
+    const inferredPreInv = normalizeInput('antigravity', {
+        conversationId: 'conv-456',
+        invocationNum: 2,
+        initialNumSteps: 5
+    }, root);
+    assert.equal(inferredPreInv.event, 'prompt');
+
+    const inferredStop = normalizeInput('antigravity', {
+        conversationId: 'conv-456',
+        terminationReason: 'NO_TOOL_CALL'
+    }, root);
+    assert.equal(inferredStop.event, 'stop');
+    assert.equal(inferredStop.text, 'NO_TOOL_CALL');
+    assert.equal(inferredStop.sessionId, 'conv-456');
+
+    const inferredSession = normalizeInput('antigravity', {
+        conversationId: 'conv-456',
+        workspacePaths: [root]
+    }, root);
+    assert.equal(inferredSession.event, 'session');
+
+    write(root, '.steward/policy.json', policy([
+        rule({ id: 'require-verification-before-stop', effect: 'deny', on: ['stop'], match: { textAny: ['NO_TOOL_CALL'] }, body: 'Verification gate not yet satisfied.' })
+    ]));
+    trustBundle(root, loadBundle(root).hash);
+
+    const stopDenied = handleHook(root, 'antigravity', {
+        conversationId: 'conv-456',
+        terminationReason: 'NO_TOOL_CALL'
+    });
+    assert.equal(stopDenied.result.decision, 'deny');
+    assert.equal(stopDenied.encoded.exitCode, 0);
+    assert.deepEqual(JSON.parse(stopDenied.encoded.stdout), {
+        decision: 'continue',
+        reason: 'Policy require-verification-before-stop: Verification gate not yet satisfied.'
+    });
+
+    const stopAllowed = handleHook(root, 'antigravity', {
+        conversationId: 'conv-456',
+        terminationReason: 'MAX_STEPS'
+    }, 'Stop');
+    assert.equal(stopAllowed.result.decision, 'allow');
+    assert.equal(stopAllowed.encoded.exitCode, 0);
+    assert.deepEqual(JSON.parse(stopAllowed.encoded.stdout), { decision: 'allow' });
+});
+
+
 
 

@@ -100,7 +100,7 @@ test('index.d.ts declares every runtime export from src/index.mjs and accurate d
         assert.match(dts, re, `Missing TypeScript declaration for exported symbol: ${key}`);
     }
 
-    assert.match(dts, /export type RuleEvent = 'prompt' \| 'tool' \| 'session';/);
+    assert.match(dts, /export type RuleEvent = 'prompt' \| 'tool' \| 'session' \| 'stop';/);
     assert.match(dts, /tags\?: string\[\];/);
     assert.match(dts, /receipt: string/);
     assert.match(dts, /neverEmitted: string\[\]/);

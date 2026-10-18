@@ -5,14 +5,14 @@ import { rootOf, parseJSON, readText, readJSON, sha256 } from '../src/fs.mjs';
 import { insist, publicError, StewardError } from '../src/errors.mjs';
 import { loadBundle, trustBundle } from '../src/trust.mjs';
 import { handleHook } from '../src/service.mjs';
-import { encode, eventKind, normalizeInput } from '../src/adapters.mjs';
+import { encode, eventKind, inferAntigravityEvent, normalizeInput } from '../src/adapters.mjs';
 import { evaluate } from '../src/engine.mjs';
 import { appendEntry, readJournal, journalHead, queryJournal } from '../src/journal.mjs';
 import { VERSION } from '../src/version.mjs';
 import { runVerification, completionGate } from '../src/verify.mjs';
 import { report, pruneAudit } from '../src/audit.mjs';
 import { auditInstructions } from '../src/instructions.mjs';
-import { initProject, installHooks } from '../src/setup.mjs';
+import { initProject, installHooks, INSTALL_HOSTS } from '../src/setup.mjs';
 import { doctor } from '../src/doctor.mjs';
 import { startMcpServer, formatMcpConfig } from '../src/adapters/mcp.mjs';
 import { generateSigningKeyPair, signBundle, verifyBundleSignature, signVerificationEvidence, verifyVerificationEvidence, saveKeypair } from '../src/crypto.mjs';
@@ -173,14 +173,19 @@ try {
         }
         else if (['install', 'update', 'uninstall'].includes(command)) {
             if (command !== 'uninstall') loadBundle(root);
-            output(installHooks(root, opts.host, { plugin: opts.plugin, update: command === 'update', uninstall: command === 'uninstall' }));
+            const optsObj = { plugin: opts.plugin, update: command === 'update', uninstall: command === 'uninstall' };
+            if (opts.host === 'all') {
+                output({ hosts: INSTALL_HOSTS.map(h => installHooks(root, h, optsObj)) });
+            } else {
+                output(installHooks(root, opts.host, optsObj));
+            }
         }
         else if (command === 'hook') {
             const host = opts.host || 'generic';
             const raw = await input();
             const expectedEvent = opts.event || null;
             if (!opts.event && raw && typeof raw === 'object' && !Array.isArray(raw)) {
-                opts.event = raw.hook_event_name || raw.event || null;
+                opts.event = raw.hook_event_name || raw.event || (host === 'antigravity' ? inferAntigravityEvent(raw) : null);
             }
             const { encoded } = handleHook(root, host, raw, expectedEvent);
             if (encoded.stdout)

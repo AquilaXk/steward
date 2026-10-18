@@ -86,7 +86,7 @@ function validatePolicyRule(r, ids) {
     insist(!ids.has(r.id), 'SCHEMA', `Duplicate rule ID: ${r.id}`);
     ids.add(r.id);
     strings(r.on, 'rule.on');
-    insist(r.on.every(e => ['prompt', 'tool', 'session'].includes(e)), 'SCHEMA', 'Unknown rule event.');
+    insist(r.on.every(e => ['prompt', 'tool', 'session', 'stop'].includes(e)), 'SCHEMA', 'Unknown rule event.');
     insist(['inject', 'deny'].includes(r.effect), 'SCHEMA', 'effect must be inject or deny.');
     text(r.body, 'rule.body');
     integer(r.priority, 0, 1000, 'rule.priority');

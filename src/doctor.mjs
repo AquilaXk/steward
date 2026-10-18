@@ -5,7 +5,7 @@ import { insist, publicError } from './errors.mjs';
 import { loadBundle, requireTrust } from './trust.mjs';
 import { readJournal, journalHead } from './journal.mjs';
 import { auditInstructions } from './instructions.mjs';
-import { HOOK_EVENTS, INSTALL_HOSTS, hostConfigPath, hookCommand, PACKAGE_ROOT } from './setup.mjs';
+import { INSTALL_HOSTS, hostHookEvents, hostConfigPath, hookCommand, PACKAGE_ROOT } from './setup.mjs';
 
 function findMatchingHooks(groups, command) {
     if (!Array.isArray(groups)) return [];
@@ -16,11 +16,46 @@ function findMatchingHooks(groups, command) {
     );
 }
 
+function findMatchingFlatHooks(handlers, command) {
+    if (!Array.isArray(handlers)) return [];
+    return handlers.filter(h => h?.command === command);
+}
+
 function isValidHookEventConfig(event, command, receiptCommands, matches) {
     if (!receiptCommands.includes(command) || matches.length !== 1) return false;
     const { group, h } = matches[0];
     if (h.type !== 'command' || h.async === true || h.timeout !== 10) return false;
     return event === 'PreToolUse' ? group.matcher === '.*' : group.matcher === undefined;
+}
+
+function isValidAntigravityHookEvent(event, command, receiptCommands, spec) {
+    if (!receiptCommands.includes(command)) return false;
+    if (event === 'PreToolUse') {
+        const matches = findMatchingHooks(spec?.PreToolUse, command);
+        if (matches.length !== 1) return false;
+        const { group, h } = matches[0];
+        if (h.type !== 'command' || h.async === true || h.timeout !== 10) return false;
+        return group.matcher === '*' || group.matcher === '.*' || group.matcher === '';
+    }
+    const matches = findMatchingFlatHooks(spec?.[event], command);
+    if (matches.length !== 1) return false;
+    const h = matches[0];
+    return h.type === 'command' && h.async !== true && h.timeout === 10;
+}
+
+function checkHostHookEvents(root, host, config, receiptCommands, problems) {
+    for (const event of hostHookEvents(host)) {
+        const command = hookCommand(root, host, event);
+        const valid = host === 'antigravity'
+            ? isValidAntigravityHookEvent(event, command, receiptCommands, config?.steward)
+            : isValidHookEventConfig(event, command, receiptCommands, findMatchingHooks(config?.hooks?.[event], command));
+        if (!valid) {
+            problems.push(`${event}: missing, changed or duplicated handler. Reinstall from the current toolkit and Node path.`);
+        }
+    }
+    if (config.disableAllHooks === true || (host === 'antigravity' && config?.steward?.enabled === false)) {
+        problems.push('Hooks are disabled in this configuration.');
+    }
 }
 
 function resolveSkillsRoot(root, host, skillSource) {
@@ -60,15 +95,7 @@ function inspectHost(root, host) {
             result.problems.push('Invalid installation receipt. Review and reinstall this host.');
             return result;
         }
-        for (const event of HOOK_EVENTS) {
-            const command = hookCommand(root, host, event);
-            const matches = findMatchingHooks(config?.hooks?.[event], command);
-            if (!isValidHookEventConfig(event, command, receipt.commands, matches)) {
-                result.problems.push(`${event}: missing, changed or duplicated handler. Reinstall from the current toolkit and Node path.`);
-            }
-        }
-        if (config.disableAllHooks === true)
-            result.problems.push('Hooks are disabled in this configuration.');
+        checkHostHookEvents(root, host, config, receipt.commands, result.problems);
         const skillsRoot = resolveSkillsRoot(root, host, receipt.skillSource);
         for (const name of fs.readdirSync(path.join(PACKAGE_ROOT, 'procedures')).sort((a, b) => a.localeCompare(b, 'en'))) {
             if (!fs.existsSync(path.join(skillsRoot, name, 'SKILL.md')))
@@ -84,6 +111,7 @@ function inspectHost(root, host) {
 }
 
 function selectDoctorHosts(root, host) {
+    if (host === 'all') return INSTALL_HOSTS;
     if (host) return [host];
     return fs.existsSync(safePath(root, '.steward/install-antigravity.json'))
         ? INSTALL_HOSTS
@@ -92,7 +120,7 @@ function selectDoctorHosts(root, host) {
 
 export function doctor(root, host = null, { allowUntrusted = false } = {}) {
     root = rootOf(root);
-    insist(host === null || INSTALL_HOSTS.includes(host), 'BAD_HOST', 'Doctor supports codex, claude or antigravity.');
+    insist(host === null || host === 'all' || INSTALL_HOSTS.includes(host), 'BAD_HOST', 'Doctor supports codex, claude, antigravity or all.');
     let bundle = null;
     let trusted = true;
     let trustError = null;
@@ -114,8 +142,10 @@ export function doctor(root, host = null, { allowUntrusted = false } = {}) {
     const rows = readJournal(root);
     const hosts = selectDoctorHosts(root, host).map(h => inspectHost(root, h));
     const installed = hosts.filter(h => h.status !== 'not-installed');
-    const localHealthy = trusted && installed.length > 0 && installed.every(h => h.status === 'configured') &&
-        (!host || hosts[0].status === 'configured');
+    const requiredConfigured = host === 'all'
+        ? hosts.every(h => h.status === 'configured')
+        : (!host || hosts[0].status === 'configured');
+    const localHealthy = trusted && installed.length > 0 && installed.every(h => h.status === 'configured') && requiredConfigured;
     let nextMsg = 'Resolve the host installation findings, then rerun doctor.';
     if (!trusted) {
         nextMsg = trustError?.message || 'Review and approve this project policy and verification plan with steward trust.';
