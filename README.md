@@ -113,7 +113,7 @@ The demo creates a temporary project, runs three synthetic arithmetic tests, rec
 and restores a checkpoint, and rejects evidence after a source change. It removes its
 fixture afterward and does not launch a native agent application.
 
-For the full local software suite (207 tests covering engine, journal, index cache,
+For the full local software suite (213 tests covering engine, journal, index cache,
 MCP server, Ed25519 crypto, pattern matcher, and CLI integration), run `npm run verify`
 (or `npm test`). See the [verification record](evidence/VERIFICATION.md) for observed results
 and their scope.
@@ -147,7 +147,7 @@ own trust and permission review before relying on its hooks.
 |---|---|---|
 | Codex | `.agents/skills/steward-*` | `.codex/hooks.json` |
 | Claude Code | `.claude/skills/steward-*` | `.claude/settings.local.json` |
-| MCP Client | 8 Tools & 5 Resources | Stdio JSON-RPC via `mcp --config --host <host>` |
+| MCP Client | 11 Tools & 6 Resources | Stdio JSON-RPC via `mcp --config --host <host>` |
 | Generic caller | Optional procedures | JSON via `hook --host generic` |
 
 Claude installation also imports the shared `AGENTS.md` from `CLAUDE.md`.
@@ -194,7 +194,7 @@ Run `version` to inspect the installed version. Package, CLI and plugins share
   ```sh
   node bin/steward.mjs report --project /absolute/path/to/project
   ```
-- **Auditing agent instructions:** Check instruction files (`AGENTS.md`, `CLAUDE.md`, skill files) for common prompt-contract conflicts:
+- **Auditing agent instructions:** Check instruction files (`AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, skill files) for common prompt-contract conflicts:
   ```sh
   node bin/steward.mjs instructions-audit --project /absolute/path/to/project
   ```
@@ -282,7 +282,7 @@ suffix removal. See [security](SECURITY.md), [memory](docs/MEMORY.md) and
 ### Model Context Protocol (MCP) server
 
 Steward includes a zero-dependency MCP server adapter over stdio JSON-RPC 2.0 using newline-delimited JSON (`\n`) framing.
-It exposes Steward's eight capabilities as standard MCP Tools and Resources:
+It exposes Steward's capabilities as 11 standard MCP Tools and 6 Resources:
 
 ```sh
 node bin/steward.mjs mcp --project /absolute/path/to/project
@@ -304,6 +304,9 @@ node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
 - `steward_completion_gate`: Check if recorded evidence satisfies plan and source snapshot.
 - `steward_record_knowledge`: Record verified domain assertions with basis and expiration timestamps.
 - `steward_schedule_manage`: Create or supersede milestone schedules with identity preservation.
+- `steward_goal_manage`: Record or update durable work goals with acceptance criteria and verification evidence references.
+- `steward_record_handoff`: Record bounded subagent delegation or session handoff contracts with file scope and acceptance criteria.
+- `steward_record_question`: Record open or resolved design questions, working assumptions, and resolutions.
 
 **Exposed MCP Resources:**
 
@@ -312,6 +315,7 @@ node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
 - `steward://journal/head`: Current sequence count and latest head hash.
 - `steward://checkpoint/latest`: Most recent session progress checkpoint.
 - `steward://doctor`: Health check and local trust status report.
+- `steward://trust/status`: Non-throwing trust and bundle diagnostic report.
 
 ### In-memory index cache and recall
 

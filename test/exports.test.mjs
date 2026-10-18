@@ -65,8 +65,8 @@ test('library entrypoint exports all core functions and constants', () => {
     assert.equal(typeof steward.executeTool, 'function');
     assert.equal(typeof steward.readResource, 'function');
     assert.equal(typeof steward.formatMcpConfig, 'function');
-    assert.equal(steward.STEWARD_TOOLS.length, 8);
-    assert.ok(steward.STEWARD_RESOURCES.length >= 4);
+    assert.equal(steward.STEWARD_TOOLS.length, 11);
+    assert.ok(steward.STEWARD_RESOURCES.length >= 5);
 
     // Crypto
     assert.equal(typeof steward.generateSigningKeyPair, 'function');

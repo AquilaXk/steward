@@ -6,7 +6,7 @@ import { loadBundle, trustBundle } from '../src/trust.mjs';
 import { handleMcpMessage, formatMcpConfig, startMcpServer, STEWARD_TOOLS, STEWARD_RESOURCES } from '../src/adapters/mcp.mjs';
 import { appendEntry } from '../src/journal.mjs';
 
-test('MCP initialize returns standard protocol response and 8 tools', async (t) => {
+test('MCP initialize returns standard protocol response and 11 tools with strict inputSchema', async (t) => {
     const { root } = sandbox(t);
 
     const initRes = await handleMcpMessage(root, {
@@ -25,7 +25,7 @@ test('MCP initialize returns standard protocol response and 8 tools', async (t) 
         id: 2,
         method: 'tools/list'
     });
-    assert.equal(toolsRes.result.tools.length, 8);
+    assert.equal(toolsRes.result.tools.length, 11);
     const toolNames = toolsRes.result.tools.map(t => t.name);
     assert(toolNames.includes('steward_policy_eval'));
     assert(toolNames.includes('steward_recall'));
@@ -35,6 +35,12 @@ test('MCP initialize returns standard protocol response and 8 tools', async (t) 
     assert(toolNames.includes('steward_completion_gate'));
     assert(toolNames.includes('steward_record_knowledge'));
     assert(toolNames.includes('steward_schedule_manage'));
+    assert(toolNames.includes('steward_goal_manage'));
+    assert(toolNames.includes('steward_record_handoff'));
+    assert(toolNames.includes('steward_record_question'));
+    for (const tool of toolsRes.result.tools) {
+        assert.equal(tool.inputSchema.additionalProperties, false, `${tool.name} inputSchema must set additionalProperties: false`);
+    }
 });
 
 test('MCP tools/call executes policy evaluation and records decisions', async (t) => {
@@ -121,6 +127,7 @@ test('formatMcpConfig outputs valid client configurations', () => {
     assert(cursorCfg.mcpServers.steward.args.includes('mcp'));
 
     const antigravityCfg = formatMcpConfig({ host: 'antigravity', project: '/tmp/test-proj' });
+    assert(antigravityCfg.mcpServers.steward.args.includes('mcp'));
     assert.equal(antigravityCfg.servers.steward.transport, 'stdio');
 });
 
@@ -515,3 +522,102 @@ test('MCP executeTool rejects non-object arguments and normalizes empty-string o
     });
     assert.equal(emptyOptCp.result.isError, false);
 });
+
+test('MCP executes steward_goal_manage, steward_record_handoff, steward_record_question, aliases, and untrusted doctor resource', async (t) => {
+    const { root } = sandbox(t, { plan: plan() });
+
+    const goalRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 110,
+        method: 'tools/call',
+        params: {
+            name: 'steward_goal_manage',
+            arguments: {
+                objective: 'Ship complete 11-tool MCP surface',
+                acceptance: ['All 7 journal record types supported via MCP'],
+                status: 'active',
+                evidence: [],
+                tags: ['mcp', 'goals']
+            }
+        }
+    });
+    assert.equal(goalRes.result.isError, false);
+    const goalOut = JSON.parse(goalRes.result.content[0].text);
+    assert.equal(goalOut.type, 'goal');
+    assert.equal(goalOut.data.objective, 'Ship complete 11-tool MCP surface');
+    assert.equal(goalOut.data.status, 'active');
+
+    const handoffRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 111,
+        method: 'tools/call',
+        params: {
+            name: 'steward_record_handoff',
+            arguments: {
+                task: 'Audit MCP schemas in isolated worktree',
+                scope: ['src/adapters/mcp.mjs', 'test/mcp.test.mjs'],
+                constraints: ['Do not modify src/engine.mjs'],
+                acceptance: ['node --test test/mcp.test.mjs passes'],
+                evidence: [],
+                tags: ['delegation']
+            }
+        }
+    });
+    assert.equal(handoffRes.result.isError, false);
+    const handoffOut = JSON.parse(handoffRes.result.content[0].text);
+    assert.equal(handoffOut.type, 'handoff');
+    assert.deepEqual(handoffOut.data.scope, ['src/adapters/mcp.mjs', 'test/mcp.test.mjs']);
+
+    const questionRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 112,
+        method: 'tools/call',
+        params: {
+            name: 'steward_record_question',
+            arguments: {
+                question: 'Should untrusted MCP doctor resource return structured JSON?',
+                assumptions: ['MCP clients inspect trusted: false rather than JSON-RPC error codes'],
+                resolution: 'Yes, pass allowUntrusted: true in MCP resource handler',
+                tags: ['mcp', 'diagnostics']
+            }
+        }
+    });
+    assert.equal(questionRes.result.isError, false);
+    const questionOut = JSON.parse(questionRes.result.content[0].text);
+    assert.equal(questionOut.type, 'question');
+    assert.equal(questionOut.data.resolution, 'Yes, pass allowUntrusted: true in MCP resource handler');
+
+    const aliasEvalRes = await handleMcpMessage(root, {
+        jsonrpc: '2.0',
+        id: 113,
+        method: 'tools/call',
+        params: {
+            name: 'steward_eval',
+            arguments: { event: 'prompt', text: 'check alias' }
+        }
+    });
+    assert.equal(aliasEvalRes.result.isError, false);
+    assert.equal(JSON.parse(aliasEvalRes.result.content[0].text).decision, 'allow');
+
+    const { root: untrustedRoot } = sandbox(t, { trusted: false });
+    const untrustedDocRes = await handleMcpMessage(untrustedRoot, {
+        jsonrpc: '2.0',
+        id: 114,
+        method: 'resources/read',
+        params: { uri: 'steward://doctor' }
+    });
+    assert.ok(untrustedDocRes.result, 'steward://doctor on untrusted project should return structured resource');
+    const docBody = JSON.parse(untrustedDocRes.result.contents[0].text);
+    assert.equal(docBody.trusted, false);
+    assert.equal(docBody.trustError.code, 'UNTRUSTED');
+
+    const trustStatusRes = await handleMcpMessage(untrustedRoot, {
+        jsonrpc: '2.0',
+        id: 115,
+        method: 'resources/read',
+        params: { uri: 'steward://trust/status' }
+    });
+    assert.ok(trustStatusRes.result, 'steward://trust/status on untrusted project should return structured resource');
+    assert.equal(JSON.parse(trustStatusRes.result.contents[0].text).trusted, false);
+});
+

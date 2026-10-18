@@ -293,11 +293,13 @@ export interface VerificationReport {
     allPassed: boolean;
     limitations: string[];
     evidence?: string;
+    evidenceHash?: string;
 }
 
 export interface CompletionGateResult {
     pass: boolean;
     evidence: string;
+    evidenceHash: string;
     scope: string;
     workspace: string;
 }
@@ -307,7 +309,7 @@ export function validateEntry(entry: unknown): { type: UserRecordType; data: Jou
 export function validateVerification(report: unknown): VerificationReport;
 export function validateJournalRow(row: unknown): JournalRecord;
 export function resolveCommand(cmd: string, env?: Record<string, string | undefined>): string;
-export function runVerification(root: string): Promise<VerificationReport & { evidence: string }>;
+export function runVerification(root: string): Promise<VerificationReport & { evidence: string; evidenceHash: string }>;
 export function completionGate(root: string, evidence?: string | null): CompletionGateResult;
 
 // ==========================================
@@ -356,8 +358,10 @@ export interface InstructionsAuditResult {
 export interface DoctorResult {
     healthy: boolean;
     localHealthy: boolean;
-    status: 'unchecked' | 'needs-attention';
-    bundleHash: string;
+    trusted: boolean;
+    trustError?: PublicErrorObject;
+    status: 'unchecked' | 'needs-attention' | 'untrusted';
+    bundleHash: string | null;
     journal: JournalHead;
     instructions: InstructionsAuditResult;
     hosts: HostStatus[];
@@ -397,7 +401,7 @@ export function trustBundle(root: string, digest: string): TrustResult;
 export function requireTrust(root: string): TrustBundle;
 export function trustHome(): string;
 export function projectKey(root: string): string;
-export function doctor(root: string, host?: string | null): DoctorResult;
+export function doctor(root: string, host?: string | null, options?: { allowUntrusted?: boolean }): DoctorResult;
 export function report(root: string): AuditReport;
 export function pruneAudit(root: string, options?: { keep?: number }): { deleted: number; remaining: number };
 export function auditInstructions(root: string): InstructionsAuditResult;
@@ -431,6 +435,7 @@ export interface McpToolDefinition {
         type: 'object';
         properties: Record<string, unknown>;
         required?: string[];
+        additionalProperties?: boolean;
     };
 }
 

@@ -69,7 +69,7 @@ export async function runVerification(root) {
         sourceUnchanged: unchanged, runtime: { node: process.version, platform: process.platform, arch: process.arch }, checks,
         allPassed: unchanged && checks.every(c => c.status === 'pass'), limitations: ['Commands execute with local user privileges.', 'Recorded output may contain sensitive test data.', 'node_modules and external services are outside the source snapshot.'] };
     const record = await appendInternal(root, 'verification', report);
-    return { ...report, evidence: record.hash };
+    return { ...report, evidence: record.hash, evidenceHash: record.hash };
 }
 export function completionGate(root, evidence = null) {
     root = rootOf(root);
@@ -98,5 +98,5 @@ export function completionGate(root, evidence = null) {
     const age = (Date.now() - Date.parse(row.time)) / 1000;
     insist(Number.isFinite(age) && age >= 0 && age <= bundle.plan.maxAgeSeconds, 'STALE_EVIDENCE', 'Verification is outside the plan freshness window.');
     insist(snapshot(root, bundle.plan.exclude || []).hash === r.workspace.hash, 'STALE_SOURCE', 'Source files changed after verification.');
-    return { pass: true, evidence: row.hash, scope: 'Approved local checks on this source snapshot and runtime. Not deployment or semantic proof.', workspace: r.workspace.hash };
+    return { pass: true, evidence: row.hash, evidenceHash: row.hash, scope: 'Approved local checks on this source snapshot and runtime. Not deployment or semantic proof.', workspace: r.workspace.hash };
 }

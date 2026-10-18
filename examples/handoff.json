@@ -1,0 +1,23 @@
+{
+  "type": "handoff",
+  "data": {
+    "task": "Verify schema parity across runtime validators and JSON Schema files.",
+    "scope": [
+      "src/schema.mjs",
+      "schemas/"
+    ],
+    "constraints": [
+      "Do not modify src/engine.mjs or host adapters.",
+      "Do not weaken existing validation rules."
+    ],
+    "acceptance": [
+      "npm run check passes.",
+      "node --test test/exports.test.mjs passes."
+    ],
+    "evidence": [],
+    "tags": [
+      "delegation",
+      "schema"
+    ]
+  }
+}

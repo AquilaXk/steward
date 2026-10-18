@@ -1,0 +1,18 @@
+{
+  "type": "knowledge",
+  "data": {
+    "claim": "The policy engine in src/engine.mjs executes synchronously with zero filesystem or network I/O.",
+    "basis": "source",
+    "sources": [
+      {
+        "reference": "src/engine.mjs",
+        "checkedAt": "2026-10-18T00:00:00Z"
+      }
+    ],
+    "expiresAt": null,
+    "tags": [
+      "architecture",
+      "engine"
+    ]
+  }
+}

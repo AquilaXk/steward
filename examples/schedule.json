@@ -1,0 +1,16 @@
+{
+  "type": "schedule",
+  "data": {
+    "id": "v1-release-cut",
+    "title": "Run full verification gate and cut release tag",
+    "dueAt": "2026-11-01T00:00:00Z",
+    "status": "planned",
+    "members": [
+      "lead-agent"
+    ],
+    "supersedes": null,
+    "tags": [
+      "release"
+    ]
+  }
+}

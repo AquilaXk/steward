@@ -112,7 +112,7 @@ node bin/steward.mjs --help
 소스 변경 후에는 기존 검증 근거를 거부합니다. 실행 후 임시 파일을 정리하며,
 실제 에이전트 앱은 실행하지 않습니다.
 
-전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 207개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
+전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 213개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
 실행 결과와 검증 범위는 [검증 기록](evidence/VERIFICATION.md)을 확인하세요.
 
 ## 4. 프로젝트 설정
@@ -144,7 +144,7 @@ Claude Code는 설치 명령에서 `--host claude`를 사용합니다.
 |---|---|---|
 | Codex | `.agents/skills/steward-*` | `.codex/hooks.json` |
 | Claude Code | `.claude/skills/steward-*` | `.claude/settings.local.json` |
-| MCP 클라이언트 | 8대 도구 및 5대 리소스 | `mcp --config --host <host>`의 stdio 설정 |
+| MCP 클라이언트 | 11대 도구 및 6대 리소스 | `mcp --config --host <host>`의 stdio 설정 |
 | 일반 호출자 | 선택적 절차 | `hook --host generic`의 JSON 입력 |
 
 Claude 설치는 `CLAUDE.md`에서 공통 `AGENTS.md`를 가져오도록 연결합니다.
@@ -193,7 +193,7 @@ Claude 설치는 `CLAUDE.md`에서 공통 `AGENTS.md`를 가져오도록 연결�
   ```sh
   node bin/steward.mjs report --project /absolute/path/to/project
   ```
-- **에이전트 지침 충돌 감사 (`instructions-audit`):** `AGENTS.md`, `CLAUDE.md`, 스킬 파일 등 프로젝트 지침을 점검하여 충돌하는 프롬프트 규칙을 진단합니다:
+- **에이전트 지침 충돌 감사 (`instructions-audit`):** `AGENTS.md`, `CLAUDE.md`, `GEMINI.md`, 스킬 파일 등 프로젝트 지침을 점검하여 충돌하는 프롬프트 규칙을 진단합니다:
   ```sh
   node bin/steward.mjs instructions-audit --project /absolute/path/to/project
   ```
@@ -280,7 +280,7 @@ node bin/steward.mjs checkpoint --project /absolute/path/to/project \
 ### 모델 컨텍스트 프로토콜 (MCP) 서버 어댑터
 
 Steward는 런타임 서드파티 의존성 없이 개행 구분(newline-delimited, `\n`) stdio JSON-RPC 2.0 기반 MCP 서버 어댑터를 제공합니다.
-8대 핵심 기능이 표준 MCP 도구(Tools) 및 리소스(Resources)로 노출됩니다:
+11대 도구(Tools) 및 6대 리소스(Resources)가 표준 MCP 인터페이스로 노출됩니다:
 
 ```sh
 node bin/steward.mjs mcp --project /absolute/path/to/project
@@ -302,6 +302,9 @@ node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
 - `steward_completion_gate`: 기록된 증거가 검증 계획 및 소스 스냅샷 조건을 충족하는지 검증합니다.
 - `steward_record_knowledge`: 근거 유형 및 만료 시각을 명시하여 검증된 도메인 사실을 기록합니다.
 - `steward_schedule_manage`: 식별자를 보존하며 마일스톤 일정을 생성하거나 개정(대체)합니다.
+- `steward_goal_manage`: 수용 기준 및 검증 증거 참조를 포함하여 작업 목표를 기록하거나 갱신합니다.
+- `steward_record_handoff`: 허용 파일 범위 및 수용 기준을 명시하여 서브에이전트 위임 또는 세션 인계 계약을 기록합니다.
+- `steward_record_question`: 미해결 또는 해결된 설계 질문, 작업 가정, 해결 내용을 저널에 기록합니다.
 
 **제공 MCP 리소스 (Resources):**
 
@@ -310,6 +313,7 @@ node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
 - `steward://journal/head`: 현재 저널 시퀀스 번호 및 최신 헤드 해시 조회.
 - `steward://checkpoint/latest`: 가장 최근에 저장된 세션 진행 체크포인트 조회.
 - `steward://doctor`: 헬스체크 및 로컬 신뢰 상태 보고서 조회.
+- `steward://trust/status`: 미승인 상태에서도 예외 없이 구조화된 신뢰·번들 진단 보고서 조회.
 
 ### 인메모리 색인 캐시 및 회상
 

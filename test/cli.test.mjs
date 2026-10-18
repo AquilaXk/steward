@@ -187,3 +187,64 @@ test('report uses prototype-safe emitted counter and doctor validates installati
     assert.equal(docBadReceipt.localHealthy, false);
     assert.equal(docBadReceipt.hosts[0].status, 'broken');
 });
+
+test('CLI maps missing project to BAD_PROJECT and missing files to MISSING_FILE instead of INTERNAL_ERROR', (t) => {
+    const { root, temp } = sandbox(t);
+    const badProj = cli(path.join(temp, 'nonexistent-project-dir'), ['trust']);
+    assert.equal(badProj.status, 1);
+    assert.equal(JSON.parse(badProj.stderr).error.code, 'BAD_PROJECT');
+
+    const missingEntry = cli(root, ['journal', 'add', '--file', path.join(root, 'missing-entry.json')]);
+    assert.equal(missingEntry.status, 1);
+    assert.equal(JSON.parse(missingEntry.stderr).error.code, 'MISSING_FILE');
+
+    const uninitDir = path.join(temp, 'uninitialized-dir');
+    fs.mkdirSync(uninitDir, { recursive: true });
+    const uninitTrust = cli(uninitDir, ['trust']);
+    assert.equal(uninitTrust.status, 1);
+    assert.equal(JSON.parse(uninitTrust.stderr).error.code, 'MISSING_FILE');
+});
+
+test('CLI trust exposes bundleHash alias and verify/gate expose evidenceHash alias', (t) => {
+    const { root } = sandbox(t, { trusted: false, plan: plan() });
+    const trustReview = cli(root, ['trust']);
+    assert.equal(trustReview.status, 0, trustReview.stderr);
+    const reviewJson = JSON.parse(trustReview.stdout);
+    assert.equal(typeof reviewJson.bundleHash, 'string');
+    assert.equal(reviewJson.bundleHash, reviewJson.review.hash);
+
+    const approveRes = cli(root, ['trust', '--approve', reviewJson.bundleHash]);
+    assert.equal(approveRes.status, 0, approveRes.stderr);
+
+    const verifyRes = cli(root, ['verify']);
+    assert.equal(verifyRes.status, 0, verifyRes.stderr);
+    const verifyJson = JSON.parse(verifyRes.stdout);
+    assert.equal(typeof verifyJson.evidenceHash, 'string');
+    assert.equal(verifyJson.evidenceHash, verifyJson.evidence);
+
+    const gateRes = cli(root, ['gate', '--evidence', verifyJson.evidenceHash]);
+    assert.equal(gateRes.status, 0, gateRes.stderr);
+    const gateJson = JSON.parse(gateRes.stdout);
+    assert.equal(gateJson.pass, true);
+    assert.equal(gateJson.evidenceHash, verifyJson.evidenceHash);
+    assert.equal(gateJson.evidence, verifyJson.evidence);
+});
+
+test('auditInstructions scans GEMINI.md and doctor allowUntrusted returns structured diagnostics', async (t) => {
+    const { doctor } = await import('../src/doctor.mjs');
+    const { root } = sandbox(t, { trusted: false });
+    write(root, 'GEMINI.md', 'Always ask for approval before running any check.\n');
+
+    const auditRes = auditInstructions(root);
+    const geminiFile = auditRes.files.find(f => f.path === 'GEMINI.md');
+    assert.ok(geminiFile, 'Expected GEMINI.md to be included in instruction audit inventory');
+    assert.ok(geminiFile.findings.some(f => f.code === 'approval-stall' && f.line === 1));
+
+    const diag = doctor(root, null, { allowUntrusted: true });
+    assert.equal(diag.trusted, false);
+    assert.equal(diag.healthy, false);
+    assert.equal(diag.localHealthy, false);
+    assert.equal(diag.trustError?.code, 'UNTRUSTED');
+    assert.equal(typeof diag.bundleHash, 'string');
+});
+

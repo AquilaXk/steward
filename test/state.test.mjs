@@ -23,7 +23,7 @@ test('trust record cannot live inside project', t => {
     }
 });
 test('broken JSON is not replaced with an empty policy', t => { const { root } = sandbox(t); write(root, '.steward/policy.json', '{broken'); assert.throws(() => requireTrust(root), { code: 'INVALID_JSON' }); });
-test('missing catalog is an error, not an implicit empty policy', t => { const { root } = sandbox(t); fs.unlinkSync(path.join(root, '.steward/policy.json')); assert.throws(() => requireTrust(root), { code: 'ENOENT' }); });
+test('missing catalog is an error, not an implicit empty policy', t => { const { root } = sandbox(t); fs.unlinkSync(path.join(root, '.steward/policy.json')); assert.throws(() => requireTrust(root), { code: 'MISSING_FILE' }); });
 test('journal entries have a verifiable chain', async (t) => { const { root } = sandbox(t); const a = await appendEntry(root, decision()), b = await appendEntry(root, checkpoint); const rows = readJournal(root); assert.equal(rows.length, 2); assert.equal(b.previous, a.hash); assert.deepEqual(journalHead(rows), { count: 2, head: b.hash }); });
 test('concurrent writers serialize without lost entries', async (t) => { const { root } = sandbox(t); await Promise.all(Array.from({ length: 16 }, () => appendEntry(root, checkpoint))); assert.equal(readJournal(root).length, 16); });
 test('supersede appends without touching old entry', async (t) => { const { root } = sandbox(t); const a = await appendEntry(root, decision()); const old = JSON.stringify(readJournal(root)[0]); await appendEntry(root, decision('A revised decision.', a.hash)); assert.equal(JSON.stringify(readJournal(root)[0]), old); });

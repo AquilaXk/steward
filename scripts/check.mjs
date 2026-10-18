@@ -90,8 +90,8 @@ try {
     for (const file of ['profiles/default-policy.json', 'examples/policies/protected-memory.json'])
         validatePolicy(json(file));
     validatePlan(json('profiles/default-verify.json'));
-    validateEntry(json('examples/decision.json'));
-    validateEntry(json('examples/goal.json'));
+    for (const file of ['examples/decision.json', 'examples/goal.json', 'examples/schedule.json', 'examples/handoff.json', 'examples/knowledge.json', 'examples/question.json'])
+        validateEntry(json(file));
     validateEntry({ type: 'checkpoint', data: json('examples/checkpoint.json') });
     validateEvent(json('examples/event.json'));
     const pkg = json('package.json'), lock = json('package-lock.json');

@@ -38,7 +38,7 @@ export function requireTrust(root) {
         saved = parseJSON(readText(safePath(home, `trust/${projectKey(root)}.json`)), 'trust record');
     }
     catch (e) {
-        if (e.code === 'ENOENT')
+        if (e.code === 'ENOENT' || e.code === 'MISSING_FILE')
             insist(false, 'UNTRUSTED', 'Review and approve this project policy and verification plan with steward trust.');
         throw e;
     }
