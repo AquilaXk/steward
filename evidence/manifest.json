@@ -173,8 +173,8 @@
     },
     {
       "path": "bin/steward.mjs",
-      "bytes": 14810,
-      "sha256": "f453afbf8b81b085605ed6c2f01d179824c77fed038e8eb863b6f13c484d8766"
+      "bytes": 14823,
+      "sha256": "8d14f3bb2719ab1429a2df71fa7b4836b58b2dd59c99774c1b2074d1e3a8f674"
     },
     {
       "path": "docs/AGENT-CONTEXT.md",
@@ -278,13 +278,13 @@
     },
     {
       "path": "evidence/source-manifest.json",
-      "bytes": 19154,
-      "sha256": "1aec9f1556377ae911866caab0c1d243d31ae5af0a10111b871852d736f33281"
+      "bytes": 19074,
+      "sha256": "c694fa135a72a6f05d1d9e96c26107eaa62028d5d3c730a436fb8f2b5e8855f7"
     },
     {
       "path": "evidence/test-results.tap",
-      "bytes": 17961,
-      "sha256": "152cc8d0ae7e207f933b5376dbb61dcec112c9425f03f42ba283cd9d466df6eb"
+      "bytes": 43582,
+      "sha256": "562d1d164a97ff00f00b07bed6e7564bd5b6494bcafa360f35737e1f8e89c503"
     },
     {
       "path": "examples/checkpoint.json",
@@ -333,8 +333,8 @@
     },
     {
       "path": "index.d.ts",
-      "bytes": 16188,
-      "sha256": "1deca3a0a5dcdf0b51a248df7bd294a16678bb419879bd995778e22256fd2013"
+      "bytes": 16209,
+      "sha256": "03a2300ffbbfca44f2b92158bfef12b642c7cb67d296468554011a7585280279"
     },
     {
       "path": "package-lock.json",
@@ -478,8 +478,8 @@
     },
     {
       "path": "src/adapters.mjs",
-      "bytes": 8868,
-      "sha256": "5b6f585430bee0a4f144d5cefbeaedb5f616e9bb4b072fd62ff9b1f4d26093cb"
+      "bytes": 8885,
+      "sha256": "1f82e540bfcbbe2dc84406c559d43126b757d88821d11a6b8d8343c35ff797c2"
     },
     {
       "path": "src/adapters/mcp.mjs",
@@ -578,13 +578,13 @@
     },
     {
       "path": "test/adapters.test.mjs",
-      "bytes": 13252,
-      "sha256": "02a59c58c8fa28c23fdf1762c7eab9f3638128271157b633b859fbf9423a7999"
+      "bytes": 13714,
+      "sha256": "7d9990dc41b7ac1c099edad37253a25daa9fdbb4b5151d13c7fde968fdbe50ba"
     },
     {
       "path": "test/cli.test.mjs",
-      "bytes": 17149,
-      "sha256": "cd989d1a498f20beb557b20aba4284f98081d5cd9be19e4a6c90d68c5e442a11"
+      "bytes": 17541,
+      "sha256": "494391faab58eb684b4cfd5621ec216f17700e915714c91cf889c59f63663ebb"
     },
     {
       "path": "test/crypto.test.mjs",

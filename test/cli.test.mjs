@@ -292,6 +292,15 @@ test('CLI maps unknown parseArgs flags to USAGE, accepts --file/--input intercha
     assert.equal(keygenJson.pubPath, path.join(keysDir, 'steward-ed25519.pub.pem'));
     assert.ok(fs.existsSync(keygenJson.privPath));
     assert.ok(fs.existsSync(keygenJson.pubPath));
+
+    const untrusted = sandbox(t, { trusted: false });
+    const untrustedStop = cli(untrusted.root, ['hook', '--host', 'antigravity', '--event', 'Stop'], {
+        conversationId: 'conv-456',
+        terminationReason: 'NO_TOOL_CALL'
+    });
+    assert.equal(untrustedStop.status, 2);
+    assert.equal(untrustedStop.stdout, '');
+    assert.match(untrustedStop.stderr, /Steward UNTRUSTED:/);
 });
 
 

@@ -174,6 +174,20 @@ test('antigravity adapter infers event from payload shape when expectedEvent is 
     assert.equal(stopAllowed.result.decision, 'allow');
     assert.equal(stopAllowed.encoded.exitCode, 0);
     assert.deepEqual(JSON.parse(stopAllowed.encoded.stdout), { decision: 'allow' });
+
+    const stopErrored = encode('antigravity', 'stop', {
+        decision: 'deny',
+        error: true,
+        reason: 'Steward UNTRUSTED: Workspace bundle is not trusted.',
+        matched: [],
+        emitted: [],
+        omitted: [],
+        context: '',
+        bytes: 0
+    });
+    assert.equal(stopErrored.exitCode, 2);
+    assert.equal(stopErrored.stdout, '');
+    assert.equal(stopErrored.stderr, 'Steward UNTRUSTED: Workspace bundle is not trusted.');
 });
 
 

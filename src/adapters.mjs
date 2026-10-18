@@ -143,7 +143,7 @@ export function normalizeInput(host, raw, root, expectedEvent = null) {
 }
 
 function encodeAntigravityResponse(event, result) {
-    if (event === 'stop') {
+    if (event === 'stop' && !result.error) {
         const payload = result.decision === 'deny'
             ? { decision: 'continue', reason: result.reason }
             : { decision: 'allow' };

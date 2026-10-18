@@ -268,7 +268,7 @@ try {
 catch (error) {
     const e = publicError(error);
     if (command === 'hook') {
-        const result = { decision: 'deny', reason: `Steward ${e.code}: ${e.message}`, matched: [], emitted: [], omitted: [], context: '', bytes: 0 };
+        const result = { decision: 'deny', error: true, reason: `Steward ${e.code}: ${e.message}`, matched: [], emitted: [], omitted: [], context: '', bytes: 0 };
         const encoded = encode(opts.host || 'generic', eventKind(opts.event), result);
         if (encoded.stdout)
             process.stdout.write(encoded.stdout + '\n');
