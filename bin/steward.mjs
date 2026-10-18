@@ -43,7 +43,7 @@ audit prune [--keep N] Prune older audit receipts to recover retention capacity
 instructions-audit     Inventory agent files and flag common instruction conflicts
 doctor                 Check trust and local wiring; --host codex, claude or antigravity
 mcp                    Run JSON-RPC 2.0 stdio MCP server for agent integration
-mcp --config           Print MCP client configuration; --host claude, cursor or antigravity
+mcp --config           Print MCP client configuration; --host claude, cursor, codex or antigravity
 keygen                 Generate an Ed25519 asymmetric key pair
 sign-bundle            Sign trust bundle with --key FILE
 verify-bundle          Verify signed bundle with --verifier FILE

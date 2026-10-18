@@ -148,13 +148,13 @@
     },
     {
       "path": "README.ko.md",
-      "bytes": 27223,
-      "sha256": "0bf97f0fe43867bdf9b08ac1f167607418a01b46d837c67aca347d17065a35fb"
+      "bytes": 27234,
+      "sha256": "f07776f8fbced6bf81059c13f8aa7cd3cb1b273ba33556072e841e5f815ba216"
     },
     {
       "path": "README.md",
-      "bytes": 23943,
-      "sha256": "6a27e9defef000674f20bb839e1a8680c6c30a337f238fe2ebdacc2de36edaf1"
+      "bytes": 23954,
+      "sha256": "dda2f40e49aa2546633394c1dbf523d62da64d0d8778307aa0577d5553f70c25"
     },
     {
       "path": "SECURITY.md",
@@ -173,8 +173,8 @@
     },
     {
       "path": "bin/steward.mjs",
-      "bytes": 15350,
-      "sha256": "28e006c1d5d6497adfceb0cf6df8a2c4d10aad88d5920061b830a9432ec8a4fc"
+      "bytes": 15357,
+      "sha256": "26030ad7b5ccf31e562303027eb879c976ac19daae77592451a0adb172b73ec1"
     },
     {
       "path": "docs/AGENT-CONTEXT.md",
@@ -244,12 +244,12 @@
     {
       "path": "evidence/0.2.0.md",
       "bytes": 3127,
-      "sha256": "912180cd97e98f2936e500895ae62b25cc4354b3ac03e7764cf99797e1511933"
+      "sha256": "b345da84c8c11653d7d18d1080dbc4eafd3ce872c4f8dc325ca0f1c2a9855d8d"
     },
     {
       "path": "evidence/VERIFICATION.md",
       "bytes": 2365,
-      "sha256": "55ecaa242399c623b5ad2e0317dcf84c171bf058bd67a53243326b7f1ca1fad9"
+      "sha256": "ddd2cfda419ae1eb0af2be9ed96f141337c226fa7897a9d1bb4d69a49245aeed"
     },
     {
       "path": "evidence/check-results.json",
@@ -259,7 +259,7 @@
     {
       "path": "evidence/delivery.json",
       "bytes": 1295,
-      "sha256": "8919b5264f0e382497f4693904e232420a21ceccde48920b66ab746030809dab"
+      "sha256": "8e3a9227ede20a5ba8b5d9c0596000faa0847b54ae45c76ed5e938dee37d406f"
     },
     {
       "path": "evidence/demo-results.json",
@@ -279,7 +279,7 @@
     {
       "path": "evidence/source-manifest.json",
       "bytes": 20703,
-      "sha256": "5d641f9ddf450ec5601a2aca2395ea7bfed2803c128f39c2f0198815c8ddaacb"
+      "sha256": "699431c86e1c68b36e26bdc0ede83e1c1629bc0b46474b77a1259c35b03a6bb5"
     },
     {
       "path": "evidence/test-results.tap",
@@ -528,8 +528,8 @@
     },
     {
       "path": "src/adapters.mjs",
-      "bytes": 11509,
-      "sha256": "4053cb2c671aad6bd4bf1287848a6f816ecade9fd97ae64085fccbc60717058d"
+      "bytes": 12093,
+      "sha256": "112e18d9b5c2ca6533860c9abc4b9eef22369b07d178fd5d5297f9bc8d6e13ed"
     },
     {
       "path": "src/adapters/mcp.mjs",
@@ -628,8 +628,8 @@
     },
     {
       "path": "test/adapters.test.mjs",
-      "bytes": 15403,
-      "sha256": "d60300b74fd1365be7613551e1ee127052f110e1e190d236c5efe5789d0fcac7"
+      "bytes": 17977,
+      "sha256": "654171974f076c5a80c0d2d4d6425e7648aec1c8149bfc63529397e195721e4c"
     },
     {
       "path": "test/cli.test.mjs",
