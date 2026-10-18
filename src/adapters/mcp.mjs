@@ -9,11 +9,12 @@ import { runVerification, completionGate } from '../verify.mjs';
 import { doctor } from '../doctor.mjs';
 import { PACKAGE_ROOT } from '../setup.mjs';
 import { insist, publicError } from '../errors.mjs';
+import { object } from '../schema.mjs';
 
 const MAX_LINE_BYTES = 1024 * 1024;
 
 /**
- * 8 Core Steward MCP Tools definition.
+ * 11 Core Steward MCP Tools definition.
  */
 export const STEWARD_TOOLS = [
     {
@@ -28,12 +29,13 @@ export const STEWARD_TOOLS = [
                 paths: { type: 'array', items: { type: 'string' }, description: 'Project paths accessed by the tool.' },
                 sessionId: { type: 'string', description: 'Optional session identifier.' }
             },
-            required: ['event', 'text']
+            required: ['event', 'text'],
+            additionalProperties: false
         }
     },
     {
         name: 'steward_recall',
-        description: 'Query journal records (decisions, knowledge, goals, checkpoints, schedules, handoffs) with filtering and freshness checks.',
+        description: 'Query journal records (decisions, questions, knowledge, goals, checkpoints, schedules, handoffs, verifications) with filtering and freshness checks.',
         inputSchema: {
             type: 'object',
             properties: {
@@ -46,7 +48,8 @@ export const STEWARD_TOOLS = [
                 history: { type: 'boolean', default: false, description: 'Include superseded and expired records.' },
                 recordId: { type: 'string', description: 'Filter by specific record ID.' },
                 sessionId: { type: 'string', description: 'Filter checkpoints by session ID.' }
-            }
+            },
+            additionalProperties: false
         }
     },
     {
@@ -63,12 +66,14 @@ export const STEWARD_TOOLS = [
                         reference: { type: 'string', description: 'Source reference (issue, conversation, PR).' },
                         quote: { type: 'string', description: 'Exact authorizing quote.' }
                     },
-                    required: ['kind', 'reference', 'quote']
+                    required: ['kind', 'reference', 'quote'],
+                    additionalProperties: false
                 },
                 supersedes: { type: 'string', description: 'SHA-256 hash of a prior decision record being replaced, or null.' },
                 tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
             },
-            required: ['statement', 'authority']
+            required: ['statement', 'authority'],
+            additionalProperties: false
         }
     },
     {
@@ -83,7 +88,8 @@ export const STEWARD_TOOLS = [
                 sessionId: { type: 'string', description: 'Optional session identifier to bind checkpoint restoration.' },
                 tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
             },
-            required: ['summary', 'next']
+            required: ['summary', 'next'],
+            additionalProperties: false
         }
     },
     {
@@ -91,7 +97,8 @@ export const STEWARD_TOOLS = [
         description: 'Run the project approved verification plan commands and capture cryptographic evidence of test outcomes.',
         inputSchema: {
             type: 'object',
-            properties: {}
+            properties: {},
+            additionalProperties: false
         }
     },
     {
@@ -101,7 +108,8 @@ export const STEWARD_TOOLS = [
             type: 'object',
             properties: {
                 evidence: { type: 'string', description: 'Optional specific verification evidence SHA-256 hash.' }
-            }
+            },
+            additionalProperties: false
         }
     },
     {
@@ -120,13 +128,15 @@ export const STEWARD_TOOLS = [
                             reference: { type: 'string' },
                             checkedAt: { type: 'string', description: 'ISO timestamp.' }
                         },
-                        required: ['reference', 'checkedAt']
+                        required: ['reference', 'checkedAt'],
+                        additionalProperties: false
                     }
                 },
                 expiresAt: { type: 'string', description: 'Optional ISO timestamp after which this knowledge expires.' },
                 tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
             },
-            required: ['claim', 'basis']
+            required: ['claim', 'basis'],
+            additionalProperties: false
         }
     },
     {
@@ -143,7 +153,57 @@ export const STEWARD_TOOLS = [
                 supersedes: { type: ['string', 'null'], description: 'Optional SHA-256 hash of previous schedule version being replaced, or null.' },
                 tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
             },
-            required: ['title', 'dueAt', 'status']
+            required: ['title', 'dueAt', 'status'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'steward_goal_manage',
+        description: 'Record or update a durable work goal with acceptance criteria and verification evidence references in the journal.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                objective: { type: 'string', description: 'Clear statement of the work goal objective.' },
+                acceptance: { type: 'array', items: { type: 'string' }, description: 'Concrete acceptance criteria (nonempty).' },
+                status: { type: 'string', enum: ['active', 'blocked', 'complete'], description: 'Current lifecycle status of the goal.' },
+                evidence: { type: 'array', items: { type: 'string' }, description: 'Verification evidence hashes or references (required when status is complete).' },
+                tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
+            },
+            required: ['objective', 'acceptance', 'status'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'steward_record_handoff',
+        description: 'Record a bounded subagent delegation or session handoff contract with explicit file scope and acceptance criteria.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                task: { type: 'string', description: 'Specific delegated task or handoff objective.' },
+                scope: { type: 'array', items: { type: 'string' }, description: 'Explicit allowed file or directory scope (nonempty).' },
+                constraints: { type: 'array', items: { type: 'string' }, description: 'Explicit boundary constraints or forbidden files.' },
+                acceptance: { type: 'array', items: { type: 'string' }, description: 'Deterministic verification or acceptance checks (nonempty).' },
+                evidence: { type: 'array', items: { type: 'string' }, description: 'Optional verification evidence references.' },
+                tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
+            },
+            required: ['task', 'scope', 'acceptance'],
+            additionalProperties: false
+        }
+    },
+    {
+        name: 'steward_record_question',
+        description: 'Record an open or resolved design question, working assumptions, and resolution in the journal.',
+        inputSchema: {
+            type: 'object',
+            properties: {
+                question: { type: 'string', description: 'The open or resolved question.' },
+                assumptions: { type: 'array', items: { type: 'string' }, description: 'Working assumptions while the question is open.' },
+                resolution: { type: ['string', 'null'], description: 'Confirmed resolution text or null if unresolved.' },
+                supersedes: { type: ['string', 'null'], description: 'Optional SHA-256 hash of a prior question record being replaced, or null.' },
+                tags: { type: 'array', items: { type: 'string' }, description: 'Optional indexing tags.' }
+            },
+            required: ['question'],
+            additionalProperties: false
         }
     }
 ];
@@ -156,7 +216,8 @@ export const STEWARD_RESOURCES = [
     { uri: 'steward://verification-plan', name: 'Verification Plan', mimeType: 'application/json', description: 'Approved verification checks and execution timeouts.' },
     { uri: 'steward://journal/head', name: 'Journal Head', mimeType: 'application/json', description: 'Current journal sequence count and latest head hash.' },
     { uri: 'steward://checkpoint/latest', name: 'Latest Checkpoint', mimeType: 'application/json', description: 'Most recent checkpoint progress record.' },
-    { uri: 'steward://doctor', name: 'System Doctor', mimeType: 'application/json', description: 'Health check and trust status report.' }
+    { uri: 'steward://doctor', name: 'System Doctor', mimeType: 'application/json', description: 'Health check and trust status report.' },
+    { uri: 'steward://trust/status', name: 'Trust Status', mimeType: 'application/json', description: 'Non-throwing trust and bundle diagnostic report.' }
 ];
 
 function optStr(val) {
@@ -205,7 +266,7 @@ async function executeCheckpoint(root, args) {
     const checkpointData = {
         summary: args.summary,
         next: args.next,
-        blockers: Array.isArray(args.blockers) ? args.blockers : [],
+        blockers: args.blockers ?? [],
         ...(args.tags !== undefined ? { tags: args.tags } : {})
     };
     const sessionId = optStr(args.sessionId);
@@ -227,7 +288,7 @@ async function executeScheduleManage(root, args) {
         title: args.title,
         dueAt: args.dueAt,
         status: args.status,
-        members: Array.isArray(args.members) ? args.members : [],
+        members: args.members ?? [],
         ...(args.tags !== undefined ? { tags: args.tags } : {})
     };
     const schedId = optStr(args.id);
@@ -244,8 +305,26 @@ async function executeScheduleManage(root, args) {
     });
 }
 
+const TOOL_ALIASES = {
+    steward_eval: 'steward_policy_eval',
+    steward_evaluate: 'steward_policy_eval',
+    steward_gate: 'steward_completion_gate'
+};
+
+const TOOL_SCHEMA_KEYS = Object.fromEntries([
+    ...STEWARD_TOOLS.map(t => [t.name, Object.keys(t.inputSchema.properties || {})]),
+    ...Object.entries(TOOL_ALIASES).map(([alias, canonical]) => {
+        const tool = STEWARD_TOOLS.find(t => t.name === canonical);
+        return [alias, Object.keys(tool?.inputSchema.properties || {})];
+    }),
+    ['steward_status', []],
+    ['steward_doctor', []]
+]);
+
 const TOOL_DISPATCHERS = {
     steward_policy_eval: (root, args) => executePolicyEval(root, args),
+    steward_eval: (root, args) => executePolicyEval(root, args),
+    steward_evaluate: (root, args) => executePolicyEval(root, args),
     steward_recall: (root, args) => executeRecall(root, args),
     steward_record_decision: (root, args) => appendEntry(root, {
         type: 'decision',
@@ -259,17 +338,51 @@ const TOOL_DISPATCHERS = {
     steward_checkpoint: (root, args) => executeCheckpoint(root, args),
     steward_verify: (root) => runVerification(root),
     steward_completion_gate: (root, args) => completionGate(root, optStr(args.evidence) ?? null),
+    steward_gate: (root, args) => completionGate(root, optStr(args.evidence) ?? null),
     steward_record_knowledge: (root, args) => appendEntry(root, {
         type: 'knowledge',
         data: {
             claim: args.claim,
             basis: args.basis,
-            sources: Array.isArray(args.sources) ? args.sources : [],
+            sources: args.sources ?? [],
             expiresAt: optStr(args.expiresAt) ?? null,
             ...(args.tags !== undefined ? { tags: args.tags } : {})
         }
     }),
-    steward_schedule_manage: (root, args) => executeScheduleManage(root, args)
+    steward_schedule_manage: (root, args) => executeScheduleManage(root, args),
+    steward_goal_manage: (root, args) => appendEntry(root, {
+        type: 'goal',
+        data: {
+            objective: args.objective,
+            acceptance: args.acceptance ?? [],
+            status: args.status,
+            evidence: args.evidence ?? [],
+            ...(args.tags !== undefined ? { tags: args.tags } : {})
+        }
+    }),
+    steward_record_handoff: (root, args) => appendEntry(root, {
+        type: 'handoff',
+        data: {
+            task: args.task,
+            scope: args.scope ?? [],
+            constraints: args.constraints ?? [],
+            acceptance: args.acceptance ?? [],
+            evidence: args.evidence ?? [],
+            ...(args.tags !== undefined ? { tags: args.tags } : {})
+        }
+    }),
+    steward_record_question: (root, args) => appendEntry(root, {
+        type: 'question',
+        data: {
+            question: args.question,
+            assumptions: args.assumptions ?? [],
+            resolution: optStr(args.resolution) ?? null,
+            supersedes: optStr(args.supersedes) ?? null,
+            ...(args.tags !== undefined ? { tags: args.tags } : {})
+        }
+    }),
+    steward_status: (root) => doctor(root, null, { allowUntrusted: true }),
+    steward_doctor: (root) => doctor(root, null, { allowUntrusted: true })
 };
 
 /**
@@ -285,7 +398,9 @@ export async function executeTool(root, name, args = {}) {
     insist(args === undefined || (args !== null && typeof args === 'object' && !Array.isArray(args)), 'SCHEMA', 'Tool arguments must be an object.');
     const handler = typeof name === 'string' && Object.hasOwn(TOOL_DISPATCHERS, name) ? TOOL_DISPATCHERS[name] : null;
     insist(handler, 'USAGE', `Unknown MCP tool: ${name}`);
-    return handler(root, args ?? {});
+    const resolvedArgs = args ?? {};
+    object(resolvedArgs, TOOL_SCHEMA_KEYS[name] ?? [], name);
+    return handler(root, resolvedArgs);
 }
 
 const RESOURCE_HANDLERS = {
@@ -306,7 +421,11 @@ const RESOURCE_HANDLERS = {
         return { uri, mimeType: 'application/json', text: JSON.stringify(checkpoint, null, 2) };
     },
     'steward://doctor': (root, uri) => {
-        const result = doctor(root);
+        const result = doctor(root, null, { allowUntrusted: true });
+        return { uri, mimeType: 'application/json', text: JSON.stringify(result, null, 2) };
+    },
+    'steward://trust/status': (root, uri) => {
+        const result = doctor(root, null, { allowUntrusted: true });
         return { uri, mimeType: 'application/json', text: JSON.stringify(result, null, 2) };
     }
 };
@@ -492,6 +611,9 @@ export function formatMcpConfig({ host = 'claude', project = process.cwd(), runn
     switch (host.toLowerCase()) {
         case 'antigravity':
             return {
+                mcpServers: {
+                    steward: serverDef
+                },
                 servers: {
                     steward: {
                         transport: 'stdio',

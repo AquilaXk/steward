@@ -24,8 +24,8 @@
     }
   ],
   "tests": {
-    "tests": 207,
-    "pass": 207,
+    "tests": 213,
+    "pass": 213,
     "fail": 0,
     "cancelled": 0,
     "skipped": 0,

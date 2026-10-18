@@ -168,7 +168,7 @@ try {
         }
         else if (command === 'trust') {
             const bundle = loadBundle(root);
-            output(opts.approve ? trustBundle(root, opts.approve) : { trusted: false, review: { hash: bundle.hash, policy: bundle.policy, verification: bundle.plan }, next: 'Review these rules and executable commands, then rerun trust --approve with the displayed hash.' });
+            output(opts.approve ? trustBundle(root, opts.approve) : { trusted: false, bundleHash: bundle.hash, review: { hash: bundle.hash, policy: bundle.policy, verification: bundle.plan }, next: 'Review these rules and executable commands, then rerun trust --approve with the displayed hash.' });
         }
         else if (['install', 'update', 'uninstall'].includes(command)) {
             if (command !== 'uninstall') loadBundle(root);

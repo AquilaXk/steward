@@ -18,8 +18,17 @@ export function canonical(value) {
     return JSON.stringify(value);
 }
 export function rootOf(project) {
-    const root = fs.realpathSync(path.resolve(project)); //NOSONAR
-    insist(fs.statSync(root).isDirectory(), 'BAD_PROJECT', 'Project must be an existing directory.'); //NOSONAR
+    let root, stat;
+    try {
+        root = fs.realpathSync(path.resolve(project)); //NOSONAR
+        stat = fs.statSync(root); //NOSONAR
+    }
+    catch (e) {
+        if (e?.code === 'ENOENT' || e?.code === 'ENOTDIR')
+            throw new StewardError('BAD_PROJECT', 'Project must be an existing directory.');
+        throw e;
+    }
+    insist(stat.isDirectory(), 'BAD_PROJECT', 'Project must be an existing directory.');
     return root;
 }
 // Never follow a symlink below the selected root for control-plane reads or writes.
@@ -43,7 +52,15 @@ export function safePath(root, relative) {
     return target;
 }
 export function readText(file, maxBytes = 1024 * 1024) {
-    const s = fs.lstatSync(file); //NOSONAR
+    let s;
+    try {
+        s = fs.lstatSync(file); //NOSONAR
+    }
+    catch (e) {
+        if (e?.code === 'ENOENT' || e?.code === 'ENOTDIR')
+            throw new StewardError('MISSING_FILE', `File does not exist: ${path.basename(file)}`);
+        throw e;
+    }
     insist(s.isFile() && !s.isSymbolicLink(), 'BAD_FILE', 'Expected a regular, non-symlink file.');
     insist(s.size <= maxBytes, 'INPUT_TOO_LARGE', `File exceeds ${maxBytes} bytes.`);
     const bytes = fs.readFileSync(file); //NOSONAR

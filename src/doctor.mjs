@@ -1,8 +1,8 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { safePath, readJSON, rootOf } from './fs.mjs';
-import { insist } from './errors.mjs';
-import { requireTrust } from './trust.mjs';
+import { insist, publicError } from './errors.mjs';
+import { loadBundle, requireTrust } from './trust.mjs';
 import { readJournal, journalHead } from './journal.mjs';
 import { auditInstructions } from './instructions.mjs';
 import { HOOK_EVENTS, hookCommand, PACKAGE_ROOT } from './setup.mjs';
@@ -83,18 +83,49 @@ function inspectHost(root, host) {
     return result;
 }
 
-export function doctor(root, host = null) {
+export function doctor(root, host = null, { allowUntrusted = false } = {}) {
     root = rootOf(root);
     insist(host === null || ['codex', 'claude'].includes(host), 'BAD_HOST', 'Doctor supports codex or claude.');
-    const bundle = requireTrust(root);
+    let bundle = null;
+    let trusted = true;
+    let trustError = null;
+    if (allowUntrusted) {
+        try {
+            bundle = requireTrust(root);
+        } catch (err) {
+            trusted = false;
+            trustError = publicError(err);
+            try {
+                bundle = loadBundle(root);
+            } catch {
+                bundle = null;
+            }
+        }
+    } else {
+        bundle = requireTrust(root);
+    }
     const rows = readJournal(root);
     const hosts = (host ? [host] : ['codex', 'claude']).map(h => inspectHost(root, h));
     const installed = hosts.filter(h => h.status !== 'not-installed');
-    const localHealthy = installed.length > 0 && installed.every(h => h.status === 'configured') &&
+    const localHealthy = trusted && installed.length > 0 && installed.every(h => h.status === 'configured') &&
         (!host || hosts[0].status === 'configured');
-    return { healthy: false, localHealthy, status: localHealthy ? 'unchecked' : 'needs-attention',
-        bundleHash: bundle.hash, journal: journalHead(rows), instructions: auditInstructions(root), hosts,
-        liveHostVerified: false, next: localHealthy ?
-            'Start a native host session and verify hook invocation and skill discovery; local wiring is not live proof.' :
-            'Resolve the host installation findings, then rerun doctor.' };
+    let nextMsg = 'Resolve the host installation findings, then rerun doctor.';
+    if (!trusted) {
+        nextMsg = trustError?.message || 'Review and approve this project policy and verification plan with steward trust.';
+    } else if (localHealthy) {
+        nextMsg = 'Start a native host session and verify hook invocation and skill discovery; local wiring is not live proof.';
+    }
+    return {
+        healthy: false,
+        localHealthy,
+        trusted,
+        ...(trustError ? { trustError } : {}),
+        status: localHealthy ? 'unchecked' : 'needs-attention',
+        bundleHash: bundle ? bundle.hash : null,
+        journal: journalHead(rows),
+        instructions: auditInstructions(root),
+        hosts,
+        liveHostVerified: false,
+        next: nextMsg
+    };
 }

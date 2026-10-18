@@ -47,7 +47,7 @@
       <text x="463" y="304" text-anchor="middle">TypeScript API</text>
     </g>
 
-    <text x="48" y="344" fill="#64748B" font-size="12" class="mono">8 Native Skills · 8 MCP Tools · 5 MCP Resources · Ed25519 Signing</text>
+    <text x="48" y="344" fill="#64748B" font-size="12" class="mono">8 Native Skills · 11 MCP Tools · 6 MCP Resources · Ed25519 Signing</text>
   </g>
 
   <!-- Vertical Divider -->
@@ -120,5 +120,5 @@
   <!-- Bottom Verification Status Console Bar -->
   <rect x="584" y="290" width="820" height="58" rx="8" fill="#0F172A" stroke="#1E293B"/>
   <text x="604" y="313" fill="#94A3B8" font-size="12" class="mono">$ node bin/steward.mjs verify --project . &amp;&amp; node bin/steward.mjs gate --project .</text>
-  <text x="604" y="335" fill="#34D399" font-size="12" font-weight="600" class="mono">PASS  207/207 checks · journal chain verified · workspace snapshot matched · ed25519 valid</text>
+  <text x="604" y="335" fill="#34D399" font-size="12" font-weight="600" class="mono">PASS  213/213 checks · journal chain verified · workspace snapshot matched · ed25519 valid</text>
 </svg>

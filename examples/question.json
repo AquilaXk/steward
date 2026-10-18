@@ -1,0 +1,16 @@
+{
+  "type": "question",
+  "data": {
+    "question": "Should untrusted projects return structured diagnostic JSON from the MCP doctor resource?",
+    "assumptions": [
+      "CLI doctor still exits non-zero when untrusted.",
+      "MCP resource readers inspect the trusted boolean field."
+    ],
+    "resolution": null,
+    "supersedes": null,
+    "tags": [
+      "mcp",
+      "diagnostics"
+    ]
+  }
+}

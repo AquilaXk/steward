@@ -22,7 +22,7 @@ export function auditInstructions(root) {
                 if (!['node_modules', '.git', 'state'].includes(e.name))
                     visit(path.join(relative, e.name), depth + 1);
         }
-        else if (/(?:AGENTS|CLAUDE|SKILL)\.md$/.test(relative)) {
+        else if (/(?:AGENTS|CLAUDE|GEMINI|SKILL)\.md$/.test(relative)) {
             const text = readText(abs, 256 * 1024), findings = [];
             text.split('\n').forEach((line, i) => {
                 for (const [code, re] of patterns)
@@ -32,7 +32,7 @@ export function auditInstructions(root) {
             files.push({ path: relative.split(path.sep).join('/'), sha256: sha256(text), bytes: Buffer.byteLength(text), findings });
         }
     }
-    for (const p of ['AGENTS.md', 'CLAUDE.md', 'procedures', 'skills', '.agents/skills', '.claude/skills'])
+    for (const p of ['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'procedures', 'skills', '.agents/skills', '.claude/skills'])
         visit(p);
     return { files, inventoryHash: sha256(canonical(files)), findingCount: files.reduce((n, f) => n + f.findings.length, 0), completeSecurityReview: false };
 }
