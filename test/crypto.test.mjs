@@ -178,3 +178,28 @@ test('saveKeypair and loadKeypair safely store and retrieve keys with path valid
     assert.throws(() => loadKeypair(emptyDir), { code: 'CRYPTO_ERROR' });
 });
 
+test('signData rejects non-Ed25519 private keys and verifyBundleSignature/verifyVerificationEvidence detect signedAt tampering', async (t) => {
+    const crypto = await import('node:crypto');
+    const { root } = sandbox(t, { plan: plan() });
+    const { privateKey: rsaPriv } = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 2048,
+        publicKeyEncoding: { type: 'spki', format: 'pem' },
+        privateKeyEncoding: { type: 'pkcs8', format: 'pem' }
+    });
+    assert.throws(() => signData('payload', rsaPriv), { code: 'CRYPTO_ERROR' });
+    assert.throws(() => signData('payload', '-----BEGIN PRIVATE KEY-----\ninvalid\n-----END PRIVATE KEY-----'), { code: 'CRYPTO_ERROR' });
+
+    const keyPair = generateSigningKeyPair();
+    const bundleSig = signBundle(root, keyPair.privateKeyPem);
+    assert.throws(
+        () => verifyBundleSignature(root, keyPair.publicKeyPem, { ...bundleSig, signedAt: '2020-01-01T00:00:00.000Z' }),
+        { code: 'SIGNATURE_INVALID' }
+    );
+
+    const report = await runVerification(root);
+    const evSig = signVerificationEvidence(root, report.evidence, keyPair.privateKeyPem);
+    assert.throws(
+        () => verifyVerificationEvidence(root, report.evidence, keyPair.publicKeyPem, { ...evSig, signedAt: '2020-01-01T00:00:00.000Z' }),
+        { code: 'SIGNATURE_INVALID' }
+    );
+});

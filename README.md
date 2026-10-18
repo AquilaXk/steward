@@ -124,7 +124,7 @@ The demo creates a temporary project, runs three synthetic arithmetic tests, rec
 and restores a checkpoint, and rejects evidence after a source change. It removes its
 fixture afterward and does not launch a native agent application.
 
-For the full local software suite (202 tests covering engine, journal, index cache,
+For the full local software suite (207 tests covering engine, journal, index cache,
 MCP server, Ed25519 crypto, pattern matcher, and CLI integration), run `npm run verify`
 (or `npm test`). See the [verification record](evidence/VERIFICATION.md) for observed results
 and their scope.
@@ -292,7 +292,7 @@ suffix removal. See [security](SECURITY.md), [memory](docs/MEMORY.md) and
 
 ### Model Context Protocol (MCP) Server
 
-Steward provides a native, zero-dependency MCP server adapter running over stdio JSON-RPC 2.0.
+Steward provides a native, zero-dependency MCP server adapter running over stdio JSON-RPC 2.0 using newline-delimited JSON (`\n`) framing.
 It exposes Steward's eight core capabilities as standard MCP Tools and Resources:
 
 ```sh

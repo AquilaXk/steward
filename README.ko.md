@@ -120,7 +120,7 @@ node bin/steward.mjs --help
 소스 변경 후에는 기존 검증 근거를 거부합니다. 실행 후 임시 파일을 정리하며,
 실제 에이전트 앱은 실행하지 않습니다.
 
-전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 202개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
+전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 207개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
 실행 결과와 검증 범위는 [검증 기록](evidence/VERIFICATION.md)을 확인하세요.
 
 ## 4. 프로젝트 설정
@@ -287,7 +287,7 @@ node bin/steward.mjs checkpoint --project /absolute/path/to/project \
 
 ### 모델 컨텍스트 프로토콜 (MCP) 서버 어댑터
 
-Steward는 런타임 서드파티 의존성 없이 표준 stdio JSON-RPC 2.0 기반 MCP 서버를 내장 제공합니다.
+Steward는 런타임 서드파티 의존성 없이 개행 구분(newline-delimited, `\n`) stdio JSON-RPC 2.0 기반 MCP 서버를 내장 제공합니다.
 8대 핵심 기능이 표준 MCP 도구(Tools) 및 리소스(Resources)로 노출됩니다:
 
 ```sh

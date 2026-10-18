@@ -5,7 +5,7 @@ description: Record an explicitly confirmed user decision or its superseding cha
 
 # Decisions
 
-Read `.steward/USAGE.md` for the command prefix and absolute example directory. Use the `decision.json` shape there, replacing every fixture value with the actual statement and confirmation source. Append it with `journal add --file <entry.json>` only when a durable decision is warranted.
+Read `.steward/USAGE.md` for the command prefix and absolute example directory. Use the `decision.json` shape there (including an optional `tags` string array for indexed recall), replacing every fixture value with the actual statement and confirmation source. Append it with `journal add --file <entry.json>` only when a durable decision is warranted.
 
 When a decision changes, append a new entry whose `supersedes` is the previous record hash. Preserve the old record. Update affected references within the authorized task, or identify references still needing review. Do not treat an AI proposal as user confirmation.
 

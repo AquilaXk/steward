@@ -106,7 +106,15 @@ assert(bundledFiles.has('src/crypto.mjs'), 'src/crypto.mjs missing from tarball'
 assert(bundledFiles.has('bin/steward.mjs'), 'bin/steward.mjs missing from tarball');
 
 if (shouldPack) {
-    execFileSync(npm.file, [...npm.prefixArgs, 'pack', '--quiet'], { cwd: root, stdio: 'inherit' });
+    const originalPkgRaw = fs.readFileSync(pkgPath, 'utf8');
+    try {
+        const publishablePkg = { ...pkg };
+        delete publishablePkg.private;
+        fs.writeFileSync(pkgPath, JSON.stringify(publishablePkg, null, 2) + '\n', 'utf8');
+        execFileSync(npm.file, [...npm.prefixArgs, 'pack', '--quiet'], { cwd: root, stdio: 'inherit' });
+    } finally {
+        fs.writeFileSync(pkgPath, originalPkgRaw, 'utf8');
+    }
     const tarballPath = path.join(root, packInfo.filename);
     assert(fs.existsSync(tarballPath), `Expected packed tarball at ${tarballPath}`);
     const digest = crypto.createHash('sha256').update(fs.readFileSync(tarballPath)).digest('hex');

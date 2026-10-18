@@ -274,24 +274,8 @@ function advanceGlobStep(tokens, targetCodes, state) {
     return false;
 }
 
-/**
- * Deterministic linear-time glob matching with bit-level ASCII class lookup.
- * Enforces a fail-closed execution step budget (throws GLOB_COMPLEXITY on exhaustion).
- *
- * @param {string} pattern - Glob pattern (*, ?, [...], \).
- * @param {string} text - Candidate string to match against.
- * @param {object} [options] - Options.
- * @param {boolean} [options.caseSensitive=false] - Whether matching is case-sensitive.
- * @param {number} [options.maxSteps] - Optional hard execution step limit.
- * @returns {boolean} True if text matches pattern.
- */
-export function matchGlob(pattern, text, { caseSensitive = false, maxSteps } = {}) {
-    if (typeof pattern !== 'string' || typeof text !== 'string') return false;
-    if (pattern === '*') return true;
-
-    const tokens = parseTokens(pattern, caseSensitive);
-    const targetCodes = toCodePoints(text, caseSensitive);
-    const stepBudget = maxSteps ?? Math.max(100000, targetCodes.length * 4);
+function matchCompiledTokens(tokens, targetCodes, maxSteps) {
+    const stepBudget = maxSteps ?? Math.max(100000, (tokens.length + 2) * targetCodes.length);
     const state = { pIdx: 0, tIdx: 0, starPIdx: -1, starTIdx: -1 };
     let steps = 0;
 
@@ -309,6 +293,26 @@ export function matchGlob(pattern, text, { caseSensitive = false, maxSteps } = {
     }
 
     return state.pIdx === tokens.length;
+}
+
+/**
+ * Deterministic linear-time glob matching with bit-level ASCII class lookup.
+ * Enforces a fail-closed execution step budget (throws GLOB_COMPLEXITY on exhaustion).
+ *
+ * @param {string} pattern - Glob pattern (*, ?, [...], \).
+ * @param {string} text - Candidate string to match against.
+ * @param {object} [options] - Options.
+ * @param {boolean} [options.caseSensitive=false] - Whether matching is case-sensitive.
+ * @param {number} [options.maxSteps] - Optional hard execution step limit.
+ * @returns {boolean} True if text matches pattern.
+ */
+export function matchGlob(pattern, text, { caseSensitive = false, maxSteps } = {}) {
+    if (typeof pattern !== 'string' || typeof text !== 'string') return false;
+    if (pattern === '*') return true;
+
+    const tokens = parseTokens(pattern, caseSensitive);
+    const targetCodes = toCodePoints(text, caseSensitive);
+    return matchCompiledTokens(tokens, targetCodes, maxSteps);
 }
 
 function flushArg(args, state) {
@@ -331,6 +335,12 @@ function isDoubleQuoteEscapable(code) {
     return code < ASCII_LIMIT && (CHAR_FLAGS[code] & FLAG_DBL_ESC) !== 0;
 }
 
+function skipLineContinuation(text, i) {
+    if (i + 1 < text.length && text[i + 1] === '\n') return i + 2;
+    if (i + 2 < text.length && text[i + 1] === '\r' && text[i + 2] === '\n') return i + 3;
+    return -1;
+}
+
 function consumeSingleQuoted(c, state) {
     if (c === "'") {
         state.quote = QUOTE_NONE;
@@ -345,9 +355,13 @@ function consumeDoubleQuoted(text, i, state) {
         state.quote = QUOTE_NONE;
         return i + 1;
     }
-    if (c === '\\' && i + 1 < text.length && isDoubleQuoteEscapable(text.codePointAt(i + 1))) {
-        state.current += text[i + 1];
-        return i + 2;
+    if (c === '\\') {
+        const afterCont = skipLineContinuation(text, i);
+        if (afterCont !== -1) return afterCont;
+        if (i + 1 < text.length && isDoubleQuoteEscapable(text.codePointAt(i + 1))) {
+            state.current += text[i + 1];
+            return i + 2;
+        }
     }
     state.current += c;
     return i + 1;
@@ -367,6 +381,8 @@ function consumeUnquotedOperator(text, i, args, state) {
 }
 
 function consumeBackslashEscape(text, i, state) {
+    const afterCont = skipLineContinuation(text, i);
+    if (afterCont !== -1) return afterCont;
     state.hasToken = true;
     if (i + 1 < text.length) {
         state.current += text[i + 1];
@@ -408,6 +424,7 @@ function consumeUnquotedStep(text, i, args, state) {
  * Tokenizes a command-line string following POSIX.1-2024 lexical rules:
  * - Single quotes preserve all characters literally (including backslashes).
  * - Double quotes allow escaping of ", \, $, `, and newline.
+ * - Backslash-newline sequences outside single quotes are elided as line continuations.
  * - Unquoted shell control and redirection operators delimit tokens.
  *
  * @param {string} text - Command line string.
@@ -434,6 +451,23 @@ export function tokenizeCommand(text) {
     return args;
 }
 
+function compilePatterns(patterns, caseSensitive) {
+    const compiled = [];
+    for (const pat of patterns) {
+        if (typeof pat !== 'string') continue;
+        if (pat === '*') return { matchAll: true, compiled: [] };
+        compiled.push(parseTokens(pat, caseSensitive));
+    }
+    return { matchAll: false, compiled };
+}
+
+function matchesAnyCompiled(compiled, targetCodes, maxSteps) {
+    for (const patTokens of compiled) {
+        if (matchCompiledTokens(patTokens, targetCodes, maxSteps)) return true;
+    }
+    return false;
+}
+
 /**
  * Tests whether any glob pattern matches the target text as a whole,
  * or matches any individual argument token in a CLI command string.
@@ -445,18 +479,19 @@ export function tokenizeCommand(text) {
  */
 export function matchArgGlob(patterns, text, options = {}) {
     if (!Array.isArray(patterns) || patterns.length === 0 || typeof text !== 'string') return false;
-    for (const pat of patterns) {
-        if (matchGlob(pat, text, options)) {
-            return true;
-        }
-    }
+    const caseSensitive = Boolean(options.caseSensitive);
+    const maxSteps = options.maxSteps;
+    const { matchAll, compiled } = compilePatterns(patterns, caseSensitive);
+    if (matchAll) return true;
+    if (compiled.length === 0) return false;
+
+    const fullTarget = toCodePoints(text, caseSensitive);
+    if (matchesAnyCompiled(compiled, fullTarget, maxSteps)) return true;
+
     const tokens = tokenizeCommand(text);
     for (const tok of tokens) {
-        for (const pat of patterns) {
-            if (matchGlob(pat, tok, options)) {
-                return true;
-            }
-        }
+        const tokTarget = toCodePoints(tok, caseSensitive);
+        if (matchesAnyCompiled(compiled, tokTarget, maxSteps)) return true;
     }
     return false;
 }

@@ -2,8 +2,25 @@ import path from 'node:path';
 import { insist } from './errors.mjs';
 import { validatePolicy, object, text, strings } from './schema.mjs';
 import { matchArgGlob } from './matcher.mjs';
-const aliases = { bash: 'shell', shell_command: 'shell', exec_command: 'shell', shell: 'shell', edit: 'file.write', write: 'file.write', apply_patch: 'file.write', read: 'file.read', read_file: 'file.read' };
-export const normalizeTool = (name) => aliases[name.toLowerCase()] || name.toLowerCase();
+const aliases = {
+    bash: 'shell',
+    shell_command: 'shell',
+    exec_command: 'shell',
+    shell: 'shell',
+    edit: 'file.write',
+    write: 'file.write',
+    multiedit: 'file.write',
+    multi_edit: 'file.write',
+    notebookedit: 'file.write',
+    notebook_edit: 'file.write',
+    apply_patch: 'file.write',
+    read: 'file.read',
+    read_file: 'file.read'
+};
+export const normalizeTool = (name) => {
+    const lower = name.toLowerCase();
+    return Object.hasOwn(aliases, lower) ? aliases[lower] : lower;
+};
 export function validateEvent(e) {
     object(e, ['event', 'text', 'tool', 'paths', 'sessionId'], 'event');
     insist(['prompt', 'tool', 'session', 'compact'].includes(e.event), 'BAD_EVENT', 'Unsupported event.');
@@ -26,6 +43,19 @@ export function relativePath(root, input, cwd = root) {
 }
 function normalizedWords(raw) { return (raw.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}_-]+/gu) || []).join(' '); }
 function wordMatch(term, normalized) { const needle = normalizedWords(term); return !!needle && (' ' + normalized + ' ').includes(' ' + needle + ' '); }
+function trimTrailingSlashes(value) {
+    let end = value.length;
+    while (end > 0 && value.codePointAt(end - 1) === 0x2f) end--;
+    return end === value.length ? value : value.slice(0, end);
+}
+function matchesPathPrefixes(prefixes, paths) {
+    for (const rawPrefix of prefixes) {
+        const base = trimTrailingSlashes(rawPrefix);
+        const dirPrefix = base + '/';
+        if (paths.some(p => p === base || p.startsWith(dirPrefix))) return true;
+    }
+    return false;
+}
 export function matches(r, e, words = null) {
     if (!r.on.includes(e.event))
         return false;
@@ -42,7 +72,7 @@ export function matches(r, e, words = null) {
         return false;
     if (m.globsAny && !matchArgGlob(m.globsAny, e.text))
         return false;
-    if (m.pathPrefixes && !m.pathPrefixes.some(prefix => e.paths.some(p => p === prefix.replace(/\/$/, '') || p.startsWith(prefix.replace(/\/$/, '') + '/'))))
+    if (m.pathPrefixes && !matchesPathPrefixes(m.pathPrefixes, e.paths))
         return false;
     return true;
 }

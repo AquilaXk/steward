@@ -59,7 +59,7 @@ export function report(root) {
     const bundle = loadBundle(root);
     const rules = bundle.policy.rules.map(rule => ({ id: rule.id, effect: rule.effect, matched: 0, emitted: 0, omitted: 0, lastPreparedAt: null }));
     const byId = new Map(rules.map(rule => [rule.id, rule]));
-    const counts = {};
+    const counts = Object.create(null);
     let denied = 0;
     let currentReceipts = 0;
     const projectHash = sha256(root);

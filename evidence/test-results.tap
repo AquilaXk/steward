@@ -1,1236 +1,1252 @@
 TAP version 13
-# (node:18326) Warning: node:test run() is being called recursively within a test file. skipping running files.
-# (Use `node --trace-warnings ...` to show where the warning was created)
-# Subtest: scripts/test.mjs
-ok 1 - scripts/test.mjs
-  ---
-  duration_ms: 121.722292
-  type: 'test'
-  ...
 # Subtest: codex accepts prompt event without translating authority
-ok 2 - codex accepts prompt event without translating authority
+ok 1 - codex accepts prompt event without translating authority
   ---
-  duration_ms: 765.5545
+  duration_ms: 768.603417
   type: 'test'
   ...
 # Subtest: codex canonical file aliases enforce policy on file edits
-ok 3 - codex canonical file aliases enforce policy on file edits
+ok 2 - codex canonical file aliases enforce policy on file edits
   ---
-  duration_ms: 688.60925
+  duration_ms: 792.318042
   type: 'test'
   ...
 # Subtest: codex compaction creates real state without unsupported context fields
-ok 4 - codex compaction creates real state without unsupported context fields
+ok 3 - codex compaction creates real state without unsupported context fields
   ---
-  duration_ms: 833.175459
+  duration_ms: 875.218459
   type: 'test'
   ...
 # Subtest: codex SessionStart restores saved checkpoint data
-ok 5 - codex SessionStart restores saved checkpoint data
+ok 4 - codex SessionStart restores saved checkpoint data
   ---
-  duration_ms: 732.796792
+  duration_ms: 787.011
   type: 'test'
   ...
 # Subtest: claude accepts prompt event without translating authority
-ok 6 - claude accepts prompt event without translating authority
+ok 5 - claude accepts prompt event without translating authority
   ---
-  duration_ms: 604.456167
+  duration_ms: 773.832959
   type: 'test'
   ...
 # Subtest: claude canonical file aliases enforce policy on file edits
-ok 7 - claude canonical file aliases enforce policy on file edits
+ok 6 - claude canonical file aliases enforce policy on file edits
   ---
-  duration_ms: 654.69925
+  duration_ms: 625.960834
   type: 'test'
   ...
 # Subtest: claude compaction creates real state without unsupported context fields
-ok 8 - claude compaction creates real state without unsupported context fields
+ok 7 - claude compaction creates real state without unsupported context fields
   ---
-  duration_ms: 641.43075
+  duration_ms: 621.571708
   type: 'test'
   ...
 # Subtest: claude SessionStart restores saved checkpoint data
-ok 9 - claude SessionStart restores saved checkpoint data
+ok 8 - claude SessionStart restores saved checkpoint data
   ---
-  duration_ms: 518.380875
+  duration_ms: 611.208417
   type: 'test'
   ...
 # Subtest: Codex patch move accounts for both source and destination
-ok 10 - Codex patch move accounts for both source and destination
+ok 9 - Codex patch move accounts for both source and destination
   ---
-  duration_ms: 508.534708
+  duration_ms: 510.9915
   type: 'test'
   ...
 # Subtest: Codex patch move captures Move from explicitly
-ok 11 - Codex patch move captures Move from explicitly
+ok 10 - Codex patch move captures Move from explicitly
   ---
-  duration_ms: 418.867833
+  duration_ms: 396.978959
   type: 'test'
   ...
 # Subtest: unsupported patch envelope fails closed
-ok 12 - unsupported patch envelope fails closed
+ok 11 - unsupported patch envelope fails closed
   ---
-  duration_ms: 470.140875
+  duration_ms: 451.288959
   type: 'test'
   ...
 # Subtest: empty patch path list fails closed
-ok 13 - empty patch path list fails closed
+ok 12 - empty patch path list fails closed
   ---
-  duration_ms: 579.156875
+  duration_ms: 491.791709
   type: 'test'
   ...
 # Subtest: disagreeing prompt fields fail closed
-ok 14 - disagreeing prompt fields fail closed
+ok 13 - disagreeing prompt fields fail closed
   ---
-  duration_ms: 414.911375
+  duration_ms: 415.688916
   type: 'test'
   ...
 # Subtest: legacy prompt_text is explicit compatibility, not error fallback
-ok 15 - legacy prompt_text is explicit compatibility, not error fallback
+ok 14 - legacy prompt_text is explicit compatibility, not error fallback
   ---
-  duration_ms: 388.142542
+  duration_ms: 436.669875
   type: 'test'
   ...
 # Subtest: wrong registered event is rejected
-ok 16 - wrong registered event is rejected
+ok 15 - wrong registered event is rejected
   ---
-  duration_ms: 358.158959
+  duration_ms: 347.099541
   type: 'test'
   ...
 # Subtest: outside cwd is rejected
-ok 17 - outside cwd is rejected
+ok 16 - outside cwd is rejected
   ---
-  duration_ms: 334.167208
+  duration_ms: 335.824625
   type: 'test'
   ...
 # Subtest: unknown host is rejected
-ok 18 - unknown host is rejected
+ok 17 - unknown host is rejected
   ---
-  duration_ms: 339.263125
+  duration_ms: 318.962208
   type: 'test'
   ...
 # Subtest: Codex compaction denial uses continue:false
-ok 19 - Codex compaction denial uses continue:false
+ok 18 - Codex compaction denial uses continue:false
   ---
-  duration_ms: 0.075625
+  duration_ms: 0.094833
   type: 'test'
   ...
 # Subtest: Claude compaction denial uses decision:block and exit 2
-ok 20 - Claude compaction denial uses decision:block and exit 2
+ok 19 - Claude compaction denial uses decision:block and exit 2
   ---
-  duration_ms: 0.062459
+  duration_ms: 0.05025
   type: 'test'
   ...
 # Subtest: prompt denial uses exit 2 and no misleading context
-ok 21 - prompt denial uses exit 2 and no misleading context
+ok 20 - prompt denial uses exit 2 and no misleading context
   ---
-  duration_ms: 0.092375
+  duration_ms: 0.033
   type: 'test'
   ...
 # Subtest: prepared receipts have no prompt, path or session text
-ok 22 - prepared receipts have no prompt, path or session text
+ok 21 - prepared receipts have no prompt, path or session text
   ---
-  duration_ms: 281.690625
+  duration_ms: 311.267625
   type: 'test'
   ...
 # Subtest: compaction without a model-authored checkpoint says it has none
-ok 23 - compaction without a model-authored checkpoint says it has none
+ok 22 - compaction without a model-authored checkpoint says it has none
   ---
-  duration_ms: 363.540292
+  duration_ms: 346.650208
   type: 'test'
   ...
 # Subtest: generic adapter canonicalizes file paths before matching
-ok 24 - generic adapter canonicalizes file paths before matching
+ok 23 - generic adapter canonicalizes file paths before matching
   ---
-  duration_ms: 306.469292
+  duration_ms: 347.184583
   type: 'test'
   ...
 # Subtest: init is idempotent and preserves user AGENTS content
-ok 25 - init is idempotent and preserves user AGENTS content
+ok 24 - init is idempotent and preserves user AGENTS content
   ---
-  duration_ms: 763.330083
+  duration_ms: 772.65775
   type: 'test'
   ...
 # Subtest: init installs all eight actual skills
-ok 26 - init installs all eight actual skills
+ok 25 - init installs all eight actual skills
   ---
-  duration_ms: 632.219083
+  duration_ms: 677.649709
   type: 'test'
   ...
 # Subtest: codex install preserves unrelated handlers and is idempotent
-ok 27 - codex install preserves unrelated handlers and is idempotent
+ok 26 - codex install preserves unrelated handlers and is idempotent
   ---
-  duration_ms: 964.154125
+  duration_ms: 985.68475
   type: 'test'
   ...
 # Subtest: claude install preserves unrelated handlers and is idempotent
-ok 28 - claude install preserves unrelated handlers and is idempotent
+ok 27 - claude install preserves unrelated handlers and is idempotent
   ---
-  duration_ms: 1226.97925
+  duration_ms: 1329.193709
   type: 'test'
   ...
 # Subtest: CLI evaluates a draft without trust and says simulation
-ok 29 - CLI evaluates a draft without trust and says simulation
+ok 28 - CLI evaluates a draft without trust and says simulation
   ---
-  duration_ms: 556.858375
+  duration_ms: 685.873666
   type: 'test'
   ...
 # Subtest: CLI invalid tool input returns a host-level denial
-ok 30 - CLI invalid tool input returns a host-level denial
+ok 29 - CLI invalid tool input returns a host-level denial
   ---
-  duration_ms: 570.955792
+  duration_ms: 635.774834
   type: 'test'
   ...
 # Subtest: CLI missing project policy never permits generic execution
-ok 31 - CLI missing project policy never permits generic execution
+ok 30 - CLI missing project policy never permits generic execution
   ---
-  duration_ms: 518.779125
+  duration_ms: 555.981959
   type: 'test'
   ...
 # Subtest: CLI doctor fails on an untrusted project
-ok 32 - CLI doctor fails on an untrusted project
+ok 31 - CLI doctor fails on an untrusted project
   ---
-  duration_ms: 464.208417
+  duration_ms: 444.127666
   type: 'test'
   ...
 # Subtest: CLI verifier and completion gate work end to end
-ok 33 - CLI verifier and completion gate work end to end
+ok 32 - CLI verifier and completion gate work end to end
   ---
-  duration_ms: 731.657625
+  duration_ms: 731.8815
   type: 'test'
   ...
 # Subtest: instruction inventory flags approval stalls with source locations
-ok 34 - instruction inventory flags approval stalls with source locations
+ok 33 - instruction inventory flags approval stalls with source locations
   ---
-  duration_ms: 576.322083
+  duration_ms: 464.211459
   type: 'test'
   ...
 # Subtest: actual prepared report excludes budget-dropped rules
-ok 35 - actual prepared report excludes budget-dropped rules
+ok 34 - actual prepared report excludes budget-dropped rules
   ---
-  duration_ms: 671.791416
+  duration_ms: 649.391625
   type: 'test'
   ...
 # Subtest: hook CLI option errors also produce a host denial
-ok 36 - hook CLI option errors also produce a host denial
+ok 35 - hook CLI option errors also produce a host denial
   ---
-  duration_ms: 443.308791
+  duration_ms: 506.0765
   type: 'test'
   ...
 # Subtest: init fills an existing empty AGENTS file without clobbering other files
-ok 37 - init fills an existing empty AGENTS file without clobbering other files
+ok 36 - init fills an existing empty AGENTS file without clobbering other files
   ---
-  duration_ms: 400.99225
+  duration_ms: 406.920959
   type: 'test'
   ...
 # Subtest: malformed UTF-8 on stdin cannot be silently repaired into an accepted request
-ok 38 - malformed UTF-8 on stdin cannot be silently repaired into an accepted request
+ok 37 - malformed UTF-8 on stdin cannot be silently repaired into an accepted request
   ---
-  duration_ms: 428.706916
+  duration_ms: 426.877084
   type: 'test'
   ...
 # Subtest: CLI audit prune removes older receipts to keep retention capacity
-ok 39 - CLI audit prune removes older receipts to keep retention capacity
+ok 38 - CLI audit prune removes older receipts to keep retention capacity
   ---
-  duration_ms: 727.020458
+  duration_ms: 717.951167
   type: 'test'
   ...
 # Subtest: CLI keygen generates Ed25519 keypair and writes files with --out
-ok 40 - CLI keygen generates Ed25519 keypair and writes files with --out
+ok 39 - CLI keygen generates Ed25519 keypair and writes files with --out
   ---
-  duration_ms: 384.044875
+  duration_ms: 370.5795
   type: 'test'
   ...
 # Subtest: CLI mcp --config outputs configuration for specified host
-ok 41 - CLI mcp --config outputs configuration for specified host
+ok 40 - CLI mcp --config outputs configuration for specified host
   ---
-  duration_ms: 285.541916
+  duration_ms: 359.65025
   type: 'test'
   ...
 # Subtest: CLI sign-bundle and verify-bundle authenticate trust bundle
-ok 42 - CLI sign-bundle and verify-bundle authenticate trust bundle
+ok 41 - CLI sign-bundle and verify-bundle authenticate trust bundle
   ---
-  duration_ms: 316.651
+  duration_ms: 325.413792
   type: 'test'
   ...
 # Subtest: CLI sign-bundle and verify-bundle accept --key-file and --public-key aliases
-ok 43 - CLI sign-bundle and verify-bundle accept --key-file and --public-key aliases
+ok 42 - CLI sign-bundle and verify-bundle accept --key-file and --public-key aliases
   ---
-  duration_ms: 395.729042
+  duration_ms: 427.886
   type: 'test'
   ...
 # Subtest: CLI audit prune rejects empty --keep value instead of coercing to 0
-ok 44 - CLI audit prune rejects empty --keep value instead of coercing to 0
+ok 43 - CLI audit prune rejects empty --keep value instead of coercing to 0
   ---
-  duration_ms: 171.534584
+  duration_ms: 174.061709
   type: 'test'
   ...
 # Subtest: CLI journal query supports --tag and journal verify enforces fresh hash-chain verification
-ok 45 - CLI journal query supports --tag and journal verify enforces fresh hash-chain verification
+ok 44 - CLI journal query supports --tag and journal verify enforces fresh hash-chain verification
   ---
-  duration_ms: 177.383541
+  duration_ms: 175.255458
   type: 'test'
   ...
 # Subtest: CLI hook without --event preserves stdin event kind when encoding errors
-ok 46 - CLI hook without --event preserves stdin event kind when encoding errors
+ok 45 - CLI hook without --event preserves stdin event kind when encoding errors
   ---
-  duration_ms: 128.074625
+  duration_ms: 120.243208
+  type: 'test'
+  ...
+# Subtest: report uses prototype-safe emitted counter and doctor validates installation receipt configHash
+ok 46 - report uses prototype-safe emitted counter and doctor validates installation receipt configHash
+  ---
+  duration_ms: 153.430833
   type: 'test'
   ...
 # Subtest: Ed25519 key generation, signing, and verification
 ok 47 - Ed25519 key generation, signing, and verification
   ---
-  duration_ms: 2.284417
+  duration_ms: 2.661084
   type: 'test'
   ...
 # Subtest: Ed25519 bundle signing and verification
 ok 48 - Ed25519 bundle signing and verification
   ---
-  duration_ms: 740.050333
+  duration_ms: 744.783875
   type: 'test'
   ...
 # Subtest: Ed25519 verification evidence signing and verifier gate
 ok 49 - Ed25519 verification evidence signing and verifier gate
   ---
-  duration_ms: 761.850375
+  duration_ms: 923.352917
   type: 'test'
   ...
 # Subtest: Ed25519 verification throws NO_SIGNATURE when signature file is missing
 ok 50 - Ed25519 verification throws NO_SIGNATURE when signature file is missing
   ---
-  duration_ms: 828.026458
+  duration_ms: 857.209917
   type: 'test'
   ...
 # Subtest: saveKeypair and loadKeypair safely store and retrieve keys with path validation, chmod 0600, and directory resolveKeyPem
 ok 51 - saveKeypair and loadKeypair safely store and retrieve keys with path validation, chmod 0600, and directory resolveKeyPem
   ---
-  duration_ms: 813.165625
+  duration_ms: 846.956416
+  type: 'test'
+  ...
+# Subtest: signData rejects non-Ed25519 private keys and verifyBundleSignature/verifyVerificationEvidence detect signedAt tampering
+ok 52 - signData rejects non-Ed25519 private keys and verifyBundleSignature/verifyVerificationEvidence detect signedAt tampering
+  ---
+  duration_ms: 939.1525
   type: 'test'
   ...
 # Subtest: literal matching is explicit and case-insensitive
-ok 52 - literal matching is explicit and case-insensitive
+ok 53 - literal matching is explicit and case-insensitive
   ---
-  duration_ms: 4.939708
+  duration_ms: 1.590542
   type: 'test'
   ...
 # Subtest: words distinguish npm from pnpm
-ok 53 - words distinguish npm from pnpm
+ok 54 - words distinguish npm from pnpm
   ---
-  duration_ms: 0.5285
+  duration_ms: 0.444167
   type: 'test'
   ...
 # Subtest: Unicode words handle Korean and normalized full-width text
-ok 54 - Unicode words handle Korean and normalized full-width text
+ok 55 - Unicode words handle Korean and normalized full-width text
   ---
-  duration_ms: 0.598708
+  duration_ms: 0.5895
   type: 'test'
   ...
 # Subtest: no matched rule produces empty context
-ok 55 - no matched rule produces empty context
+ok 56 - no matched rule produces empty context
   ---
-  duration_ms: 0.073542
+  duration_ms: 0.071583
   type: 'test'
   ...
 # Subtest: regression: 4000-byte rules only log the emitted rule
-ok 56 - regression: 4000-byte rules only log the emitted rule
+ok 57 - regression: 4000-byte rules only log the emitted rule
   ---
-  duration_ms: 0.132416
+  duration_ms: 0.131875
   type: 'test'
   ...
 # Subtest: regression: oversized first rule does not starve a later short rule
-ok 57 - regression: oversized first rule does not starve a later short rule
+ok 58 - regression: oversized first rule does not starve a later short rule
   ---
-  duration_ms: 0.111417
+  duration_ms: 0.106042
   type: 'test'
   ...
 # Subtest: required guidance overflow denies instead of silently truncating
-ok 58 - required guidance overflow denies instead of silently truncating
+ok 59 - required guidance overflow denies instead of silently truncating
   ---
-  duration_ms: 0.08325
+  duration_ms: 0.080875
   type: 'test'
   ...
 # Subtest: required guidance reserves budget ahead of optional higher priority rules
-ok 59 - required guidance reserves budget ahead of optional higher priority rules
+ok 60 - required guidance reserves budget ahead of optional higher priority rules
   ---
-  duration_ms: 0.085375
+  duration_ms: 0.083375
   type: 'test'
   ...
 # Subtest: denial is independent of byte and count budgets
-ok 60 - denial is independent of byte and count budgets
+ok 61 - denial is independent of byte and count budgets
   ---
-  duration_ms: 0.090583
+  duration_ms: 0.0965
   type: 'test'
   ...
 # Subtest: UTF-8 budget includes the full rendered envelope
-ok 61 - UTF-8 budget includes the full rendered envelope
+ok 62 - UTF-8 budget includes the full rendered envelope
   ---
-  duration_ms: 0.129917
+  duration_ms: 0.120292
   type: 'test'
   ...
 # Subtest: rule limit produces explicit omissions
-ok 62 - rule limit produces explicit omissions
+ok 63 - rule limit produces explicit omissions
   ---
-  duration_ms: 0.088708
+  duration_ms: 0.083459
   type: 'test'
   ...
 # Subtest: priority ties have deterministic ID order
-ok 63 - priority ties have deterministic ID order
+ok 64 - priority ties have deterministic ID order
   ---
-  duration_ms: 0.075875
+  duration_ms: 0.055625
   type: 'test'
   ...
 # Subtest: tool aliases share a canonical operation
-ok 64 - tool aliases share a canonical operation
+ok 65 - tool aliases share a canonical operation
   ---
-  duration_ms: 0.052375
+  duration_ms: 0.055292
   type: 'test'
   ...
 # Subtest: tool rules stay out of prompt matching
-ok 65 - tool rules stay out of prompt matching
+ok 66 - tool rules stay out of prompt matching
   ---
-  duration_ms: 0.056625
+  duration_ms: 0.053125
   type: 'test'
   ...
 # Subtest: path prefixes respect segment boundaries
-ok 66 - path prefixes respect segment boundaries
+ok 67 - path prefixes respect segment boundaries
   ---
-  duration_ms: 0.148208
+  duration_ms: 0.131333
   type: 'test'
   ...
 # Subtest: different predicate fields combine with AND
-ok 67 - different predicate fields combine with AND
+ok 68 - different predicate fields combine with AND
   ---
-  duration_ms: 0.078583
+  duration_ms: 0.0715
   type: 'test'
   ...
 # Subtest: strict schema rejects unsupported version
-ok 68 - strict schema rejects unsupported version
+ok 69 - strict schema rejects unsupported version
   ---
-  duration_ms: 0.333417
+  duration_ms: 0.220583
   type: 'test'
   ...
 # Subtest: strict schema rejects unknown root field
-ok 69 - strict schema rejects unknown root field
+ok 70 - strict schema rejects unknown root field
   ---
-  duration_ms: 0.065958
+  duration_ms: 0.036917
   type: 'test'
   ...
 # Subtest: strict schema rejects unknown rule field
-ok 70 - strict schema rejects unknown rule field
+ok 71 - strict schema rejects unknown rule field
   ---
-  duration_ms: 0.051542
+  duration_ms: 0.057959
   type: 'test'
   ...
 # Subtest: strict schema rejects invalid effect
-ok 71 - strict schema rejects invalid effect
+ok 72 - strict schema rejects invalid effect
   ---
-  duration_ms: 0.045042
+  duration_ms: 0.047917
   type: 'test'
   ...
 # Subtest: strict schema rejects tools false
-ok 72 - strict schema rejects tools false
+ok 73 - strict schema rejects tools false
   ---
-  duration_ms: 0.055166
+  duration_ms: 0.045375
   type: 'test'
   ...
 # Subtest: strict schema rejects empty tools
-ok 73 - strict schema rejects empty tools
+ok 74 - strict schema rejects empty tools
   ---
-  duration_ms: 0.043209
+  duration_ms: 0.039791
   type: 'test'
   ...
 # Subtest: strict schema rejects no predicate
-ok 74 - strict schema rejects no predicate
+ok 75 - strict schema rejects no predicate
   ---
-  duration_ms: 0.042667
+  duration_ms: 0.037875
   type: 'test'
   ...
 # Subtest: strict schema rejects mixed always and content
-ok 75 - strict schema rejects mixed always and content
+ok 76 - strict schema rejects mixed always and content
   ---
-  duration_ms: 0.045709
+  duration_ms: 0.038291
   type: 'test'
   ...
 # Subtest: strict schema rejects regex not supported
-ok 76 - strict schema rejects regex not supported
+ok 77 - strict schema rejects regex not supported
   ---
-  duration_ms: 0.042625
+  duration_ms: 0.039416
   type: 'test'
   ...
 # Subtest: strict schema rejects duplicate IDs
-ok 77 - strict schema rejects duplicate IDs
+ok 78 - strict schema rejects duplicate IDs
   ---
-  duration_ms: 0.04325
+  duration_ms: 0.046125
   type: 'test'
   ...
 # Subtest: strict schema rejects invalid priority
-ok 78 - strict schema rejects invalid priority
+ok 79 - strict schema rejects invalid priority
   ---
-  duration_ms: 0.05025
+  duration_ms: 0.036792
   type: 'test'
   ...
 # Subtest: strict schema rejects zero context budget
-ok 79 - strict schema rejects zero context budget
+ok 80 - strict schema rejects zero context budget
   ---
-  duration_ms: 0.030666
+  duration_ms: 0.029166
   type: 'test'
   ...
 # Subtest: strict schema rejects tool predicate on prompt
-ok 80 - strict schema rejects tool predicate on prompt
+ok 81 - strict schema rejects tool predicate on prompt
   ---
-  duration_ms: 0.048042
+  duration_ms: 0.041833
   type: 'test'
   ...
 # Subtest: strict schema rejects path traversal
-ok 81 - strict schema rejects path traversal
+ok 82 - strict schema rejects path traversal
   ---
-  duration_ms: 0.051417
+  duration_ms: 0.047083
   type: 'test'
   ...
 # Subtest: strict schema rejects required deny
-ok 82 - strict schema rejects required deny
+ok 83 - strict schema rejects required deny
   ---
-  duration_ms: 0.033292
+  duration_ms: 0.041875
   type: 'test'
   ...
 # Subtest: empty rule catalog is valid but empty verification is not
-ok 83 - empty rule catalog is valid but empty verification is not
+ok 84 - empty rule catalog is valid but empty verification is not
   ---
-  duration_ms: 0.118625
+  duration_ms: 0.095625
   type: 'test'
   ...
 # Subtest: repeated command arguments are accepted without shell interpretation
-ok 84 - repeated command arguments are accepted without shell interpretation
+ok 85 - repeated command arguments are accepted without shell interpretation
   ---
-  duration_ms: 0.09475
+  duration_ms: 0.074208
   type: 'test'
   ...
 # Subtest: oversized event fails validation
-ok 85 - oversized event fails validation
+ok 86 - oversized event fails validation
   ---
-  duration_ms: 0.142792
+  duration_ms: 0.141584
   type: 'test'
   ...
 # Subtest: punctuation-only word predicates are rejected as dead rules
-ok 86 - punctuation-only word predicates are rejected as dead rules
+ok 87 - punctuation-only word predicates are rejected as dead rules
   ---
-  duration_ms: 0.054417
+  duration_ms: 0.044208
   type: 'test'
   ...
 # Subtest: literal tool wildcard is rejected instead of silently never matching
-ok 87 - literal tool wildcard is rejected instead of silently never matching
+ok 88 - literal tool wildcard is rejected instead of silently never matching
   ---
-  duration_ms: 0.046625
+  duration_ms: 0.444916
   type: 'test'
   ...
 # Subtest: safe glob patterns match command line and CLI flags
-ok 88 - safe glob patterns match command line and CLI flags
+ok 89 - safe glob patterns match command line and CLI flags
   ---
-  duration_ms: 1.532208
+  duration_ms: 0.350208
   type: 'test'
   ...
 # Subtest: patternsAny matches individual token arguments cleanly
-ok 89 - patternsAny matches individual token arguments cleanly
+ok 90 - patternsAny matches individual token arguments cleanly
   ---
-  duration_ms: 0.159167
+  duration_ms: 0.076084
   type: 'test'
   ...
 # Subtest: globsAny supports character classes and escapes safely
-ok 90 - globsAny supports character classes and escapes safely
+ok 91 - globsAny supports character classes and escapes safely
   ---
-  duration_ms: 0.301084
+  duration_ms: 0.160125
   type: 'test'
   ...
 # Subtest: schema rejects malformed pattern brackets
-ok 91 - schema rejects malformed pattern brackets
+ok 92 - schema rejects malformed pattern brackets
   ---
-  duration_ms: 0.075208
+  duration_ms: 0.047625
   type: 'test'
   ...
 # Subtest: schema rejects dangling trailing backslash in pattern
-ok 92 - schema rejects dangling trailing backslash in pattern
+ok 93 - schema rejects dangling trailing backslash in pattern
   ---
-  duration_ms: 0.049834
+  duration_ms: 0.041917
   type: 'test'
   ...
 # Subtest: matcher handles escaped brackets in character classes and Unicode code points
-ok 93 - matcher handles escaped brackets in character classes and Unicode code points
+ok 94 - matcher handles escaped brackets in character classes and Unicode code points
   ---
-  duration_ms: 0.2175
+  duration_ms: 0.215542
   type: 'test'
   ...
 # Subtest: matchGlob does not short-circuit raw equality when pattern contains glob metacharacters or escapes
-ok 94 - matchGlob does not short-circuit raw equality when pattern contains glob metacharacters or escapes
+ok 95 - matchGlob does not short-circuit raw equality when pattern contains glob metacharacters or escapes
   ---
-  duration_ms: 0.12875
+  duration_ms: 0.133625
   type: 'test'
   ...
 # Subtest: matchGlob fails closed with GLOB_COMPLEXITY on step budget exhaustion and handles >100k inputs
-ok 95 - matchGlob fails closed with GLOB_COMPLEXITY on step budget exhaustion and handles >100k inputs
+ok 96 - matchGlob fails closed with GLOB_COMPLEXITY on step budget exhaustion and handles >100k inputs
   ---
-  duration_ms: 4.255291
+  duration_ms: 3.731
   type: 'test'
   ...
 # Subtest: tokenizeCommand enforces POSIX single-quote literals and splits unquoted shell operators
-ok 96 - tokenizeCommand enforces POSIX single-quote literals and splits unquoted shell operators
+ok 97 - tokenizeCommand enforces POSIX single-quote literals and splits unquoted shell operators
   ---
-  duration_ms: 0.264417
+  duration_ms: 0.157791
   type: 'test'
   ...
 # Subtest: normalizeInput preserves file content in text for Write and Edit tool events
-ok 97 - normalizeInput preserves file content in text for Write and Edit tool events
+ok 98 - normalizeInput preserves file content in text for Write and Edit tool events
   ---
-  duration_ms: 753.379708
+  duration_ms: 745.161125
+  type: 'test'
+  ...
+# Subtest: normalizeTool and normalizeInput handle MultiEdit, NotebookEdit, prototype keys, and multi-slash pathPrefixes
+ok 99 - normalizeTool and normalizeInput handle MultiEdit, NotebookEdit, prototype keys, and multi-slash pathPrefixes
+  ---
+  duration_ms: 693.623792
+  type: 'test'
+  ...
+# Subtest: tokenizeCommand elides POSIX backslash-newline line continuations outside single quotes
+ok 100 - tokenizeCommand elides POSIX backslash-newline line continuations outside single quotes
+  ---
+  duration_ms: 0.268875
   type: 'test'
   ...
 # Subtest: library entrypoint exports all core functions and constants
-ok 98 - library entrypoint exports all core functions and constants
+ok 101 - library entrypoint exports all core functions and constants
   ---
-  duration_ms: 0.461375
+  duration_ms: 0.450875
   type: 'test'
   ...
 # Subtest: index.d.ts declares every runtime export from src/index.mjs and accurate domain types
-ok 99 - index.d.ts declares every runtime export from src/index.mjs and accurate domain types
+ok 102 - index.d.ts declares every runtime export from src/index.mjs and accurate domain types
   ---
-  duration_ms: 3.591958
+  duration_ms: 7.264417
   type: 'test'
   ...
 # Subtest: JSON Schemas in schemas/*.json stay aligned with runtime schema validators
-ok 100 - JSON Schemas in schemas/*.json stay aligned with runtime schema validators
+ok 103 - JSON Schemas in schemas/*.json stay aligned with runtime schema validators
   ---
-  duration_ms: 1.742625
+  duration_ms: 0.89475
   type: 'test'
   ...
 # Subtest: project aliases use one trust identity and host cwd boundary
-ok 101 - project aliases use one trust identity and host cwd boundary
+ok 104 - project aliases use one trust identity and host cwd boundary
   ---
-  duration_ms: 775.218125
+  duration_ms: 741.815208
   type: 'test'
   ...
 # Subtest: removing executable permission invalidates previously passing evidence
-ok 102 - removing executable permission invalidates previously passing evidence
+ok 105 - removing executable permission invalidates previously passing evidence
   ---
-  duration_ms: 929.074583
+  duration_ms: 971.044792
   type: 'test'
   ...
 # Subtest: journal rejects hash-valid unsupported envelope version
-ok 103 - journal rejects hash-valid unsupported envelope version
+ok 106 - journal rejects hash-valid unsupported envelope version
   ---
-  duration_ms: 727.327667
+  duration_ms: 764.396459
   type: 'test'
   ...
 # Subtest: journal rejects hash-valid oversized checkpoint
-ok 104 - journal rejects hash-valid oversized checkpoint
+ok 107 - journal rejects hash-valid oversized checkpoint
   ---
-  duration_ms: 726.138
+  duration_ms: 760.799375
   type: 'test'
   ...
 # Subtest: journal rejects hash-valid unknown record type
-ok 105 - journal rejects hash-valid unknown record type
+ok 108 - journal rejects hash-valid unknown record type
   ---
-  duration_ms: 666.45625
+  duration_ms: 816.416667
   type: 'test'
   ...
 # Subtest: journal rejects hash-valid filename identity mismatch
-ok 106 - journal rejects hash-valid filename identity mismatch
+ok 109 - journal rejects hash-valid filename identity mismatch
   ---
-  duration_ms: 616.031166
+  duration_ms: 595.057042
   type: 'test'
   ...
 # Subtest: journal rejects malformed internal verification data before gate consumption
-ok 107 - journal rejects malformed internal verification data before gate consumption
+ok 110 - journal rejects malformed internal verification data before gate consumption
   ---
-  duration_ms: 704.690792
+  duration_ms: 667.474791
   type: 'test'
   ...
 # Subtest: journal gracefully ignores OS metadata files like .DS_Store and Thumbs.db
-ok 108 - journal gracefully ignores OS metadata files like .DS_Store and Thumbs.db
+ok 111 - journal gracefully ignores OS metadata files like .DS_Store and Thumbs.db
   ---
-  duration_ms: 550.690667
+  duration_ms: 571.787375
   type: 'test'
   ...
 # Subtest: session restore and compaction select only the matching checkpoint
-ok 109 - session restore and compaction select only the matching checkpoint
+ok 112 - session restore and compaction select only the matching checkpoint
   ---
-  duration_ms: 588.415292
+  duration_ms: 648.617542
   type: 'test'
   ...
 # Subtest: named session never falls back to an unscoped checkpoint
-ok 110 - named session never falls back to an unscoped checkpoint
+ok 113 - named session never falls back to an unscoped checkpoint
   ---
-  duration_ms: 511.959583
+  duration_ms: 509.430083
   type: 'test'
   ...
 # Subtest: checkpoint CLI stores a session digest and restores through a host event
-ok 111 - checkpoint CLI stores a session digest and restores through a host event
+ok 114 - checkpoint CLI stores a session digest and restores through a host event
   ---
-  duration_ms: 660.519334
+  duration_ms: 663.995625
   type: 'test'
   ...
 # Subtest: installation preflight leaves hooks untouched when a skill destination is a symlink
-ok 112 - installation preflight leaves hooks untouched when a skill destination is a symlink
+ok 115 - installation preflight leaves hooks untouched when a skill destination is a symlink
   ---
-  duration_ms: 401.229417
+  duration_ms: 426.745166
   type: 'test'
   ...
 # Subtest: installation rolls back earlier writes if a later file write fails
-ok 113 - installation rolls back earlier writes if a later file write fails
+ok 116 - installation rolls back earlier writes if a later file write fails
   ---
-  duration_ms: 514.155625
+  duration_ms: 513.299792
   type: 'test'
   ...
 # Subtest: snapshot excludes nested node_modules and git submodules
-ok 114 - snapshot excludes nested node_modules and git submodules
+ok 117 - snapshot excludes nested node_modules and git submodules
   ---
-  duration_ms: 440.368625
-  type: 'test'
-  ...
-# Subtest: test/helpers.mjs
-ok 8 - test/helpers.mjs
-  ---
-  duration_ms: 86.169292
+  duration_ms: 384.177625
   type: 'test'
   ...
 # Subtest: journal index cache populates and accelerates queries
-ok 116 - journal index cache populates and accelerates queries
+ok 118 - journal index cache populates and accelerates queries
   ---
-  duration_ms: 873.774458
+  duration_ms: 846.7345
   type: 'test'
   ...
 # Subtest: journal schema accepts tags and queryJournal filters by tag and smallest candidate index
-ok 117 - journal schema accepts tags and queryJournal filters by tag and smallest candidate index
+ok 119 - journal schema accepts tags and queryJournal filters by tag and smallest candidate index
   ---
-  duration_ms: 764.997417
+  duration_ms: 788.900459
   type: 'test'
   ...
 # Subtest: cached journal rows and array are immutable against caller mutation
-ok 118 - cached journal rows and array are immutable against caller mutation
+ok 120 - cached journal rows and array are immutable against caller mutation
   ---
-  duration_ms: 726.694791
+  duration_ms: 754.089959
   type: 'test'
   ...
 # Subtest: queryJournal rejects malformed since/until timestamps and preserves all schedule revisions for recordId + history
-ok 119 - queryJournal rejects malformed since/until timestamps and preserves all schedule revisions for recordId + history
+ok 121 - queryJournal rejects malformed since/until timestamps and preserves all schedule revisions for recordId + history
   ---
-  duration_ms: 770.53075
+  duration_ms: 791.904292
   type: 'test'
   ...
 # Subtest: validatePlan rejects glob wildcards in exclude, snapshot strips trailing slash, and completionGate forces fresh hash verification
-ok 120 - validatePlan rejects glob wildcards in exclude, snapshot strips trailing slash, and completionGate forces fresh hash verification
+ok 122 - validatePlan rejects glob wildcards in exclude, snapshot strips trailing slash, and completionGate forces fresh hash verification
   ---
-  duration_ms: 792.60575
+  duration_ms: 953.353958
   type: 'test'
   ...
 # Subtest: codex update fails atomically on customization; uninstall preserves user data
-ok 121 - codex update fails atomically on customization; uninstall preserves user data
+ok 123 - codex update fails atomically on customization; uninstall preserves user data
   ---
-  duration_ms: 1166.819166
+  duration_ms: 1181.37175
   type: 'test'
   ...
 # Subtest: claude update fails atomically on customization; uninstall preserves user data
-ok 122 - claude update fails atomically on customization; uninstall preserves user data
+ok 124 - claude update fails atomically on customization; uninstall preserves user data
   ---
-  duration_ms: 1500.647291
+  duration_ms: 1536.661792
   type: 'test'
   ...
 # Subtest: update requires a receipt and refreshes a managed installation idempotently
-ok 123 - update requires a receipt and refreshes a managed installation idempotently
+ok 125 - update requires a receipt and refreshes a managed installation idempotently
   ---
-  duration_ms: 1405.827333
+  duration_ms: 1558.227291
   type: 'test'
   ...
 # Subtest: MCP initialize returns standard protocol response and 8 tools
-ok 124 - MCP initialize returns standard protocol response and 8 tools
+ok 126 - MCP initialize returns standard protocol response and 8 tools
   ---
-  duration_ms: 748.428375
+  duration_ms: 747.981625
   type: 'test'
   ...
 # Subtest: MCP tools/call executes policy evaluation and records decisions
-ok 125 - MCP tools/call executes policy evaluation and records decisions
+ok 127 - MCP tools/call executes policy evaluation and records decisions
   ---
-  duration_ms: 623.297125
+  duration_ms: 761.138125
   type: 'test'
   ...
 # Subtest: MCP resources list and read return valid project state
-ok 126 - MCP resources list and read return valid project state
+ok 128 - MCP resources list and read return valid project state
   ---
-  duration_ms: 682.76325
+  duration_ms: 741.419792
   type: 'test'
   ...
 # Subtest: formatMcpConfig outputs valid client configurations
-ok 127 - formatMcpConfig outputs valid client configurations
+ok 129 - formatMcpConfig outputs valid client configurations
   ---
-  duration_ms: 0.330709
+  duration_ms: 0.247083
   type: 'test'
   ...
 # Subtest: startMcpServer executes stream communication end-to-end
-ok 128 - startMcpServer executes stream communication end-to-end
+ok 130 - startMcpServer executes stream communication end-to-end
   ---
-  duration_ms: 666.679625
+  duration_ms: 668.506458
   type: 'test'
   ...
 # Subtest: MCP tools/call steward_schedule_manage handles initial milestone with id
-ok 129 - MCP tools/call steward_schedule_manage handles initial milestone with id
+ok 131 - MCP tools/call steward_schedule_manage handles initial milestone with id
   ---
-  duration_ms: 679.72225
+  duration_ms: 798.851083
   type: 'test'
   ...
 # Subtest: startMcpServer handles message without trailing newline before EOF
-ok 130 - startMcpServer handles message without trailing newline before EOF
+ok 132 - startMcpServer handles message without trailing newline before EOF
   ---
-  duration_ms: 555.796791
+  duration_ms: 642.393083
   type: 'test'
   ...
 # Subtest: startMcpServer resolves cleanly on stream error
-ok 131 - startMcpServer resolves cleanly on stream error
+ok 133 - startMcpServer resolves cleanly on stream error
   ---
-  duration_ms: 553.63025
+  duration_ms: 552.634
   type: 'test'
   ...
 # Subtest: MCP steward_policy_eval and policy/plan resources enforce bundle trust and path canonicalization
-ok 132 - MCP steward_policy_eval and policy/plan resources enforce bundle trust and path canonicalization
+ok 134 - MCP steward_policy_eval and policy/plan resources enforce bundle trust and path canonicalization
   ---
-  duration_ms: 942.591792
+  duration_ms: 996.872208
   type: 'test'
   ...
 # Subtest: MCP handleMcpMessage enforces JSON-RPC 2.0 request invariants
-ok 133 - MCP handleMcpMessage enforces JSON-RPC 2.0 request invariants
+ok 135 - MCP handleMcpMessage enforces JSON-RPC 2.0 request invariants
   ---
-  duration_ms: 508.744458
+  duration_ms: 539.839166
   type: 'test'
   ...
 # Subtest: MCP executes steward_checkpoint, steward_verify, steward_completion_gate, and all 5 resources
-ok 134 - MCP executes steward_checkpoint, steward_verify, steward_completion_gate, and all 5 resources
+ok 136 - MCP executes steward_checkpoint, steward_verify, steward_completion_gate, and all 5 resources
   ---
-  duration_ms: 611.392875
+  duration_ms: 534.53425
   type: 'test'
   ...
 # Subtest: startMcpServer enforces 1 MiB line limit and recovers for subsequent messages
-ok 135 - startMcpServer enforces 1 MiB line limit and recovers for subsequent messages
+ok 137 - startMcpServer enforces 1 MiB line limit and recovers for subsequent messages
   ---
-  duration_ms: 550.583292
+  duration_ms: 530.358459
   type: 'test'
   ...
 # Subtest: formatMcpConfig resolves default runner to Steward package bin/steward.mjs
-ok 136 - formatMcpConfig resolves default runner to Steward package bin/steward.mjs
+ok 138 - formatMcpConfig resolves default runner to Steward package bin/steward.mjs
   ---
-  duration_ms: 0.546541
+  duration_ms: 0.400917
   type: 'test'
   ...
 # Subtest: MCP tools support tags and tag/temporal filtering in steward_recall
-ok 137 - MCP tools support tags and tag/temporal filtering in steward_recall
+ok 139 - MCP tools support tags and tag/temporal filtering in steward_recall
   ---
-  duration_ms: 532.376833
+  duration_ms: 492.529875
+  type: 'test'
+  ...
+# Subtest: MCP executeTool rejects non-object arguments and normalizes empty-string optional arguments
+ok 140 - MCP executeTool rejects non-object arguments and normalizes empty-string optional arguments
+  ---
+  duration_ms: 471.098791
   type: 'test'
   ...
 # Subtest: doctor does not report an uninstalled host as healthy
-ok 138 - doctor does not report an uninstalled host as healthy
+ok 141 - doctor does not report an uninstalled host as healthy
   ---
-  duration_ms: 785.794959
+  duration_ms: 845.98875
   type: 'test'
   ...
 # Subtest: codex doctor distinguishes local wiring from native observation
-ok 139 - codex doctor distinguishes local wiring from native observation
+ok 142 - codex doctor distinguishes local wiring from native observation
   ---
-  duration_ms: 876.432834
+  duration_ms: 923.862084
   type: 'test'
   ...
 # Subtest: codex doctor detects removed hooks and preserves unrelated configuration
-ok 140 - codex doctor detects removed hooks and preserves unrelated configuration
+ok 143 - codex doctor detects removed hooks and preserves unrelated configuration
   ---
-  duration_ms: 961.088708
+  duration_ms: 940.829625
   type: 'test'
   ...
 # Subtest: claude doctor distinguishes local wiring from native observation
-ok 141 - claude doctor distinguishes local wiring from native observation
+ok 144 - claude doctor distinguishes local wiring from native observation
   ---
-  duration_ms: 1138.356709
+  duration_ms: 1334.000375
   type: 'test'
   ...
 # Subtest: claude doctor detects removed hooks and preserves unrelated configuration
-ok 142 - claude doctor detects removed hooks and preserves unrelated configuration
+ok 145 - claude doctor detects removed hooks and preserves unrelated configuration
   ---
-  duration_ms: 1014.525792
+  duration_ms: 1111.963458
   type: 'test'
   ...
 # Subtest: doctor detects a narrowed matcher and malformed hook configuration
-ok 143 - doctor detects a narrowed matcher and malformed hook configuration
+ok 146 - doctor detects a narrowed matcher and malformed hook configuration
   ---
-  duration_ms: 706.745583
+  duration_ms: 717.270958
   type: 'test'
   ...
 # Subtest: plugin setup configures the runner without duplicate project skills
-ok 144 - plugin setup configures the runner without duplicate project skills
+ok 147 - plugin setup configures the runner without duplicate project skills
   ---
-  duration_ms: 1080.306875
+  duration_ms: 1097.157042
   type: 'test'
   ...
 # Subtest: report identifies unused and budget-omitted rules within the current bundle
-ok 145 - report identifies unused and budget-omitted rules within the current bundle
+ok 148 - report identifies unused and budget-omitted rules within the current bundle
   ---
-  duration_ms: 599.589625
+  duration_ms: 512.04375
   type: 'test'
   ...
 # Subtest: report capacity includes recovery files counted by the audit writer
-ok 146 - report capacity includes recovery files counted by the audit writer
+ok 149 - report capacity includes recovery files counted by the audit writer
   ---
-  duration_ms: 499.756042
+  duration_ms: 474.255542
   type: 'test'
   ...
 # Subtest: both marketplaces resolve the packaged toolkit and share its version
-ok 147 - both marketplaces resolve the packaged toolkit and share its version
+ok 150 - both marketplaces resolve the packaged toolkit and share its version
   ---
-  duration_ms: 1.085791
+  duration_ms: 1.501208
   type: 'test'
   ...
 # Subtest: query bounds output, hides expired and superseded records, and exposes history explicitly
-ok 148 - query bounds output, hides expired and superseded records, and exposes history explicitly
+ok 151 - query bounds output, hides expired and superseded records, and exposes history explicitly
   ---
-  duration_ms: 1153.001791
+  duration_ms: 1137.792042
   type: 'test'
   ...
 # Subtest: schedule revisions retain identity, prevent forks and preserve immutable history
-ok 149 - schedule revisions retain identity, prevent forks and preserve immutable history
+ok 152 - schedule revisions retain identity, prevent forks and preserve immutable history
   ---
-  duration_ms: 807.88525
+  duration_ms: 852.848333
   type: 'test'
   ...
 # Subtest: codex resolves relative file operations against a nested host cwd
-ok 150 - codex resolves relative file operations against a nested host cwd
+ok 153 - codex resolves relative file operations against a nested host cwd
   ---
-  duration_ms: 834.506125
+  duration_ms: 810.399
   type: 'test'
   ...
 # Subtest: codex preserves customized skill files when installation is repeated
-ok 151 - codex preserves customized skill files when installation is repeated
+ok 154 - codex preserves customized skill files when installation is repeated
   ---
-  duration_ms: 929.646208
+  duration_ms: 1014.367583
   type: 'test'
   ...
 # Subtest: codex generated hook command executes from a project path containing spaces
-ok 152 - codex generated hook command executes from a project path containing spaces
+ok 155 - codex generated hook command executes from a project path containing spaces
   ---
-  duration_ms: 1433.735333
+  duration_ms: 1639.379833
   type: 'test'
   ...
 # Subtest: claude resolves relative file operations against a nested host cwd
-ok 153 - claude resolves relative file operations against a nested host cwd
+ok 156 - claude resolves relative file operations against a nested host cwd
   ---
-  duration_ms: 697.468125
+  duration_ms: 784.539667
   type: 'test'
   ...
 # Subtest: claude preserves customized skill files when installation is repeated
-ok 154 - claude preserves customized skill files when installation is repeated
+ok 157 - claude preserves customized skill files when installation is repeated
   ---
-  duration_ms: 997.884875
+  duration_ms: 935.757917
   type: 'test'
   ...
 # Subtest: claude generated hook command executes from a project path containing spaces
-ok 155 - claude generated hook command executes from a project path containing spaces
+ok 158 - claude generated hook command executes from a project path containing spaces
   ---
-  duration_ms: 1298.264208
+  duration_ms: 1335.284208
   type: 'test'
   ...
 # Subtest: Codex patch move normalizes both paths relative to nested cwd
-ok 156 - Codex patch move normalizes both paths relative to nested cwd
+ok 159 - Codex patch move normalizes both paths relative to nested cwd
   ---
-  duration_ms: 454.281416
+  duration_ms: 423.811833
   type: 'test'
   ...
 # Subtest: nested cwd does not disguise traversal outside the project
-ok 157 - nested cwd does not disguise traversal outside the project
+ok 160 - nested cwd does not disguise traversal outside the project
   ---
-  duration_ms: 526.779375
+  duration_ms: 508.612125
   type: 'test'
   ...
 # Subtest: Claude SessionStart failure reports an error without claiming blocking support
-ok 158 - Claude SessionStart failure reports an error without claiming blocking support
+ok 161 - Claude SessionStart failure reports an error without claiming blocking support
   ---
-  duration_ms: 0.102375
+  duration_ms: 0.081041
   type: 'test'
   ...
 # Subtest: Codex SessionStart retains documented blocking output
-ok 159 - Codex SessionStart retains documented blocking output
+ok 162 - Codex SessionStart retains documented blocking output
   ---
-  duration_ms: 0.141833
+  duration_ms: 0.092333
   type: 'test'
   ...
 # Subtest: new project cannot pass its completion gate with an unconfigured verification plan
-ok 160 - new project cannot pass its completion gate with an unconfigured verification plan
+ok 163 - new project cannot pass its completion gate with an unconfigured verification plan
   ---
-  duration_ms: 584.621708
+  duration_ms: 623.729542
   type: 'test'
   ...
 # Subtest: Claude installation creates all eight native skills with scoped invocation controls
-ok 161 - Claude installation creates all eight native skills with scoped invocation controls
+ok 164 - Claude installation creates all eight native skills with scoped invocation controls
   ---
-  duration_ms: 679.766375
+  duration_ms: 699.659709
   type: 'test'
   ...
 # Subtest: Codex installation copies manual-invocation metadata only for administrative skills
-ok 162 - Codex installation copies manual-invocation metadata only for administrative skills
+ok 165 - Codex installation copies manual-invocation metadata only for administrative skills
   ---
-  duration_ms: 387.444333
+  duration_ms: 378.408084
   type: 'test'
   ...
 # Subtest: Claude import is idempotent and preserves user instructions
-ok 163 - Claude import is idempotent and preserves user instructions
+ok 166 - Claude import is idempotent and preserves user instructions
   ---
-  duration_ms: 562.746125
+  duration_ms: 537.856667
   type: 'test'
   ...
 # Subtest: Claude installation reuses an existing exact AGENTS import
-ok 164 - Claude installation reuses an existing exact AGENTS import
+ok 167 - Claude installation reuses an existing exact AGENTS import
   ---
-  duration_ms: 493.001458
+  duration_ms: 474.759333
   type: 'test'
   ...
 # Subtest: Claude installation upgrades its old exact pointer without replacing user notes
-ok 165 - Claude installation upgrades its old exact pointer without replacing user notes
+ok 168 - Claude installation upgrades its old exact pointer without replacing user notes
   ---
-  duration_ms: 379.032125
+  duration_ms: 455.902375
   type: 'test'
   ...
 # Subtest: local usage records real executable, toolkit, project and example locations
-ok 166 - local usage records real executable, toolkit, project and example locations
+ok 169 - local usage records real executable, toolkit, project and example locations
   ---
-  duration_ms: 176.216833
+  duration_ms: 188.3
   type: 'test'
   ...
 # Subtest: untrusted project cannot activate its rules
-ok 167 - untrusted project cannot activate its rules
+ok 170 - untrusted project cannot activate its rules
   ---
-  duration_ms: 627.91775
+  duration_ms: 727.346042
   type: 'test'
   ...
 # Subtest: policy edits invalidate trust
-ok 168 - policy edits invalidate trust
+ok 171 - policy edits invalidate trust
   ---
-  duration_ms: 749.459958
+  duration_ms: 669.592417
   type: 'test'
   ...
 # Subtest: command edits invalidate trust
-ok 169 - command edits invalidate trust
+ok 172 - command edits invalidate trust
   ---
-  duration_ms: 661.049292
+  duration_ms: 724.253
   type: 'test'
   ...
 # Subtest: approval must match exact reviewed bundle
-ok 170 - approval must match exact reviewed bundle
+ok 173 - approval must match exact reviewed bundle
   ---
-  duration_ms: 602.993458
+  duration_ms: 626.56125
   type: 'test'
   ...
 # Subtest: trust record cannot live inside project
-ok 171 - trust record cannot live inside project
+ok 174 - trust record cannot live inside project
   ---
-  duration_ms: 587.392833
+  duration_ms: 465.266625
   type: 'test'
   ...
 # Subtest: broken JSON is not replaced with an empty policy
-ok 172 - broken JSON is not replaced with an empty policy
+ok 175 - broken JSON is not replaced with an empty policy
   ---
-  duration_ms: 539.415667
+  duration_ms: 468.474125
   type: 'test'
   ...
 # Subtest: missing catalog is an error, not an implicit empty policy
-ok 173 - missing catalog is an error, not an implicit empty policy
+ok 176 - missing catalog is an error, not an implicit empty policy
   ---
-  duration_ms: 482.928958
+  duration_ms: 583.782208
   type: 'test'
   ...
 # Subtest: journal entries have a verifiable chain
-ok 174 - journal entries have a verifiable chain
+ok 177 - journal entries have a verifiable chain
   ---
-  duration_ms: 550.874416
+  duration_ms: 522.799583
   type: 'test'
   ...
 # Subtest: concurrent writers serialize without lost entries
-ok 175 - concurrent writers serialize without lost entries
+ok 178 - concurrent writers serialize without lost entries
   ---
-  duration_ms: 914.6125
+  duration_ms: 862.997958
   type: 'test'
   ...
 # Subtest: supersede appends without touching old entry
-ok 176 - supersede appends without touching old entry
+ok 179 - supersede appends without touching old entry
   ---
-  duration_ms: 614.168375
+  duration_ms: 598.763375
   type: 'test'
   ...
 # Subtest: unknown supersede target is rejected
-ok 177 - unknown supersede target is rejected
+ok 180 - unknown supersede target is rejected
   ---
-  duration_ms: 499.007208
+  duration_ms: 472.961875
   type: 'test'
   ...
 # Subtest: an already superseded decision cannot fork quietly
-ok 178 - an already superseded decision cannot fork quietly
+ok 181 - an already superseded decision cannot fork quietly
   ---
-  duration_ms: 430.2515
+  duration_ms: 496.872166
   type: 'test'
   ...
 # Subtest: edited record is detected before append
-ok 179 - edited record is detected before append
+ok 182 - edited record is detected before append
   ---
-  duration_ms: 446.235
+  duration_ms: 449.784458
   type: 'test'
   ...
 # Subtest: retained external anchor detects deleted suffix
-ok 180 - retained external anchor detects deleted suffix
+ok 183 - retained external anchor detects deleted suffix
   ---
-  duration_ms: 385.608625
+  duration_ms: 330.22125
   type: 'test'
   ...
 # Subtest: verification provenance is reserved from generic journal writes
-ok 181 - verification provenance is reserved from generic journal writes
+ok 184 - verification provenance is reserved from generic journal writes
   ---
-  duration_ms: 335.969667
+  duration_ms: 259.922333
   type: 'test'
   ...
 # Subtest: a complete goal cannot cite invented evidence
-ok 182 - a complete goal cannot cite invented evidence
+ok 185 - a complete goal cannot cite invented evidence
   ---
-  duration_ms: 238.569458
+  duration_ms: 287.007792
   type: 'test'
   ...
 # Subtest: exclusive creation cannot overwrite existing evidence
-ok 183 - exclusive creation cannot overwrite existing evidence
+ok 186 - exclusive creation cannot overwrite existing evidence
   ---
-  duration_ms: 329.357084
+  duration_ms: 353.671708
   type: 'test'
   ...
 # Subtest: control-plane traversal is rejected
-ok 184 - control-plane traversal is rejected
+ok 187 - control-plane traversal is rejected
   ---
-  duration_ms: 279.62125
+  duration_ms: 270.128833
   type: 'test'
   ...
 # Subtest: symlink control path is rejected
-ok 185 - symlink control path is rejected
+ok 188 - symlink control path is rejected
   ---
-  duration_ms: 231.168625
+  duration_ms: 188.9415
   type: 'test'
   ...
 # Subtest: abandoned lock is reported, never silently removed
-ok 186 - abandoned lock is reported, never silently removed
+ok 189 - abandoned lock is reported, never silently removed
   ---
-  duration_ms: 196.364666
+  duration_ms: 126.477334
   type: 'test'
   ...
 # Subtest: trust reads also reject a project-local trust home
-ok 187 - trust reads also reject a project-local trust home
+ok 190 - trust reads also reject a project-local trust home
   ---
-  duration_ms: 83.7115
+  duration_ms: 100.097792
   type: 'test'
   ...
 # Subtest: independent CLI processes append to one journal without lost records
-ok 188 - independent CLI processes append to one journal without lost records
+ok 191 - independent CLI processes append to one journal without lost records
   ---
-  duration_ms: 264.697167
+  duration_ms: 243.53
   type: 'test'
   ...
 # Subtest: successful checks produce current evidence and allow the local gate
-ok 189 - successful checks produce current evidence and allow the local gate
+ok 192 - successful checks produce current evidence and allow the local gate
   ---
-  duration_ms: 826.915792
+  duration_ms: 860.708041
   type: 'test'
   ...
 # Subtest: failed check cannot be called complete
-ok 190 - failed check cannot be called complete
+ok 193 - failed check cannot be called complete
   ---
-  duration_ms: 772.021417
+  duration_ms: 944.977375
   type: 'test'
   ...
 # Subtest: missing executable is unavailable rather than passed
-ok 191 - missing executable is unavailable rather than passed
+ok 194 - missing executable is unavailable rather than passed
   ---
-  duration_ms: 647.081042
+  duration_ms: 713.640583
   type: 'test'
   ...
 # Subtest: timed-out child is failed and cannot unlock gate
-ok 192 - timed-out child is failed and cannot unlock gate
+ok 195 - timed-out child is failed and cannot unlock gate
   ---
-  duration_ms: 719.101792
+  duration_ms: 686.526709
   type: 'test'
   ...
 # Subtest: source mutation after a passing run invalidates evidence
-ok 193 - source mutation after a passing run invalidates evidence
+ok 196 - source mutation after a passing run invalidates evidence
   ---
-  duration_ms: 623.631417
+  duration_ms: 705.663875
   type: 'test'
   ...
 # Subtest: source mutation during a run invalidates an otherwise zero exit
-ok 194 - source mutation during a run invalidates an otherwise zero exit
+ok 197 - source mutation during a run invalidates an otherwise zero exit
   ---
-  duration_ms: 615.819958
+  duration_ms: 653.16
   type: 'test'
   ...
 # Subtest: arbitrary argv text is not run through a shell
-ok 195 - arbitrary argv text is not run through a shell
+ok 198 - arbitrary argv text is not run through a shell
   ---
-  duration_ms: 602.1705
+  duration_ms: 579.750125
   type: 'test'
   ...
 # Subtest: provider credentials are not inherited by verification commands
-ok 196 - provider credentials are not inherited by verification commands
+ok 199 - provider credentials are not inherited by verification commands
   ---
-  duration_ms: 691.650083
+  duration_ms: 678.224458
   type: 'test'
   ...
 # Subtest: no stored evidence means no completion assertion
-ok 197 - no stored evidence means no completion assertion
+ok 200 - no stored evidence means no completion assertion
   ---
-  duration_ms: 371.364083
+  duration_ms: 449.903833
   type: 'test'
   ...
 # Subtest: excessive child output is failed, not silently accepted
-ok 198 - excessive child output is failed, not silently accepted
+ok 201 - excessive child output is failed, not silently accepted
   ---
-  duration_ms: 527.352875
+  duration_ms: 509.637667
   type: 'test'
   ...
 # Subtest: complete goal can reference the unchanged passing snapshot
-ok 199 - complete goal can reference the unchanged passing snapshot
+ok 202 - complete goal can reference the unchanged passing snapshot
   ---
-  duration_ms: 459.386
+  duration_ms: 560.319542
   type: 'test'
   ...
 # Subtest: edited verification stdout invalidates the evidence
-ok 200 - edited verification stdout invalidates the evidence
+ok 203 - edited verification stdout invalidates the evidence
   ---
-  duration_ms: 427.971791
+  duration_ms: 372.075708
   type: 'test'
   ...
 # Subtest: deleted verification output invalidates the evidence
-ok 201 - deleted verification output invalidates the evidence
+ok 204 - deleted verification output invalidates the evidence
   ---
-  duration_ms: 398.2075
+  duration_ms: 408.376042
   type: 'test'
   ...
 # Subtest: resolveCommand resolves node and preserves custom binaries
-ok 202 - resolveCommand resolves node and preserves custom binaries
+ok 205 - resolveCommand resolves node and preserves custom binaries
   ---
-  duration_ms: 0.083
+  duration_ms: 0.078042
   type: 'test'
   ...
 # Subtest: resolveCommand simulates Windows .cmd resolution
-ok 203 - resolveCommand simulates Windows .cmd resolution
+ok 206 - resolveCommand simulates Windows .cmd resolution
   ---
-  duration_ms: 9.475833
+  duration_ms: 7.436666
   type: 'test'
   ...
 # Subtest: verification plan exclude allows build artifacts without invalidating source
-ok 204 - verification plan exclude allows build artifacts without invalidating source
+ok 207 - verification plan exclude allows build artifacts without invalidating source
   ---
-  duration_ms: 428.803541
+  duration_ms: 455.32875
   type: 'test'
   ...
-1..204
-# tests 204
+1..207
+# tests 207
 # suites 0
-# pass 204
+# pass 207
 # fail 0
 # cancelled 0
 # skipped 0
 # todo 0
-# duration_ms 11658.1515
+# duration_ms 12165.534083
