@@ -25,7 +25,7 @@ trust --approve HASH   Record approval of that exact policy/command bundle
 install --host HOST    Merge local hooks; --plugin avoids copying bundled skills
 update --host HOST     Refresh managed files; stop on customized skill conflicts
 uninstall --host HOST  Remove owned hooks and unchanged skills; retain project data
-hook --host HOST       Handle JSON on stdin (generic, codex, claude)
+hook --host HOST       Handle JSON on stdin (generic, codex, claude, antigravity)
 eval --input FILE      Evaluate an untrusted draft as a simulation; no activation
 journal add --file F   Add a typed decision/question/knowledge/goal/schedule/handoff
 journal list           Read the validated journal
@@ -40,7 +40,7 @@ report                 Count context prepared, never pretend host receipt
 audit report           Alias for report
 audit prune [--keep N] Prune older audit receipts to recover retention capacity
 instructions-audit     Inventory agent files and flag common instruction conflicts
-doctor                 Check trust and local wiring; --host codex or claude
+doctor                 Check trust and local wiring; --host codex, claude or antigravity
 mcp                    Run JSON-RPC 2.0 stdio MCP server for agent integration
 mcp --config           Print MCP client configuration; --host claude, cursor or antigravity
 keygen                 Generate an Ed25519 asymmetric key pair
@@ -76,8 +76,9 @@ function resolveSafePath(filePath) {
 }
 
 async function input() {
-    if (opts.input)
-        return parseJSON(readText(resolveSafePath(opts.input)));
+    const fileArg = opts.input || opts.file;
+    if (fileArg)
+        return parseJSON(readText(resolveSafePath(fileArg)));
     return new Promise((resolve, reject) => {
         let size = 0;
         const chunks = [];
@@ -134,7 +135,7 @@ try {
         if (opts.out) {
             const outDir = resolveSafePath(opts.out);
             const saved = saveKeypair(outDir, keys);
-            output({ generated: true, out: saved.out, keyId: keys.keyId });
+            output({ generated: true, out: saved.out, privPath: saved.privPath, pubPath: saved.pubPath, keyId: keys.keyId });
         } else {
             output(keys);
         }
@@ -196,8 +197,9 @@ try {
         else if (command === 'journal') {
             const sub = positionals[1] || 'list';
             if (sub === 'add') {
-                insist(opts.file, 'USAGE', '--file is required.');
-                output(await appendEntry(root, readJSON(resolveSafePath(opts.file))));
+                const fileArg = opts.file || opts.input;
+                insist(fileArg, 'USAGE', '--file is required.');
+                output(await appendEntry(root, readJSON(resolveSafePath(fileArg))));
             }
             else if (sub === 'list')
                 output(readJournal(root));
@@ -213,8 +215,9 @@ try {
                 insist(false, 'USAGE', 'Unknown journal command.');
         }
         else if (command === 'checkpoint') {
-            insist(opts.file, 'USAGE', '--file is required.');
-            const data = readJSON(resolveSafePath(opts.file));
+            const fileArg = opts.file || opts.input;
+            insist(fileArg, 'USAGE', '--file is required.');
+            const data = readJSON(resolveSafePath(fileArg));
             if (opts['session-id'] !== undefined) {
                 insist(opts['session-id'].trim() && opts['session-id'].length <= 256, 'USAGE', 'Invalid session ID.');
                 const session = sha256(opts['session-id']);

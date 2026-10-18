@@ -3,8 +3,14 @@ import { insist } from './errors.mjs';
 import { isObject } from './schema.mjs';
 import { normalizeTool, relativePath, validateEvent } from './engine.mjs';
 import { rootOf } from './fs.mjs';
-const events = { UserPromptSubmit: 'prompt', PreToolUse: 'tool', SessionStart: 'session', PreCompact: 'compact' };
-export const HOSTS = ['generic', 'codex', 'claude'];
+const events = {
+    UserPromptSubmit: 'prompt',
+    PreInvocation: 'prompt',
+    PreToolUse: 'tool',
+    SessionStart: 'session',
+    PreCompact: 'compact'
+};
+export const HOSTS = ['generic', 'codex', 'claude', 'antigravity'];
 
 function resolveHookCwd(root, rawCwd) {
     if (rawCwd === undefined) return root;
@@ -15,11 +21,11 @@ function resolveHookCwd(root, rawCwd) {
     return cwd;
 }
 
-function populatePromptEvent(result, raw) {
+function populatePromptEvent(result, raw, host) {
     const p = raw.prompt, t = raw.prompt_text;
     if (p !== undefined && t !== undefined)
         insist(p === t, 'AMBIGUOUS_PROMPT', 'prompt and prompt_text disagree.');
-    result.text = p ?? t;
+    result.text = p ?? t ?? (host === 'antigravity' ? (raw.userPrompt ?? '') : undefined);
     insist(typeof result.text === 'string', 'BAD_INPUT', 'Prompt text is missing.');
 }
 
@@ -41,25 +47,48 @@ function extractToolText(ti) {
     const editsText = Array.isArray(ti.edits)
         ? ti.edits.flatMap(e => [e?.old_string, e?.new_string])
         : [];
-    return [ti.command, ti.url, ti.description, ti.content, ti.new_string, ti.old_string, ti.new_source, ...editsText]
+    return [
+        ti.command,
+        ti.CommandLine,
+        ti.url,
+        ti.Url,
+        ti.description,
+        ti.content,
+        ti.CodeContent,
+        ti.ReplacementContent,
+        ti.TargetContent,
+        ti.new_string,
+        ti.old_string,
+        ti.new_source,
+        ...editsText
+    ]
         .filter(v => typeof v === 'string' && v.length > 0)
         .join('\n');
 }
 
+function extractRawToolCall(raw) {
+    if (isObject(raw.toolCall)) {
+        return { toolName: raw.toolCall.name, toolInput: raw.toolCall.args };
+    }
+    return { toolName: raw.tool_name, toolInput: raw.tool_input };
+}
+
 function populateToolEvent(result, raw, root, cwd) {
-    insist(typeof raw.tool_name === 'string' && raw.tool_name, 'BAD_INPUT', 'tool_name is missing.');
-    const ti = raw.tool_input;
+    const { toolName, toolInput: ti } = extractRawToolCall(raw);
+    insist(typeof toolName === 'string' && toolName, 'BAD_INPUT', 'tool_name is missing.');
     insist(isObject(ti), 'BAD_INPUT', 'tool_input must be an object.');
-    result.tool = raw.tool_name;
+    result.tool = toolName;
     const kind = normalizeTool(result.tool);
     result.text = extractToolText(ti);
-    if (kind === 'shell')
-        insist(typeof ti.command === 'string' && ti.command.trim(), 'BAD_INPUT', 'Shell command is missing.');
+    if (kind === 'shell') {
+        const cmd = ti.command ?? ti.CommandLine;
+        insist(typeof cmd === 'string' && cmd.trim(), 'BAD_INPUT', 'Shell command is missing.');
+    }
     if (result.tool.toLowerCase() === 'apply_patch') {
         populatePatchEvent(result, ti, root, cwd);
     }
     else if (kind === 'file.write' || kind === 'file.read') {
-        const rawPath = ti.file_path ?? ti.notebook_path;
+        const rawPath = ti.file_path ?? ti.notebook_path ?? ti.TargetFile ?? ti.AbsolutePath;
         insist(typeof rawPath === 'string' && rawPath, 'BAD_INPUT', 'File operation path is missing.');
         result.paths = [relativePath(root, rawPath, cwd)];
         result.text = [rawPath, result.text].filter(Boolean).join('\n');
@@ -67,23 +96,53 @@ function populateToolEvent(result, raw, root, cwd) {
     result.paths = [...new Set(result.paths)];
 }
 
+function resolveRawEventName(host, raw, expectedEvent) {
+    if (expectedEvent && raw.hook_event_name !== undefined) {
+        insist(raw.hook_event_name === expectedEvent, 'EVENT_MISMATCH', 'Hook event does not match the registered handler.');
+    }
+    return raw.hook_event_name ?? (host === 'antigravity' ? expectedEvent : undefined);
+}
+
 export function normalizeInput(host, raw, root, expectedEvent = null) {
     root = rootOf(root);
-    insist(HOSTS.includes(host), 'BAD_HOST', 'Host must be generic, codex or claude.');
+    insist(HOSTS.includes(host), 'BAD_HOST', 'Host must be generic, codex, claude or antigravity.');
     if (host === 'generic') {
         validateEvent(raw);
         return validateEvent({ ...raw, paths: [...new Set(raw.paths.map(p => relativePath(root, p)))] });
     }
     insist(isObject(raw), 'BAD_INPUT', 'Hook input must be an object.');
-    if (expectedEvent)
-        insist(raw.hook_event_name === expectedEvent, 'EVENT_MISMATCH', 'Hook event does not match the registered handler.');
-    const event = typeof raw.hook_event_name === 'string' && Object.hasOwn(events, raw.hook_event_name) ? events[raw.hook_event_name] : null;
+    const rawEventName = resolveRawEventName(host, raw, expectedEvent);
+    const event = typeof rawEventName === 'string' && Object.hasOwn(events, rawEventName) ? events[rawEventName] : null;
     insist(event, 'BAD_EVENT', 'Unsupported host event.');
-    const cwd = resolveHookCwd(root, raw.cwd);
-    const result = { event, text: '', tool: null, paths: [], sessionId: raw.session_id ?? null };
-    if (event === 'prompt') populatePromptEvent(result, raw);
+    const cwd = resolveHookCwd(root, raw.cwd ?? raw.toolCall?.args?.Cwd);
+    const result = { event, text: '', tool: null, paths: [], sessionId: raw.session_id ?? raw.conversationId ?? null };
+    if (event === 'prompt') populatePromptEvent(result, raw, host);
     if (event === 'tool') populateToolEvent(result, raw, root, cwd);
     return validateEvent(result);
+}
+
+function encodeAntigravityResponse(event, result) {
+    if (result.decision === 'deny') {
+        if (event === 'tool') {
+            return { stdout: JSON.stringify({ decision: 'deny', reason: result.reason }), stderr: '', exitCode: 0 };
+        }
+        return {
+            stdout: JSON.stringify({ injectSteps: [{ ephemeralMessage: result.reason }] }),
+            stderr: result.reason,
+            exitCode: 0
+        };
+    }
+    if (event === 'tool') {
+        return { stdout: JSON.stringify({ decision: 'allow' }), stderr: '', exitCode: 0 };
+    }
+    if ((event === 'session' || event === 'prompt') && result.context) {
+        return {
+            stdout: JSON.stringify({ injectSteps: [{ ephemeralMessage: result.context }] }),
+            stderr: '',
+            exitCode: 0
+        };
+    }
+    return { stdout: '{}', stderr: '', exitCode: 0 };
 }
 
 function encodeDenyResponse(host, event, reason) {
@@ -102,6 +161,8 @@ function encodeDenyResponse(host, event, reason) {
 export function encode(host, event, result) {
     if (host === 'generic')
         return { stdout: JSON.stringify(result), stderr: '', exitCode: result.decision === 'deny' ? 2 : 0 };
+    if (host === 'antigravity')
+        return encodeAntigravityResponse(event, result);
     if (result.decision === 'deny')
         return encodeDenyResponse(host, event, result.reason);
     if (event === 'compact' || !result.context)

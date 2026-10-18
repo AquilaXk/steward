@@ -6,7 +6,7 @@ Environment: macOS arm64, Node v24.19.0 (Node 22+ compatible), npm 11.6.2.
 | Command | Exit | Observed result |
 |---|---:|---|
 | `npm run check` | 0 | Module syntax (41 modules), JSON (25 files), package identity, skill metadata (8 skills), `index.d.ts` and schema parity, and local Markdown links/anchors |
-| `npm test` | 0 | 213 passed; 0 failed, cancelled, skipped or todo |
+| `npm test` | 0 | 215 passed; 0 failed, cancelled, skipped or todo |
 | `npm run demo` | 0 | Three synthetic arithmetic tests; policy denial; checkpoint recovery; source-change rejection |
 | Skill Creator structural validator | 0 | All eight canonical skills have valid names, frontmatter and complete bodies |
 

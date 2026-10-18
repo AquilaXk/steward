@@ -650,3 +650,72 @@ test('MCP executes steward_goal_manage, steward_record_handoff, steward_record_q
     assert.match(badArrayRes.result.content[0].text, /SCHEMA/);
 });
 
+test('MCP tools and resources support per-call project workspace override (ADV-4)', async (t) => {
+    const { root: primaryRoot } = sandbox(t, { plan: plan() });
+    const { root: secondaryRoot } = sandbox(t, { plan: plan() });
+
+    const recordRes = await handleMcpMessage(primaryRoot, {
+        jsonrpc: '2.0',
+        id: 201,
+        method: 'tools/call',
+        params: {
+            name: 'steward_record_decision',
+            arguments: {
+                project: secondaryRoot,
+                statement: 'Route MCP calls via optional project parameter across multi-workspace sessions',
+                authority: { kind: 'user', reference: 'QA dogfooding audit', quote: 'Proceed with ADV-4' }
+            }
+        }
+    });
+    assert.equal(recordRes.result.isError, false, recordRes.result.content?.[0]?.text);
+    assert.match(JSON.parse(recordRes.result.content[0].text).data.statement, /multi-workspace/);
+
+    const primaryRecall = await handleMcpMessage(primaryRoot, {
+        jsonrpc: '2.0',
+        id: 202,
+        method: 'tools/call',
+        params: { name: 'steward_recall', arguments: { text: 'multi-workspace' } }
+    });
+    assert.equal(JSON.parse(primaryRecall.result.content[0].text).count, 0);
+
+    const secondaryRecall = await handleMcpMessage(primaryRoot, {
+        jsonrpc: '2.0',
+        id: 203,
+        method: 'tools/call',
+        params: { name: 'steward_recall', arguments: { project: secondaryRoot, text: 'multi-workspace' } }
+    });
+    assert.equal(JSON.parse(secondaryRecall.result.content[0].text).count, 1);
+
+    const doctorToolRes = await handleMcpMessage(primaryRoot, {
+        jsonrpc: '2.0',
+        id: 204,
+        method: 'tools/call',
+        params: { name: 'steward_doctor', arguments: { project: secondaryRoot } }
+    });
+    assert.equal(doctorToolRes.result.isError, false, doctorToolRes.result.content?.[0]?.text);
+    const doctorOut = JSON.parse(doctorToolRes.result.content[0].text);
+    assert.equal(doctorOut.trusted, true);
+    assert.equal(doctorOut.journal.count, 1);
+
+    const encodedProject = encodeURIComponent(secondaryRoot);
+    const resRead = await handleMcpMessage(primaryRoot, {
+        jsonrpc: '2.0',
+        id: 205,
+        method: 'resources/read',
+        params: { uri: `steward://journal/summary?project=${encodedProject}` }
+    });
+    assert.ok(resRead.result, 'Expected steward://journal/summary?project=... to succeed');
+    assert.equal(resRead.result.contents[0].uri, `steward://journal/summary?project=${encodedProject}`);
+    const summaryJson = JSON.parse(resRead.result.contents[0].text);
+    assert.equal(summaryJson.count, 1);
+
+    const badQueryRes = await handleMcpMessage(primaryRoot, {
+        jsonrpc: '2.0',
+        id: 206,
+        method: 'resources/read',
+        params: { uri: 'steward://doctor?unknown=1' }
+    });
+    assert.ok(badQueryRes.error, 'Expected unknown query param on resource URI to fail closed');
+});
+
+

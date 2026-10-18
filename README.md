@@ -113,7 +113,7 @@ The demo creates a temporary project, runs three synthetic arithmetic tests, rec
 and restores a checkpoint, and rejects evidence after a source change. It removes its
 fixture afterward and does not launch a native agent application.
 
-For the full local software suite (213 tests covering engine, journal, index cache,
+For the full local software suite (215 tests covering engine, journal, index cache,
 MCP server, Ed25519 crypto, pattern matcher, and CLI integration), run `npm run verify`
 (or `npm test`). See the [verification record](evidence/VERIFICATION.md) for observed results
 and their scope.
@@ -140,20 +140,21 @@ node bin/steward.mjs install --project /absolute/path/to/project --host codex
 node bin/steward.mjs doctor --project /absolute/path/to/project --host codex
 ```
 
-For Claude Code, use `--host claude` in the installation command. Complete the host's
+For Claude Code or Antigravity, use `--host claude` or `--host antigravity` in the installation command. Complete the host's
 own trust and permission review before relying on its hooks.
 
 | Host / Interface | Skills / Capabilities | Hook or Client Configuration |
 |---|---|---|
 | Codex | `.agents/skills/steward-*` | `.codex/hooks.json` |
 | Claude Code | `.claude/skills/steward-*` | `.claude/settings.local.json` |
+| Antigravity | `.agents/skills/steward-*` | `.agents/hooks.json` |
 | MCP Client | 11 Tools & 6 Resources | Stdio JSON-RPC via `mcp --config --host <host>` |
 | Generic caller | Optional procedures | JSON via `hook --host generic` |
 
 Claude installation also imports the shared `AGENTS.md` from `CLAUDE.md`.
 Generated `.steward/USAGE.md` records the actual runner and example paths.
 The skill paths in the table apply to manual setup; plugin setup uses the bundled
-skills. After a toolkit or plugin update, run `update --host codex` (or `claude`)
+skills. After a toolkit or plugin update, run `update --host codex` (or `claude` / `antigravity`)
 from its current path. Before removing a plugin, run `uninstall --host <host>` to
 remove its project hooks and unchanged managed skills while retaining project data.
 

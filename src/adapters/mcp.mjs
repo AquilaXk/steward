@@ -12,6 +12,10 @@ import { insist, publicError } from '../errors.mjs';
 import { object } from '../schema.mjs';
 
 const MAX_LINE_BYTES = 1024 * 1024;
+const PROJECT_PROP = {
+    type: 'string',
+    description: 'Optional target project directory path; defaults to the server startup project root.'
+};
 
 /**
  * 11 Core Steward MCP Tools definition.
@@ -23,6 +27,7 @@ export const STEWARD_TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
+                project: PROJECT_PROP,
                 event: { type: 'string', enum: ['prompt', 'tool', 'session'], description: 'The event type to evaluate.' },
                 text: { type: 'string', description: 'The prompt text, command string, or description.' },
                 tool: { type: 'string', description: 'Tool name if event is "tool" (e.g., shell, file.write).' },
@@ -39,6 +44,7 @@ export const STEWARD_TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
+                project: PROJECT_PROP,
                 type: { type: 'string', enum: ['decision', 'question', 'knowledge', 'goal', 'checkpoint', 'schedule', 'handoff', 'verification'] },
                 text: { type: 'string', description: 'Search text within journal records.' },
                 tag: { type: 'string', description: 'Filter by tag.' },
@@ -58,6 +64,7 @@ export const STEWARD_TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
+                project: PROJECT_PROP,
                 statement: { type: 'string', description: 'The decision statement.' },
                 authority: {
                     type: 'object',
@@ -82,6 +89,7 @@ export const STEWARD_TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
+                project: PROJECT_PROP,
                 summary: { type: 'string', description: 'Concise summary of progress made so far.' },
                 next: { type: 'string', description: 'Concrete next action to execute.' },
                 blockers: { type: 'array', items: { type: 'string' }, description: 'Any blocking issues or open questions.' },
@@ -97,7 +105,9 @@ export const STEWARD_TOOLS = [
         description: 'Run the project approved verification plan commands and capture cryptographic evidence of test outcomes.',
         inputSchema: {
             type: 'object',
-            properties: {},
+            properties: {
+                project: PROJECT_PROP
+            },
             additionalProperties: false
         }
     },
@@ -107,6 +117,7 @@ export const STEWARD_TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
+                project: PROJECT_PROP,
                 evidence: { type: 'string', description: 'Optional specific verification evidence SHA-256 hash.' }
             },
             additionalProperties: false
@@ -118,6 +129,7 @@ export const STEWARD_TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
+                project: PROJECT_PROP,
                 claim: { type: 'string', description: 'The verified assertion or domain fact.' },
                 basis: { type: 'string', enum: ['source', 'observation', 'assumption'] },
                 sources: {
@@ -145,6 +157,7 @@ export const STEWARD_TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
+                project: PROJECT_PROP,
                 title: { type: 'string', description: 'Milestone or task title.' },
                 dueAt: { type: 'string', description: 'Due date as ISO timestamp.' },
                 status: { type: 'string', enum: ['planned', 'staged', 'completed', 'cancelled'] },
@@ -163,6 +176,7 @@ export const STEWARD_TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
+                project: PROJECT_PROP,
                 objective: { type: 'string', description: 'Clear statement of the work goal objective.' },
                 acceptance: { type: 'array', items: { type: 'string' }, description: 'Concrete acceptance criteria (nonempty).' },
                 status: { type: 'string', enum: ['active', 'blocked', 'complete'], description: 'Current lifecycle status of the goal.' },
@@ -179,6 +193,7 @@ export const STEWARD_TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
+                project: PROJECT_PROP,
                 task: { type: 'string', description: 'Specific delegated task or handoff objective.' },
                 scope: { type: 'array', items: { type: 'string' }, description: 'Explicit allowed file or directory scope (nonempty).' },
                 constraints: { type: 'array', items: { type: 'string' }, description: 'Explicit boundary constraints or forbidden files.' },
@@ -196,6 +211,7 @@ export const STEWARD_TOOLS = [
         inputSchema: {
             type: 'object',
             properties: {
+                project: PROJECT_PROP,
                 question: { type: 'string', description: 'The open or resolved question.' },
                 assumptions: { type: 'array', items: { type: 'string' }, description: 'Working assumptions while the question is open.' },
                 resolution: { type: ['string', 'null'], description: 'Confirmed resolution text or null if unresolved.' },
@@ -317,8 +333,8 @@ const TOOL_SCHEMA_KEYS = Object.fromEntries([
         const tool = STEWARD_TOOLS.find(t => t.name === canonical);
         return [alias, Object.keys(tool?.inputSchema.properties || {})];
     }),
-    ['steward_status', []],
-    ['steward_doctor', []]
+    ['steward_status', ['project']],
+    ['steward_doctor', ['project']]
 ]);
 
 const TOOL_DISPATCHERS = {
@@ -394,17 +410,22 @@ const TOOL_DISPATCHERS = {
  * @returns {Promise<object>} Result payload.
  */
 export async function executeTool(root, name, args = {}) {
-    root = rootOf(root);
     insist(args === undefined || (args !== null && typeof args === 'object' && !Array.isArray(args)), 'SCHEMA', 'Tool arguments must be an object.');
     const handler = typeof name === 'string' && Object.hasOwn(TOOL_DISPATCHERS, name) ? TOOL_DISPATCHERS[name] : null;
     insist(handler, 'USAGE', `Unknown MCP tool: ${name}`);
     const resolvedArgs = args ?? {};
     object(resolvedArgs, TOOL_SCHEMA_KEYS[name] ?? [], name);
-    return handler(root, resolvedArgs);
+    insist(resolvedArgs.project === undefined || typeof resolvedArgs.project === 'string', 'SCHEMA', `${name}.project must be a string.`);
+    const targetRoot = rootOf(optStr(resolvedArgs.project) ?? root);
+    return handler(targetRoot, resolvedArgs);
 }
 
 const RESOURCE_HANDLERS = {
     'steward://policy': (root, uri) => {
+        const { policy } = requireTrust(root);
+        return { uri, mimeType: 'application/json', text: JSON.stringify(policy, null, 2) };
+    },
+    'steward://policy/active': (root, uri) => {
         const { policy } = requireTrust(root);
         return { uri, mimeType: 'application/json', text: JSON.stringify(policy, null, 2) };
     },
@@ -413,6 +434,10 @@ const RESOURCE_HANDLERS = {
         return { uri, mimeType: 'application/json', text: JSON.stringify(plan, null, 2) };
     },
     'steward://journal/head': (root, uri) => {
+        const rows = readJournal(root);
+        return { uri, mimeType: 'application/json', text: JSON.stringify(journalHead(rows), null, 2) };
+    },
+    'steward://journal/summary': (root, uri) => {
         const rows = readJournal(root);
         return { uri, mimeType: 'application/json', text: JSON.stringify(journalHead(rows), null, 2) };
     },
@@ -430,6 +455,21 @@ const RESOURCE_HANDLERS = {
     }
 };
 
+function parseResourceTarget(root, uri) {
+    insist(typeof uri === 'string' && uri.trim(), 'USAGE', `Unknown MCP resource: ${uri}`);
+    const qIndex = uri.indexOf('?');
+    if (qIndex < 0) {
+        return { baseUri: uri, targetRoot: rootOf(root) };
+    }
+    const baseUri = uri.slice(0, qIndex);
+    const params = new URLSearchParams(uri.slice(qIndex + 1));
+    for (const key of params.keys()) {
+        insist(key === 'project', 'USAGE', `Unsupported MCP resource query parameter: ${key}`);
+    }
+    const projectParam = optStr(params.get('project') ?? undefined);
+    return { baseUri, targetRoot: rootOf(projectParam ?? root) };
+}
+
 /**
  * Reads an MCP resource by URI.
  *
@@ -438,10 +478,10 @@ const RESOURCE_HANDLERS = {
  * @returns {object} Resource contents.
  */
 export function readResource(root, uri) {
-    root = rootOf(root);
-    const handler = typeof uri === 'string' && Object.hasOwn(RESOURCE_HANDLERS, uri) ? RESOURCE_HANDLERS[uri] : null;
+    const { baseUri, targetRoot } = parseResourceTarget(root, uri);
+    const handler = Object.hasOwn(RESOURCE_HANDLERS, baseUri) ? RESOURCE_HANDLERS[baseUri] : null;
     insist(handler, 'USAGE', `Unknown MCP resource: ${uri}`);
-    return handler(root, uri);
+    return handler(targetRoot, uri);
 }
 
 /**
