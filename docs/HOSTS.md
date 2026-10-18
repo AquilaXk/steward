@@ -15,8 +15,8 @@ reviewed before local hook registration. Native trust is still required.
 
 `init` installs the eight canonical skill sources under `.agents/skills/steward-*`.
 `install --host codex` merges `.codex/hooks.json`. `install --host antigravity` merges
-the `"steward"` named hook into `.agents/hooks.json` with flat `SessionStart` and
-`PreInvocation` handler arrays and a grouped `PreToolUse` (`matcher: "*"`) handler array.
+the `"steward"` named hook into `.agents/hooks.json` with flat `SessionStart`,
+`PreInvocation`, and `Stop` handler arrays and a grouped `PreToolUse` (`matcher: "*"`) handler array.
 `install --host claude` merges
 `.claude/settings.local.json`, installs native `.claude/skills/steward-*` copies and
 adds `@AGENTS.md` to `CLAUDE.md` without replacing user notes. An old exact pointer

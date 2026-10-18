@@ -43,6 +43,7 @@
     ".codex-plugin",
     ".claude-plugin",
     ".agents/plugins",
+    "plugin.json",
     "CHANGELOG.md",
     "docs",
     "examples",

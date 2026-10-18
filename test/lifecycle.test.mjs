@@ -25,6 +25,8 @@ for (const host of ['codex', 'claude']) {
         assert.equal(removed.status, 0, removed.stderr);
         assert.equal(fs.readFileSync(path.join(root, modified), 'utf8'), 'My custom procedure');
         assert.equal(fs.existsSync(path.join(root, skills, 'steward-recall/SKILL.md')), false);
+        assert.equal(fs.existsSync(path.join(root, skills, 'steward-recall')), false, 'Empty unmanaged skill directory must be pruned');
+        assert.equal(fs.existsSync(path.join(root, skills, 'steward-work')), true, 'Non-empty customized skill directory must be retained');
         assert.equal(fs.readFileSync(path.join(root, '.steward/state/user-note'), 'utf8'), 'retain');
         assert(fs.existsSync(path.join(root, '.steward/policy.json')));
         const remaining = JSON.parse(fs.readFileSync(path.join(root, configPath)));
@@ -66,7 +68,7 @@ test('antigravity host install, update, doctor, and uninstall manage .agents/hoo
     assert.equal(hooksConfig.steward.enabled, true);
     assert.equal(hooksConfig.hooks, undefined, 'Antigravity .agents/hooks.json must not use a top-level hooks wrapper');
 
-    // SessionStart and PreInvocation must be flat arrays of handler objects
+    // SessionStart, PreInvocation, and Stop must be flat arrays of handler objects
     assert.ok(Array.isArray(hooksConfig.steward.SessionStart));
     assert.equal(hooksConfig.steward.SessionStart.length, 1);
     assert.equal(hooksConfig.steward.SessionStart[0].type, 'command');
@@ -77,6 +79,12 @@ test('antigravity host install, update, doctor, and uninstall manage .agents/hoo
     assert.equal(hooksConfig.steward.PreInvocation.length, 2);
     assert.equal(hooksConfig.steward.PreInvocation[0].command, 'echo custom-pre-invocation');
     assert.match(hooksConfig.steward.PreInvocation[1].command, /--event.*PreInvocation/);
+
+    assert.ok(Array.isArray(hooksConfig.steward.Stop));
+    assert.equal(hooksConfig.steward.Stop.length, 1);
+    assert.equal(hooksConfig.steward.Stop[0].type, 'command');
+    assert.equal(hooksConfig.steward.Stop[0].timeout, 10);
+    assert.match(hooksConfig.steward.Stop[0].command, /--event.*Stop/);
 
     // PreToolUse must be grouped with matcher: '*'
     assert.ok(Array.isArray(hooksConfig.steward.PreToolUse));
@@ -113,6 +121,8 @@ test('antigravity host install, update, doctor, and uninstall manage .agents/hoo
     assert.ok(afterRemove['lint-checker']);
     assert.deepEqual(afterRemove.steward.PreInvocation, [{ type: 'command', command: 'echo custom-pre-invocation', timeout: 5 }]);
     assert.deepEqual(afterRemove.steward.PreToolUse, [{ matcher: 'run_command', hooks: [{ type: 'command', command: 'echo custom-pre-tool', timeout: 5 }] }]);
+    assert.equal(afterRemove.steward.SessionStart, undefined);
+    assert.equal(afterRemove.steward.Stop, undefined);
 });
 
 test('shared .agents/skills ownership across codex and antigravity preserves skills until last host is uninstalled', t => {
@@ -135,10 +145,12 @@ test('shared .agents/skills ownership across codex and antigravity preserves ski
     assert.equal(agDoctor.status, 0, agDoctor.stderr);
     assert.equal(JSON.parse(agDoctor.stdout).localHealthy, true);
 
-    // Uninstalling the remaining host removes shared .agents/skills/*
+    // Uninstalling the remaining host removes shared .agents/skills/* and prunes empty directories
     const uninstallAg = cli(root, ['uninstall', '--host', 'antigravity']);
     assert.equal(uninstallAg.status, 0, uninstallAg.stderr);
     assert.equal(fs.existsSync(path.join(root, '.agents/skills/steward-work/SKILL.md')), false);
+    assert.equal(fs.existsSync(path.join(root, '.agents/skills/steward-work')), false);
+    assert.equal(fs.existsSync(path.join(root, '.agents/skills')), false);
 });
 
 test('install, update, doctor, and uninstall support --host all across all three hosts', t => {

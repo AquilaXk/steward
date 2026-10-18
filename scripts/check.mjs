@@ -113,6 +113,11 @@ try {
         assert.equal(manifest.version, pkg.version, 'Plugin and package versions must agree.');
         assert.equal(manifest.skills, host === 'codex' ? './procedures/' : './.claude-plugin/skills/');
     }
+    const agManifest = json('plugin.json');
+    assert.equal(agManifest.name, pkg.name);
+    assert.equal(agManifest.version, pkg.version, 'Antigravity plugin and package versions must agree.');
+    assert.equal(agManifest.logo, 'assets/logo.svg');
+    assert(fs.existsSync(path.join(root, agManifest.logo)), 'Missing Antigravity plugin logo.');
     const codexMarketplace = json('.agents/plugins/marketplace.json');
     const claudeMarketplace = json('.claude-plugin/marketplace.json');
     for (const marketplace of [codexMarketplace, claudeMarketplace]) {
