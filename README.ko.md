@@ -295,7 +295,7 @@ node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
 **제공 MCP 도구 (Tools):**
 
 - `steward_policy_eval`: 프롬프트, 도구 호출, 세션 이벤트를 활성 정책 규칙에 따라 평가합니다.
-- `steward_recall`: `type`, `text`, `tag`, `since`, `until`, `session`, `recordId`, `history` 필터로 저널 기록을 조회합니다.
+- `steward_recall`: `type`, `text`, `tag`, `since`, `until`, `sessionId`, `recordId`, `history` 필터로 저널 기록을 조회합니다.
 - `steward_record_decision`: 근거 참조 및 인용문을 포함하여 확인된 아키텍처 결정을 저널에 기록합니다.
 - `steward_checkpoint`: 세션 진행 요약, 다음 구체적 행동, 차단 요소를 체크포인트로 저장합니다.
 - `steward_verify`: 승인된 검증 계획 명령을 실행하고 실행 결과의 암호학적 증거를 캡처합니다.
@@ -373,10 +373,10 @@ import {
 
 ```sh
 node bin/steward.mjs keygen --out ./keys
-node bin/steward.mjs sign-bundle --project /absolute/path/to/project --key ./keys/private.pem
-node bin/steward.mjs verify-bundle --project /absolute/path/to/project --pub ./keys/public.pem
-node bin/steward.mjs sign-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --key ./keys/private.pem
-node bin/steward.mjs verify-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --pub ./keys/public.pem
+node bin/steward.mjs sign-bundle --project /absolute/path/to/project --key ./keys/steward-ed25519.priv.pem
+node bin/steward.mjs verify-bundle --project /absolute/path/to/project --verifier ./keys/steward-ed25519.pub.pem
+node bin/steward.mjs sign-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --key ./keys/steward-ed25519.priv.pem
+node bin/steward.mjs verify-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --verifier ./keys/steward-ed25519.pub.pem
 ```
 
 ## 8. 저장소 구성

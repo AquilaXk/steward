@@ -297,7 +297,7 @@ node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
 **Exposed MCP Tools:**
 
 - `steward_policy_eval`: Evaluate prompt, tool, or session events against active policy rules.
-- `steward_recall`: Query journal records with `type`, `text`, `tag`, `since`, `until`, `session`, `recordId`, and `history` filters.
+- `steward_recall`: Query journal records with `type`, `text`, `tag`, `since`, `until`, `sessionId`, `recordId`, and `history` filters.
 - `steward_record_decision`: Append an attributed decision with authority reference and quote.
 - `steward_checkpoint`: Persist session summary, next concrete action, and blockers.
 - `steward_verify`: Run approved verification checks and capture execution evidence.
@@ -376,10 +376,10 @@ Sign policy bundles and verification evidence with domain-separated Ed25519 enve
 
 ```sh
 node bin/steward.mjs keygen --out ./keys
-node bin/steward.mjs sign-bundle --project /absolute/path/to/project --key ./keys/private.pem
-node bin/steward.mjs verify-bundle --project /absolute/path/to/project --pub ./keys/public.pem
-node bin/steward.mjs sign-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --key ./keys/private.pem
-node bin/steward.mjs verify-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --pub ./keys/public.pem
+node bin/steward.mjs sign-bundle --project /absolute/path/to/project --key ./keys/steward-ed25519.priv.pem
+node bin/steward.mjs verify-bundle --project /absolute/path/to/project --verifier ./keys/steward-ed25519.pub.pem
+node bin/steward.mjs sign-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --key ./keys/steward-ed25519.priv.pem
+node bin/steward.mjs verify-evidence --project /absolute/path/to/project --evidence EVIDENCE_HASH --verifier ./keys/steward-ed25519.pub.pem
 ```
 
 ## 8. Repository map
