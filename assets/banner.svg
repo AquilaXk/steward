@@ -1,30 +1,124 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="400" viewBox="0 0 1440 400" role="img" aria-labelledby="title desc">
-  <title id="title">Steward — carry the work, keep the evidence</title>
-  <desc id="desc">Local policy, memory and verification connected in one inspectable workflow.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="380" viewBox="0 0 1440 380" role="img" aria-labelledby="title desc">
+  <title id="title">Steward — Local policy, hash-linked memory, and source-bound verification for coding agents</title>
+  <desc id="desc">Architecture overview of Steward v0.2.0 showing the Policy Engine, Hash-Linked Journal, and Completion Gate.</desc>
   <defs>
-    <linearGradient id="bg" x2="1" y2="1"><stop stop-color="#101f2b"/><stop offset="1" stop-color="#173f45"/></linearGradient>
-    <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse"><path d="M40 0H0V40" fill="none" stroke="#80bcb4" stroke-opacity=".08"/></pattern>
+    <style>
+      .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif; }
+      .mono { font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace; }
+    </style>
   </defs>
-  <rect width="1440" height="400" rx="20" fill="url(#bg)"/>
-  <rect width="1440" height="400" rx="20" fill="url(#grid)"/>
-  <g font-family="Arial, Helvetica, sans-serif">
-    <text x="72" y="88" fill="#90dbc6" font-size="17" letter-spacing="4">LOCAL TOOLS FOR CODING AGENTS</text>
-    <text x="68" y="182" fill="#f3f8f6" font-size="82" font-weight="700" letter-spacing="-3">Steward</text>
-    <text x="72" y="238" fill="#dcebe8" font-size="27">Carry the work. Keep the evidence.</text>
-    <text x="72" y="328" fill="#a9c9c6" font-size="18">Node.js · No runtime dependencies · No model API calls</text>
-    <path d="M848 155H1280" stroke="#73c9b3" stroke-width="3" stroke-dasharray="7 9"/>
-    <g fill="#17333c" stroke="#599a90" stroke-width="2">
-      <rect x="770" y="112" width="150" height="106" rx="16"/>
-      <rect x="970" y="112" width="150" height="106" rx="16"/>
-      <rect x="1170" y="112" width="190" height="106" rx="16"/>
+
+  <!-- Outer Frame -->
+  <rect x="1" y="1" width="1438" height="378" rx="14" fill="#0B0F17" stroke="#1E293B" stroke-width="2"/>
+
+  <!-- Top Terminal Header Bar -->
+  <path d="M1 15C1 7.268 7.268 1 15 1H1425C1432.73 1 1439 7.268 1439 15V44H1V15Z" fill="#111827"/>
+  <line x1="1" y1="44" x2="1439" y2="44" stroke="#1E293B" stroke-width="1"/>
+  <circle cx="24" cy="22" r="5" fill="#475569"/>
+  <circle cx="42" cy="22" r="5" fill="#475569"/>
+  <circle cx="60" cy="22" r="5" fill="#475569"/>
+  <text x="84" y="27" fill="#94A3B8" font-size="12" class="mono">steward@0.2.0 — node &gt;= 22 · zero runtime dependencies · fail-closed core</text>
+  <text x="1416" y="27" fill="#64748B" font-size="12" text-anchor="end" class="mono">MIT LICENSE</text>
+
+  <!-- Left Column: Identity & Core Summary -->
+  <g>
+    <rect x="48" y="76" width="248" height="26" rx="6" fill="#111827" stroke="#1E293B"/>
+    <circle cx="62" cy="89" r="4" fill="#10B981"/>
+    <text x="74" y="93" fill="#CBD5E1" font-size="11.5" font-weight="600" class="mono">LOCAL AGENT CONTROL PLANE</text>
+
+    <text x="48" y="164" fill="#F8FAFC" font-size="68" font-weight="700" letter-spacing="-2" class="sans">Steward</text>
+
+    <text x="48" y="206" fill="#94A3B8" font-size="16.5" class="sans">Deterministic policy evaluation, hash-chained</text>
+    <text x="48" y="230" fill="#94A3B8" font-size="16.5" class="sans">memory, and source-bound verification gates</text>
+    <text x="48" y="254" fill="#94A3B8" font-size="16.5" class="sans">for local coding agents.</text>
+
+    <!-- Host & Protocol Pills -->
+    <g class="mono" font-size="11.5" fill="#E2E8F0">
+      <rect x="48" y="286" width="104" height="28" rx="6" fill="#111827" stroke="#334155"/>
+      <text x="100" y="304" text-anchor="middle">Claude Code</text>
+
+      <rect x="160" y="286" width="92" height="28" rx="6" fill="#111827" stroke="#334155"/>
+      <text x="206" y="304" text-anchor="middle">Codex CLI</text>
+
+      <rect x="260" y="286" width="132" height="28" rx="6" fill="#111827" stroke="#334155"/>
+      <text x="326" y="304" text-anchor="middle">MCP JSON-RPC 2.0</text>
+
+      <rect x="400" y="286" width="126" height="28" rx="6" fill="#111827" stroke="#334155"/>
+      <text x="463" y="304" text-anchor="middle">TypeScript API</text>
     </g>
-    <g fill="#f3f8f6" font-size="20" font-weight="700" text-anchor="middle">
-      <text x="845" y="175">POLICY</text><text x="1045" y="175">MEMORY</text><text x="1265" y="175">EVIDENCE</text>
-    </g>
-    <g fill="#a9c9c6" font-size="16" text-anchor="middle">
-      <text x="845" y="259">Review the rules</text><text x="1045" y="259">Record decisions</text><text x="1265" y="259">Verify the result</text>
-    </g>
-    <path d="M788 318H1342" stroke="#599a90" stroke-opacity=".6"/>
-    <text x="1065" y="350" fill="#90dbc6" font-size="16" text-anchor="middle" letter-spacing="2">CODEX · CLAUDE CODE · GENERIC HOOKS</text>
+
+    <text x="48" y="344" fill="#64748B" font-size="12" class="mono">8 Native Skills · 8 MCP Tools · 5 MCP Resources · Ed25519 Signing</text>
   </g>
+
+  <!-- Vertical Divider -->
+  <line x1="556" y1="68" x2="556" y2="352" stroke="#1E293B" stroke-width="1"/>
+
+  <!-- Right Column: 3-Stage Architectural Pipeline -->
+  <!-- Stage 1: Policy Engine -->
+  <g>
+    <rect x="584" y="76" width="256" height="196" rx="10" fill="#111827" stroke="#1E293B" stroke-width="1.5"/>
+    <rect x="584" y="76" width="256" height="36" rx="10" fill="#0F172A"/>
+    <line x1="584" y1="112" x2="840" y2="112" stroke="#1E293B"/>
+    <text x="600" y="99" fill="#38BDF8" font-size="12" font-weight="700" class="mono">01 / POLICY ENGINE</text>
+    <text x="824" y="99" fill="#64748B" font-size="11" text-anchor="end" class="mono">engine.mjs</text>
+
+    <text x="600" y="138" fill="#E2E8F0" font-size="12.5" class="mono">• O(N) Uint32 bitmap glob</text>
+    <text x="600" y="162" fill="#E2E8F0" font-size="12.5" class="mono">• POSIX.1 shell tokenizer</text>
+    <text x="600" y="186" fill="#E2E8F0" font-size="12.5" class="mono">• SHA-256 bundle approval</text>
+    <text x="600" y="210" fill="#E2E8F0" font-size="12.5" class="mono">• Bounded context budgets</text>
+
+    <rect x="600" y="230" width="224" height="26" rx="5" fill="#0B0F17" stroke="#1E293B"/>
+    <text x="712" y="247" fill="#38BDF8" font-size="11.5" text-anchor="middle" class="mono">deny-first · fail-closed</text>
+  </g>
+
+  <!-- Connector 1 -> 2 -->
+  <g stroke="#475569" stroke-width="1.5" fill="none">
+    <line x1="840" y1="174" x2="862" y2="174"/>
+    <path d="M857 169L863 174L857 179" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Stage 2: Hash Journal -->
+  <g>
+    <rect x="866" y="76" width="256" height="196" rx="10" fill="#111827" stroke="#1E293B" stroke-width="1.5"/>
+    <rect x="866" y="76" width="256" height="36" rx="10" fill="#0F172A"/>
+    <line x1="866" y1="112" x2="1122" y2="112" stroke="#1E293B"/>
+    <text x="882" y="99" fill="#A78BFA" font-size="12" font-weight="700" class="mono">02 / HASH JOURNAL</text>
+    <text x="1106" y="99" fill="#64748B" font-size="11" text-anchor="end" class="mono">journal.mjs</text>
+
+    <text x="882" y="138" fill="#E2E8F0" font-size="12.5" class="mono">• Append-only SHA-256 chain</text>
+    <text x="882" y="162" fill="#E2E8F0" font-size="12.5" class="mono">• O(1) indexed tag recall</text>
+    <text x="882" y="186" fill="#E2E8F0" font-size="12.5" class="mono">• Deep-frozen cache objects</text>
+    <text x="882" y="210" fill="#E2E8F0" font-size="12.5" class="mono">• External anchor support</text>
+
+    <rect x="882" y="230" width="224" height="26" rx="5" fill="#0B0F17" stroke="#1E293B"/>
+    <text x="994" y="247" fill="#A78BFA" font-size="11.5" text-anchor="middle" class="mono">decision · checkpoint · goal</text>
+  </g>
+
+  <!-- Connector 2 -> 3 -->
+  <g stroke="#475569" stroke-width="1.5" fill="none">
+    <line x1="1122" y1="174" x2="1144" y2="174"/>
+    <path d="M1139 169L1145 174L1139 179" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <!-- Stage 3: Completion Gate -->
+  <g>
+    <rect x="1148" y="76" width="256" height="196" rx="10" fill="#111827" stroke="#1E293B" stroke-width="1.5"/>
+    <rect x="1148" y="76" width="256" height="36" rx="10" fill="#0F172A"/>
+    <line x1="1148" y1="112" x2="1404" y2="112" stroke="#1E293B"/>
+    <text x="1164" y="99" fill="#34D399" font-size="12" font-weight="700" class="mono">03 / COMPLETION GATE</text>
+    <text x="1388" y="99" fill="#64748B" font-size="11" text-anchor="end" class="mono">verify.mjs</text>
+
+    <text x="1164" y="138" fill="#E2E8F0" font-size="12.5" class="mono">• Source tree hash snapshot</text>
+    <text x="1164" y="162" fill="#E2E8F0" font-size="12.5" class="mono">• Spawn argv (no shell eval)</text>
+    <text x="1164" y="186" fill="#E2E8F0" font-size="12.5" class="mono">• Domain-separated Ed25519</text>
+    <text x="1164" y="210" fill="#E2E8F0" font-size="12.5" class="mono">• Fresh chain verification</text>
+
+    <rect x="1164" y="230" width="224" height="26" rx="5" fill="#0B0F17" stroke="#1E293B"/>
+    <text x="1276" y="247" fill="#34D399" font-size="11.5" text-anchor="middle" class="mono">evidence bound to source</text>
+  </g>
+
+  <!-- Bottom Verification Status Console Bar -->
+  <rect x="584" y="290" width="820" height="58" rx="8" fill="#0F172A" stroke="#1E293B"/>
+  <text x="604" y="313" fill="#94A3B8" font-size="12" class="mono">$ node bin/steward.mjs verify --project . &amp;&amp; node bin/steward.mjs gate --project .</text>
+  <text x="604" y="335" fill="#34D399" font-size="12" font-weight="600" class="mono">PASS  207/207 checks · journal chain verified · workspace snapshot matched · ed25519 valid</text>
 </svg>

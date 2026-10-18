@@ -149,13 +149,13 @@
     },
     {
       "path": "README.ko.md",
-      "bytes": 25409,
-      "sha256": "6d6540f0e3b0b7394bacc290ec6887f3a21d0058f149652faedecae6a53811db"
+      "bytes": 25807,
+      "sha256": "0feacec31b17917f081d01b9a2d362fb756fe5e2ba180fd5aeaefe2c484f9820"
     },
     {
       "path": "README.md",
-      "bytes": 22328,
-      "sha256": "bff2e9f96c521b49256729c2e3181b83735713cc903742bffb57f8625730342e"
+      "bytes": 22734,
+      "sha256": "75f77553c1a874c6002bed625f913a5ac461aab8e78bd1d7ea8b0c6c220ac4bb"
     },
     {
       "path": "SECURITY.md",
@@ -164,8 +164,8 @@
     },
     {
       "path": "assets/banner.svg",
-      "bytes": 2197,
-      "sha256": "c2751148004c472ad27a81f4547e381131bccb8550b1ea7d4a32ba7579292510"
+      "bytes": 7717,
+      "sha256": "3ef124397076f59cf4a1c7f8122a8a2acf77e01ff053ac0a7220a8ca03bad1a4"
     },
     {
       "path": "bin/steward.mjs",
@@ -275,7 +275,7 @@
     {
       "path": "evidence/source-manifest.json",
       "bytes": 18198,
-      "sha256": "8819e0ff9257d4a314c7a61f2a4d257cf1ba4d862585ba3aeb64d9920331a85d"
+      "sha256": "b33d49fa6c455c714b10285d076f98b9fdbe86265b13b50ab6fd987a20ac2c03"
     },
     {
       "path": "evidence/test-results.tap",
