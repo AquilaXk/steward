@@ -41,3 +41,26 @@ test('update requires a receipt and refreshes a managed installation idempotentl
     assert.equal(receipt.packageVersion, JSON.parse(cli(root, ['version']).stdout).version);
     assert.equal(cli(root, ['doctor', '--host', 'codex']).status, 0);
 });
+
+test('antigravity host install, update, doctor, and uninstall manage .agents/hooks.json cleanly', t => {
+    const { root } = sandbox(t);
+    const installed = cli(root, ['install', '--host', 'antigravity', '--plugin']);
+    assert.equal(installed.status, 0, installed.stderr);
+    assert.ok(fs.existsSync(path.join(root, '.agents/hooks.json')));
+    assert.ok(fs.existsSync(path.join(root, '.steward/install-antigravity.json')));
+
+    const doc = cli(root, ['doctor', '--host', 'antigravity']);
+    assert.equal(doc.status, 0, doc.stderr);
+    const docJson = JSON.parse(doc.stdout);
+    assert.equal(docJson.localHealthy, true);
+    assert.equal(docJson.hosts[0].host, 'antigravity');
+    assert.equal(docJson.hosts[0].status, 'configured');
+
+    const updated = cli(root, ['update', '--host', 'antigravity', '--plugin']);
+    assert.equal(updated.status, 0, updated.stderr);
+
+    const removed = cli(root, ['uninstall', '--host', 'antigravity']);
+    assert.equal(removed.status, 0, removed.stderr);
+    assert.equal(fs.existsSync(path.join(root, '.steward/install-antigravity.json')), false);
+});
+

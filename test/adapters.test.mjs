@@ -37,3 +37,89 @@ test('prompt denial uses exit 2 and no misleading context', () => { const out = 
 test('prepared receipts have no prompt, path or session text', t => { const { root } = sandbox(t); const { receipt } = handleHook(root, 'generic', event('TOP-SECRET verify')); const saved = readJSON(path.join(root, '.steward/state/audit', receipt + '.json')); assert.ok(!JSON.stringify(saved).includes('TOP-SECRET')); assert.equal(saved.hostAcknowledged, false); assert.equal(saved.stage, 'prepared'); assert.equal(report(root).receipts, 1); });
 test('compaction without a model-authored checkpoint says it has none', t => { const { root } = sandbox(t); const { result } = handleHook(root, 'codex', { hook_event_name: 'PreCompact' }); assert.equal(result.snapshot.hasCheckpoint, false); });
 test('generic adapter canonicalizes file paths before matching', t => { const { root } = sandbox(t); const r = normalizeInput('generic', { ...event(''), event: 'tool', tool: 'Write', paths: ['./memory/a.md', path.join(root, 'memory', 'a.md')] }, root); assert.deepEqual(r.paths, ['memory/a.md']); });
+
+test('antigravity adapter normalizes PreToolUse toolCall payloads and enforces policy (ADV-6)', async (t) => {
+    const { root } = sandbox(t);
+    write(root, '.steward/policy.json', policy([
+        rule({ id: 'protect-memory', effect: 'deny', on: ['tool'], match: { tools: ['file.write'], pathPrefixes: ['memory'] }, body: 'Memory directory is protected.' }),
+        rule({ id: 'no-force-push', effect: 'deny', on: ['tool'], match: { tools: ['shell'], patternsAny: ['*--force*'] }, body: 'Force push denied.' }),
+        rule({ id: 'no-secret-token', effect: 'deny', on: ['tool'], match: { tools: ['file.write'], patternsAny: ['*TOP_SECRET_TOKEN*'] }, body: 'Secret token denied.' })
+    ]));
+    trustBundle(root, loadBundle(root).hash);
+
+    const writeHook = handleHook(root, 'antigravity', {
+        conversationId: 'conv-123',
+        toolCall: {
+            name: 'write_to_file',
+            args: { TargetFile: path.join(root, 'memory', 'secret.md'), CodeContent: 'classified' }
+        }
+    }, 'PreToolUse');
+    assert.equal(writeHook.result.decision, 'deny');
+    assert.equal(writeHook.encoded.exitCode, 0);
+    assert.deepEqual(JSON.parse(writeHook.encoded.stdout), {
+        decision: 'deny',
+        reason: 'Policy protect-memory: Memory directory is protected.'
+    });
+
+    const cmdHook = handleHook(root, 'antigravity', {
+        conversationId: 'conv-123',
+        toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'git push --force origin main', Cwd: root }
+        }
+    }, 'PreToolUse');
+    assert.equal(cmdHook.result.decision, 'deny');
+    assert.deepEqual(JSON.parse(cmdHook.encoded.stdout), {
+        decision: 'deny',
+        reason: 'Policy no-force-push: Force push denied.'
+    });
+
+    const allowTool = handleHook(root, 'antigravity', {
+        conversationId: 'conv-123',
+        toolCall: {
+            name: 'view_file',
+            args: { AbsolutePath: path.join(root, 'README.md') }
+        }
+    }, 'PreToolUse');
+    assert.equal(allowTool.result.decision, 'allow');
+    assert.deepEqual(JSON.parse(allowTool.encoded.stdout), { decision: 'allow' });
+
+    await appendEntry(root, { ...checkpoint, data: { ...checkpoint.data, session: sha256('conv-123') } });
+    const sessionHook = handleHook(root, 'antigravity', { conversationId: 'conv-123' }, 'SessionStart');
+    assert.equal(sessionHook.result.decision, 'allow');
+    const sessionOut = JSON.parse(sessionHook.encoded.stdout);
+    assert.ok(Array.isArray(sessionOut.injectSteps));
+    assert.ok(sessionOut.injectSteps[0].ephemeralMessage.includes(checkpoint.data.next));
+});
+
+test('antigravity adapter extracts ReplacementChunks and fails closed with exit 2 on non-tool denials', (t) => {
+    const { root } = sandbox(t);
+    write(root, '.steward/policy.json', policy([
+        rule({ id: 'no-secret-token', effect: 'deny', on: ['tool'], match: { tools: ['file.write'], patternsAny: ['*TOP_SECRET_TOKEN*'] }, body: 'Secret token denied.' })
+    ]));
+    trustBundle(root, loadBundle(root).hash);
+
+    const multiReplaceHook = handleHook(root, 'antigravity', {
+        conversationId: 'conv-123',
+        toolCall: {
+            name: 'multi_replace_file_content',
+            args: {
+                TargetFile: path.join(root, 'src', 'app.js'),
+                ReplacementChunks: [{ TargetContent: 'const x = 1;', ReplacementContent: 'const token = "TOP_SECRET_TOKEN";' }]
+            }
+        }
+    }, 'PreToolUse');
+    assert.equal(multiReplaceHook.result.decision, 'deny');
+    assert.deepEqual(JSON.parse(multiReplaceHook.encoded.stdout), {
+        decision: 'deny',
+        reason: 'Policy no-secret-token: Secret token denied.'
+    });
+
+    const denyPrompt = encode('antigravity', 'prompt', { decision: 'deny', reason: 'Prompt blocked by policy.' });
+    assert.equal(denyPrompt.exitCode, 2);
+    assert.equal(denyPrompt.stdout, '');
+    assert.equal(denyPrompt.stderr, 'Prompt blocked by policy.');
+});
+
+
+

@@ -6,16 +6,21 @@ const aliases = {
     bash: 'shell',
     shell_command: 'shell',
     exec_command: 'shell',
+    run_command: 'shell',
     shell: 'shell',
     edit: 'file.write',
     write: 'file.write',
+    write_to_file: 'file.write',
+    replace_file_content: 'file.write',
+    multi_replace_file_content: 'file.write',
     multiedit: 'file.write',
     multi_edit: 'file.write',
     notebookedit: 'file.write',
     notebook_edit: 'file.write',
     apply_patch: 'file.write',
     read: 'file.read',
-    read_file: 'file.read'
+    read_file: 'file.read',
+    view_file: 'file.read'
 };
 export const normalizeTool = (name) => {
     const lower = name.toLowerCase();

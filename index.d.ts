@@ -330,7 +330,7 @@ export interface TrustResult {
 }
 
 export interface HostStatus {
-    host: 'codex' | 'claude';
+    host: 'codex' | 'claude' | 'antigravity';
     status: 'not-installed' | 'broken' | 'configured';
     nativeStatus: string;
     problems: string[];
@@ -410,7 +410,7 @@ export function auditInstructions(root: string): InstructionsAuditResult;
 // Host Adapters & Hooks
 // ==========================================
 
-export type HostType = 'generic' | 'codex' | 'claude';
+export type HostType = 'generic' | 'codex' | 'claude' | 'antigravity';
 export const HOSTS: readonly HostType[];
 
 export interface EncodedOutput {

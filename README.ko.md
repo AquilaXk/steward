@@ -112,7 +112,7 @@ node bin/steward.mjs --help
 소스 변경 후에는 기존 검증 근거를 거부합니다. 실행 후 임시 파일을 정리하며,
 실제 에이전트 앱은 실행하지 않습니다.
 
-전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 213개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
+전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 217개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
 실행 결과와 검증 범위는 [검증 기록](evidence/VERIFICATION.md)을 확인하세요.
 
 ## 4. 프로젝트 설정
@@ -137,21 +137,22 @@ node bin/steward.mjs install --project /absolute/path/to/project --host codex
 node bin/steward.mjs doctor --project /absolute/path/to/project --host codex
 ```
 
-Claude Code는 설치 명령에서 `--host claude`를 사용합니다.
+Claude Code 또는 Antigravity는 설치 명령에서 `--host claude` 또는 `--host antigravity`를 사용합니다.
 훅에 의존하기 전에 호스트 자체의 신뢰·권한 검토도 완료하세요.
 
 | 호스트 / 인터페이스 | 스킬 / 제공 기능 | 훅 또는 클라이언트 설정 |
 |---|---|---|
 | Codex | `.agents/skills/steward-*` | `.codex/hooks.json` |
 | Claude Code | `.claude/skills/steward-*` | `.claude/settings.local.json` |
+| Antigravity | `.agents/skills/steward-*` | `.agents/hooks.json` |
 | MCP 클라이언트 | 11대 도구 및 6대 리소스 | `mcp --config --host <host>`의 stdio 설정 |
 | 일반 호출자 | 선택적 절차 | `hook --host generic`의 JSON 입력 |
 
 Claude 설치는 `CLAUDE.md`에서 공통 `AGENTS.md`를 가져오도록 연결합니다.
 생성된 `.steward/USAGE.md`에는 실제 실행 파일과 예제 경로가 기록됩니다.
 표의 스킬 경로는 수동 설치 기준이며, 플러그인 설치는 번들 스킬을 사용합니다.
-도구나 플러그인 업데이트 후에는 현재 경로에서 `update --host codex` 또는
-`update --host claude`를 실행하세요. 플러그인을 제거하기 전에
+도구나 플러그인 업데이트 후에는 현재 경로에서 `update --host codex` (또는 `claude` / `antigravity`)를
+실행하세요. 플러그인을 제거하기 전에
 `uninstall --host <host>`를 실행하면 프로젝트 데이터는 보존하면서
 등록된 훅과 수정하지 않은 관리 대상 스킬을 제거합니다.
 

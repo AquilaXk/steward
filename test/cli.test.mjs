@@ -248,3 +248,50 @@ test('auditInstructions scans GEMINI.md and doctor allowUntrusted returns struct
     assert.equal(typeof diag.bundleHash, 'string');
 });
 
+test('CLI maps unknown parseArgs flags to USAGE, accepts --file/--input interchangeably, and returns privPath/pubPath on keygen', (t) => {
+    const { root, temp } = sandbox(t);
+
+    const badFlag = cli(root, ['journal', '--unknown-flag']);
+    assert.equal(badFlag.status, 1);
+    const badFlagErr = JSON.parse(badFlag.stderr);
+    assert.equal(badFlagErr.error.code, 'USAGE');
+    assert.match(badFlagErr.error.message, /unknown-flag/i);
+
+    const evalFile = path.join(temp, 'event.json');
+    fs.writeFileSync(evalFile, JSON.stringify(event('check --file on eval')));
+    const evalRes = cli(root, ['eval', '--file', evalFile]);
+    assert.equal(evalRes.status, 0, evalRes.stderr);
+    assert.equal(JSON.parse(evalRes.stdout).decision, 'allow');
+
+    const decisionFile = path.join(temp, 'decision.json');
+    fs.writeFileSync(decisionFile, JSON.stringify({
+        type: 'decision',
+        data: {
+            statement: 'Accept --file and --input interchangeably across CLI commands',
+            authority: { kind: 'user', reference: 'QA dogfooding audit', quote: 'Proceed with ADV-2' },
+            supersedes: null
+        }
+    }));
+    const addRes = cli(root, ['journal', 'add', '--input', decisionFile]);
+    assert.equal(addRes.status, 0, addRes.stderr);
+    assert.equal(JSON.parse(addRes.stdout).type, 'decision');
+
+    const cpFile = path.join(temp, 'checkpoint.json');
+    fs.writeFileSync(cpFile, JSON.stringify({ summary: 'Track 7 checkpoint via --input', next: 'Run verify', blockers: [] }));
+    const cpRes = cli(root, ['checkpoint', '--input', cpFile]);
+    assert.equal(cpRes.status, 0, cpRes.stderr);
+    assert.equal(JSON.parse(cpRes.stdout).type, 'checkpoint');
+
+    const keysDir = path.join(temp, 'keys');
+    const keygenRes = cli(root, ['keygen', '--out', keysDir]);
+    assert.equal(keygenRes.status, 0, keygenRes.stderr);
+    const keygenJson = JSON.parse(keygenRes.stdout);
+    assert.equal(keygenJson.generated, true);
+    assert.equal(keygenJson.out, keysDir);
+    assert.equal(keygenJson.privPath, path.join(keysDir, 'steward-ed25519.priv.pem'));
+    assert.equal(keygenJson.pubPath, path.join(keysDir, 'steward-ed25519.pub.pem'));
+    assert.ok(fs.existsSync(keygenJson.privPath));
+    assert.ok(fs.existsSync(keygenJson.pubPath));
+});
+
+

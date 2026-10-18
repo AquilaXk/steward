@@ -14,7 +14,8 @@ automatically activated plugin hooks: project policy and verification commands a
 reviewed before local hook registration. Native trust is still required.
 
 `init` installs the eight canonical skill sources under `.agents/skills/steward-*`.
-`install --host codex` merges `.codex/hooks.json`. `install --host claude` merges
+`install --host codex` merges `.codex/hooks.json`. `install --host antigravity` merges
+`.agents/hooks.json`. `install --host claude` merges
 `.claude/settings.local.json`, installs native `.claude/skills/steward-*` copies and
 adds `@AGENTS.md` to `CLAUDE.md` without replacing user notes. An old exact pointer
 written by this installer is replaced with the native import.
@@ -36,12 +37,12 @@ by its own receipt. It does not modify native host trust or grant permissions.
 
 ## Events
 
-| Event | Codex output | Claude output |
-|---|---|---|
-| SessionStart | Status/checkpoint context; `continue:false` on denial | Status/checkpoint context; error on stderr and exit 2 on failure, **cannot block startup** |
-| UserPromptSubmit | Context or exit 2 with reason on stderr | Context or exit 2 with reason on stderr |
-| PreToolUse | Context or `permissionDecision:deny` | Context or `permissionDecision:deny` |
-| PreCompact | Persist existing state, then `{}`; `continue:false` on failure | Persist existing state, then `{}`; `decision:block` and exit 2 on failure |
+| Event | Codex output | Claude output | Antigravity output |
+|---|---|---|---|
+| SessionStart | Status/checkpoint context; `continue:false` on denial | Status/checkpoint context; error on stderr and exit 2 on failure, **cannot block startup** | `injectSteps` ephemeral context message |
+| UserPromptSubmit / PreInvocation | Context or exit 2 with reason on stderr | Context or exit 2 with reason on stderr | `injectSteps` ephemeral context message |
+| PreToolUse | Context or `permissionDecision:deny` | Context or `permissionDecision:deny` | `decision:"allow"` or `decision:"deny"` with `reason` |
+| PreCompact | Persist existing state, then `{}`; `continue:false` on failure | Persist existing state, then `{}`; `decision:block` and exit 2 on failure | Persist existing state, then `{}` |
 
 The inability to block Claude SessionStart is not silently represented as success.
 Later prompt/tool handlers still validate their own trust and policy. Their protection

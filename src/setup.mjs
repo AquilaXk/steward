@@ -124,7 +124,7 @@ function updateProjectGitignore(root) {
     const exists = fs.existsSync(gp); //NOSONAR
     const gi = exists ? readText(gp) : '';
     const existingLines = new Set(gi.split('\n'));
-    const entries = ['.steward/state/', '.steward/USAGE.md', '.steward/install-*.json', '.codex/hooks.json', '.claude/settings.local.json'];
+    const entries = ['.steward/state/', '.steward/USAGE.md', '.steward/install-*.json', '.codex/hooks.json', '.claude/settings.local.json', '.agents/hooks.json'];
     const additions = entries.filter(x => !existingLines.has(x));
     if (additions.length > 0) {
         const prefix = gi && !gi.endsWith('\n') ? '\n' : '';
@@ -227,6 +227,13 @@ function applyInstallation(root, writes) {
 }
 
 export const HOOK_EVENTS = ['SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PreCompact'];
+export const INSTALL_HOSTS = ['codex', 'claude', 'antigravity'];
+
+export function hostConfigPath(host) {
+    if (host === 'codex') return '.codex/hooks.json';
+    if (host === 'antigravity') return '.agents/hooks.json';
+    return '.claude/settings.local.json';
+}
 
 export function hookCommand(root, host, event) {
     return [process.execPath, path.join(PACKAGE_ROOT, 'bin/steward.mjs'), 'hook', '--host', host, '--project', root, '--event', event].map(quote).join(' ');
@@ -234,7 +241,7 @@ export function hookCommand(root, host, event) {
 
 export function installHooks(root, host, { plugin = false, update = false, uninstall = false } = {}) {
     root = rootOf(root);
-    insist(['codex', 'claude'].includes(host), 'BAD_HOST', 'Install supports codex or claude.');
+    insist(INSTALL_HOSTS.includes(host), 'BAD_HOST', 'Install supports codex, claude or antigravity.');
     const lock = safePath(root, '.steward/install.lock');
     try {
         fs.mkdirSync(lock, { mode: 0o700 }); //NOSONAR
@@ -379,10 +386,10 @@ function stageClaudePointerBlock(root, oldClaudeBlock, stage) {
 }
 
 function prepareInstallation(root, host, plugin, update, uninstall) {
-    insist(['codex', 'claude'].includes(host), 'BAD_HOST', 'Install supports codex or claude.');
+    insist(INSTALL_HOSTS.includes(host), 'BAD_HOST', 'Install supports codex, claude or antigravity.');
     const writes = [];
     const stage = createStager(root, writes);
-    const rel = host === 'codex' ? '.codex/hooks.json' : '.claude/settings.local.json';
+    const rel = hostConfigPath(host);
     const config = loadHostConfig(root, rel);
     const receiptPath = `.steward/install-${host}.json`;
     const { exists: hasReceipt, old } = loadInstallReceipt(root, receiptPath);

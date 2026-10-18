@@ -5,7 +5,7 @@ import { insist, publicError } from './errors.mjs';
 import { loadBundle, requireTrust } from './trust.mjs';
 import { readJournal, journalHead } from './journal.mjs';
 import { auditInstructions } from './instructions.mjs';
-import { HOOK_EVENTS, hookCommand, PACKAGE_ROOT } from './setup.mjs';
+import { HOOK_EVENTS, INSTALL_HOSTS, hostConfigPath, hookCommand, PACKAGE_ROOT } from './setup.mjs';
 
 function findMatchingHooks(groups, command) {
     if (!Array.isArray(groups)) return [];
@@ -28,7 +28,7 @@ function resolveSkillsRoot(root, host, skillSource) {
         const subDir = host === 'claude' ? '.claude-plugin/skills' : 'procedures';
         return path.join(PACKAGE_ROOT, subDir);
     }
-    const localDir = host === 'codex' ? '.agents/skills' : '.claude/skills';
+    const localDir = host === 'claude' ? '.claude/skills' : '.agents/skills';
     return safePath(root, localDir);
 }
 
@@ -45,7 +45,7 @@ function isValidReceipt(receipt, host) {
 }
 
 function inspectHost(root, host) {
-    const configPath = host === 'codex' ? '.codex/hooks.json' : '.claude/settings.local.json';
+    const configPath = hostConfigPath(host);
     const receiptPath = `.steward/install-${host}.json`;
     const result = { host, status: 'not-installed', nativeStatus: 'unchecked', problems: [] };
     if (!fs.existsSync(safePath(root, receiptPath))) {
@@ -83,9 +83,16 @@ function inspectHost(root, host) {
     return result;
 }
 
+function selectDoctorHosts(root, host) {
+    if (host) return [host];
+    return fs.existsSync(safePath(root, '.steward/install-antigravity.json'))
+        ? INSTALL_HOSTS
+        : ['codex', 'claude'];
+}
+
 export function doctor(root, host = null, { allowUntrusted = false } = {}) {
     root = rootOf(root);
-    insist(host === null || ['codex', 'claude'].includes(host), 'BAD_HOST', 'Doctor supports codex or claude.');
+    insist(host === null || INSTALL_HOSTS.includes(host), 'BAD_HOST', 'Doctor supports codex, claude or antigravity.');
     let bundle = null;
     let trusted = true;
     let trustError = null;
@@ -105,7 +112,7 @@ export function doctor(root, host = null, { allowUntrusted = false } = {}) {
         bundle = requireTrust(root);
     }
     const rows = readJournal(root);
-    const hosts = (host ? [host] : ['codex', 'claude']).map(h => inspectHost(root, h));
+    const hosts = selectDoctorHosts(root, host).map(h => inspectHost(root, h));
     const installed = hosts.filter(h => h.status !== 'not-installed');
     const localHealthy = trusted && installed.length > 0 && installed.every(h => h.status === 'configured') &&
         (!host || hosts[0].status === 'configured');
