@@ -108,8 +108,8 @@
     },
     {
       "path": ".gitignore",
-      "bytes": 138,
-      "sha256": "82388d9bcdd4dff407f2707af9b7ee18b385b25f92010b4491b692123f4ce773"
+      "bytes": 135,
+      "sha256": "2197949bbdda4d75b879a17e3f677f67a659e53269892b4760533e279dc75673"
     },
     {
       "path": ".nvmrc",
@@ -279,7 +279,7 @@
     {
       "path": "evidence/source-manifest.json",
       "bytes": 20703,
-      "sha256": "699431c86e1c68b36e26bdc0ede83e1c1629bc0b46474b77a1259c35b03a6bb5"
+      "sha256": "680021f30ac9f8ba6d1e58107a1cb77ae6e99d677403107ef519b859c317e7ce"
     },
     {
       "path": "evidence/test-results.tap",
