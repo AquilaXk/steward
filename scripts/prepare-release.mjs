@@ -49,9 +49,6 @@ function findPathNpm(npmCmd) {
     return null;
 }
 
-/**
- * Resolves the npm CLI executable path with fixed resolution to prevent unrestricted PATH lookups.
- */
 function resolveNpm() {
     if (process.env.npm_execpath && fs.existsSync(process.env.npm_execpath)) {
         return { file: process.execPath, prefixArgs: [process.env.npm_execpath] };
@@ -88,11 +85,9 @@ function resolveNpm() {
 const npm = resolveNpm();
 assert(path.isAbsolute(npm.file), 'npm executable path must be absolute.');
 
-// Ensure syntax check and tests pass first using direct fixed Node executable
 execFileSync(process.execPath, [path.join(root, 'scripts/check.mjs')], { cwd: root, stdio: 'inherit' });
 execFileSync(process.execPath, [path.join(root, 'scripts/test.mjs')], { cwd: root, stdio: 'inherit' });
 
-// Verify npm pack dry-run output
 const packStdout = execFileSync(npm.file, [...npm.prefixArgs, 'pack', '--dry-run', '--json'], { cwd: root, encoding: 'utf8' });
 const packInfo = JSON.parse(packStdout)[0];
 console.log(`Package tarball: ${packInfo.filename} (${packInfo.size} bytes, ${packInfo.entryCount} files)`);

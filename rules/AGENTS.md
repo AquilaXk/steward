@@ -2,7 +2,7 @@
 
 Steward (`v0.2.0`) is installed as an active Antigravity plugin providing deterministic, fail-closed policy evaluation, SHA-256 hash-chained persistent journal memory, and source-bound completion verification (`Node.js 22+`, zero runtime dependencies).
 
-## Steward Toolkit, CLI & MCP Surface
+## Steward Toolkit, CLI & MCP Server
 
 - **Plugin Root**: `~/.gemini/config/plugins/steward`
 - **CLI Entrypoint**: `node ~/.gemini/config/plugins/steward/bin/steward.mjs <command> [--project <dir>] [options]`
@@ -19,7 +19,7 @@ Steward (`v0.2.0`) is installed as an active Antigravity plugin providing determ
 Invoke the matching skill via `view_file` whenever its trigger condition applies:
 
 1. **`steward-work`**: Multi-step authorized tasks that require durable goal tracking or completion gate verification (`.steward/` enabled workspaces).
-2. **`steward-recall`**: Retrieving prior architectural decisions, domain knowledge, or open questions from `.steward/state/journal.jsonl` (`journal query`).
+2. **`steward-recall`**: Retrieving prior architectural decisions, domain knowledge, or open questions from `.steward/state/journal/` (`journal query`).
 3. **`steward-decisions`**: Recording an explicitly confirmed user/QA decision or superseding an existing decision in the hash-chained journal (`journal add`).
 4. **`steward-checkpoint`**: Saving a compact recovery point or typed handoff before context compaction or session handoff (`checkpoint`).
 5. **`steward-verify`**: Running trusted completion checks (`verify`), checking source-snapshot gates (`gate --evidence <hash>`), or signing/verifying Ed25519 evidence (`sign-evidence`, `verify-evidence`).

@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import * as steward from '../src/index.mjs';
 
 test('library entrypoint exports all core functions and constants', () => {
-    // Version & engine
     assert.equal(typeof steward.VERSION, 'string');
     assert.equal(typeof steward.evaluate, 'function');
     assert.equal(typeof steward.matches, 'function');
@@ -11,13 +10,11 @@ test('library entrypoint exports all core functions and constants', () => {
     assert.equal(typeof steward.relativePath, 'function');
     assert.equal(typeof steward.validateEvent, 'function');
 
-    // Safe Glob & Matcher
     assert.equal(typeof steward.matchGlob, 'function');
     assert.equal(typeof steward.matchArgGlob, 'function');
     assert.equal(typeof steward.tokenizeCommand, 'function');
     assert.equal(typeof steward.isSafePattern, 'function');
 
-    // Schemas & validation
     assert.equal(typeof steward.validatePolicy, 'function');
     assert.equal(typeof steward.validatePlan, 'function');
     assert.equal(typeof steward.validateEntry, 'function');
@@ -25,7 +22,6 @@ test('library entrypoint exports all core functions and constants', () => {
     assert.equal(typeof steward.validateJournalRow, 'function');
     assert.ok(Array.isArray(steward.RECORD_TYPES));
 
-    // Journal & recall & indexing
     assert.equal(typeof steward.appendEntry, 'function');
     assert.equal(typeof steward.readJournal, 'function');
     assert.equal(typeof steward.journalHead, 'function');
@@ -36,12 +32,10 @@ test('library entrypoint exports all core functions and constants', () => {
     assert.equal(typeof steward.queryJournalIndexed, 'function');
     assert.equal(typeof steward.invalidateJournalCache, 'function');
 
-    // Verification & Gate
     assert.equal(typeof steward.runVerification, 'function');
     assert.equal(typeof steward.completionGate, 'function');
     assert.equal(typeof steward.resolveCommand, 'function');
 
-    // Trust & Diagnostics
     assert.equal(typeof steward.loadBundle, 'function');
     assert.equal(typeof steward.trustBundle, 'function');
     assert.equal(typeof steward.requireTrust, 'function');
@@ -52,14 +46,13 @@ test('library entrypoint exports all core functions and constants', () => {
     assert.equal(typeof steward.pruneAudit, 'function');
     assert.equal(typeof steward.auditInstructions, 'function');
 
-    // Adapters & Service
     assert.equal(typeof steward.handleHook, 'function');
     assert.equal(typeof steward.normalizeInput, 'function');
     assert.equal(typeof steward.encode, 'function');
     assert.equal(typeof steward.eventKind, 'function');
+    assert.equal(typeof steward.inferAntigravityEvent, 'function');
     assert.ok(Array.isArray(steward.HOSTS));
 
-    // MCP
     assert.equal(typeof steward.startMcpServer, 'function');
     assert.equal(typeof steward.handleMcpMessage, 'function');
     assert.equal(typeof steward.executeTool, 'function');
@@ -68,7 +61,6 @@ test('library entrypoint exports all core functions and constants', () => {
     assert.equal(steward.STEWARD_TOOLS.length, 11);
     assert.ok(steward.STEWARD_RESOURCES.length >= 5);
 
-    // Crypto
     assert.equal(typeof steward.generateSigningKeyPair, 'function');
     assert.equal(typeof steward.signData, 'function');
     assert.equal(typeof steward.verifySignature, 'function');
@@ -81,7 +73,6 @@ test('library entrypoint exports all core functions and constants', () => {
     assert.equal(typeof steward.deriveKeyId, 'function');
     assert.equal(typeof steward.resolveKeyPem, 'function');
 
-    // Setup & Errors
     assert.equal(typeof steward.initProject, 'function');
     assert.equal(typeof steward.installHooks, 'function');
     assert.equal(typeof steward.StewardError, 'function');
@@ -89,7 +80,7 @@ test('library entrypoint exports all core functions and constants', () => {
     assert.equal(typeof steward.publicError, 'function');
 });
 
-test('index.d.ts declares every runtime export from src/index.mjs and accurate domain types', async () => {
+test('index.d.ts declares every runtime export from src/index.mjs and resolves all referenced types', async () => {
     const fs = await import('node:fs');
     const path = await import('node:path');
     const { PACKAGE } = await import('./helpers.mjs');
@@ -100,7 +91,17 @@ test('index.d.ts declares every runtime export from src/index.mjs and accurate d
         assert.match(dts, re, `Missing TypeScript declaration for exported symbol: ${key}`);
     }
 
+    const declaredTypes = new Set([
+        'Error', 'Record', 'Promise', 'Readonly', 'ReadonlyArray', 'Buffer', 'NodeJS', 'T',
+        ...Array.from(dts.matchAll(/export\s+(?:interface|type|class)\s+([A-Z]\w*)/g), m => m[1])
+    ]);
+    for (const match of dts.matchAll(/(?::\s*|\|\s*|<\s*|extends\s+)([A-Z][A-Za-z0-9_]*)\b/g)) {
+        assert.ok(declaredTypes.has(match[1]), `Undeclared type reference in index.d.ts: ${match[1]}`);
+    }
+
     assert.match(dts, /export type RuleEvent = 'prompt' \| 'tool' \| 'session' \| 'stop';/);
+    assert.match(dts, /export interface PublicErrorObject/);
+    assert.match(dts, /status: 'unchecked' \| 'needs-attention';/);
     assert.match(dts, /tags\?: string\[\];/);
     assert.match(dts, /receipt: string/);
     assert.match(dts, /neverEmitted: string\[\]/);

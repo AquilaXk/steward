@@ -182,7 +182,11 @@ export function snapshot(root, extraExcludes = []) {
         exclude: (p, entry) =>
             entry.name === '.git' ||
             entry.name === 'node_modules' ||
+            entry.name === '.DS_Store' ||
+            entry.name === 'Thumbs.db' ||
+            entry.name === 'desktop.ini' ||
             p === '.steward/state' ||
+            p === '.steward/install.lock' ||
             p.startsWith('.steward/install-') ||
             normalizedExcludes.some(x => p === x || p.startsWith(x + '/'))
     });

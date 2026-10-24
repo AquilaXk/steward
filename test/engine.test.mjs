@@ -22,11 +22,18 @@ test('tool aliases share a canonical operation', () => {
         assert.equal(normalizeTool(n), 'shell');
 });
 test('tool rules stay out of prompt matching', () => { const p = policy([rule({ on: ['tool'], match: { tools: ['Bash'], always: true } })]); assert.equal(evaluate(p, event('Bash')).emitted.length, 0); });
-test('path prefixes respect segment boundaries', () => { const p = policy([rule({ on: ['tool'], match: { tools: ['Edit'], pathPrefixes: ['memory'] } })]); const e = { ...event(''), event: 'tool', tool: 'apply_patch', paths: ['memory/a.md'] }; assert.equal(evaluate(p, e).emitted.length, 1); assert.equal(evaluate(p, { ...e, paths: ['memory-old/a.md'] }).emitted.length, 0); });
+test('path prefixes respect segment boundaries and match case-insensitively', () => {
+    const p = policy([rule({ on: ['tool'], match: { tools: ['Edit'], pathPrefixes: ['memory', '.steward/policy.json'] } })]);
+    const e = { ...event(''), event: 'tool', tool: 'apply_patch', paths: ['memory/a.md'] };
+    assert.equal(evaluate(p, e).emitted.length, 1);
+    assert.equal(evaluate(p, { ...e, paths: ['Memory/a.md'] }).emitted.length, 1);
+    assert.equal(evaluate(p, { ...e, paths: ['.Steward/Policy.json'] }).emitted.length, 1);
+    assert.equal(evaluate(p, { ...e, paths: ['memory-old/a.md'] }).emitted.length, 0);
+});
 test('different predicate fields combine with AND', () => {
     const p = policy([rule({ on: ['tool'], match: { tools: ['shell'], wordsAny: ['npm'], textAny: ['install'] } })]);
     const e = { ...event('npm uninstall'), event: 'tool', tool: 'Bash' };
-    assert.equal(evaluate(p, e).emitted.length, 1); // explicit substring semantics of textAny
+    assert.equal(evaluate(p, e).emitted.length, 1);
     assert.equal(evaluate(p, { ...e, text: 'pnpm install' }).emitted.length, 0);
 });
 const badPolicies = [

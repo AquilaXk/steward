@@ -41,8 +41,18 @@ test('resolveCommand simulates Windows .cmd resolution', t => {
     const originalPlatform = process.platform;
     Object.defineProperty(process, 'platform', { value: 'win32' });
     t.after(() => Object.defineProperty(process, 'platform', { value: originalPlatform }));
-    const resolved = resolveCommand('tool', { PATH: temp, PATHEXT: '.COM;.EXE;.BAT;.CMD' });
+    const resolved = resolveCommand('tool', { PATH: `;${temp}`, PATHEXT: '.COM;.EXE;.BAT;.CMD' });
     assert.equal(resolved.toLowerCase(), path.join(temp, 'tool.cmd').toLowerCase());
+});
+test('OS metadata and installer lock files do not invalidate source snapshot gate', async t => {
+    const { root } = sandbox(t, { plan: plan() });
+    const r = await runVerification(root);
+    assert.equal(r.allPassed, true);
+    write(root, '.DS_Store', 'finder metadata');
+    write(root, 'Thumbs.db', 'windows thumbnail cache');
+    write(root, 'desktop.ini', '[.ShellClassInfo]');
+    fs.mkdirSync(path.join(root, '.steward/install.lock'), { recursive: true });
+    assert.equal(completionGate(root, r.evidence).pass, true);
 });
 test('verification plan exclude allows build artifacts without invalidating source', async t => {
     const { root } = sandbox(t, {

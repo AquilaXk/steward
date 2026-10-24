@@ -39,23 +39,31 @@ function parseTranscriptLinePrompt(line) {
 }
 
 function readTranscriptTail(transcriptPath) {
-    if (typeof transcriptPath !== 'string' || !transcriptPath || transcriptPath.includes('\0') || !path.isAbsolute(transcriptPath)) {
-        return '';
+    if (transcriptPath === undefined) return '';
+    insist(typeof transcriptPath === 'string' && transcriptPath && !transcriptPath.includes('\0') && path.isAbsolute(transcriptPath), 'BAD_INPUT', 'Invalid transcriptPath.');
+    let lstat;
+    try {
+        lstat = fs.lstatSync(transcriptPath); //NOSONAR
+    } catch (e) {
+        if (e?.code === 'ENOENT') return '';
+        throw e;
     }
+    insist(lstat.isFile() && !lstat.isSymbolicLink(), 'BAD_INPUT', 'Transcript must be a regular, non-symlink file.');
+    if (lstat.size === 0) return '';
     let fd;
     try {
         fd = fs.openSync(transcriptPath, 'r'); //NOSONAR
-        const stat = fs.fstatSync(fd);
-        if (!stat.isFile() || stat.size === 0) return '';
-        const length = Math.min(stat.size, MAX_TRANSCRIPT_TAIL_BYTES);
+        const length = Math.min(lstat.size, MAX_TRANSCRIPT_TAIL_BYTES);
         const buf = Buffer.allocUnsafe(length);
-        const bytesRead = fs.readSync(fd, buf, 0, length, stat.size - length);
-        return buf.subarray(0, bytesRead).toString('utf8');
-    } catch {
-        return '';
+        const bytesRead = fs.readSync(fd, buf, 0, length, lstat.size - length);
+        const tail = buf.subarray(0, bytesRead).toString('utf8');
+        if (lstat.size > MAX_TRANSCRIPT_TAIL_BYTES) {
+            insist(tail.replace(/\r?\n$/, '').includes('\n'), 'BAD_EVENT', 'Invalid or oversized event text.');
+        }
+        return tail;
     } finally {
         if (fd !== undefined) {
-            try { fs.closeSync(fd); } catch { /* ignore close error */ }
+            try { fs.closeSync(fd); } catch {}
         }
     }
 }
@@ -81,14 +89,16 @@ function resolveHookCwd(root, rawCwd) {
 }
 
 function populatePromptEvent(result, raw, host) {
-    const p = raw.prompt, t = raw.prompt_text;
-    if (p !== undefined && t !== undefined)
-        insist(p === t, 'AMBIGUOUS_PROMPT', 'prompt and prompt_text disagree.');
-    result.text = p ?? t ?? (host === 'antigravity' ? (raw.userPrompt ?? extractAntigravityTranscriptPrompt(raw.transcriptPath)) : undefined);
+    const inlinePrompts = [raw.prompt, raw.prompt_text, ...(host === 'antigravity' ? [raw.userPrompt] : [])].filter(v => v !== undefined);
+    insist(new Set(inlinePrompts).size <= 1, 'AMBIGUOUS_PROMPT', 'prompt and prompt_text disagree.');
+    result.text = inlinePrompts[0] ?? (host === 'antigravity' ? extractAntigravityTranscriptPrompt(raw.transcriptPath) : undefined);
     insist(typeof result.text === 'string', 'BAD_INPUT', 'Prompt text is missing.');
 }
 
 function populatePatchEvent(result, ti, root, cwd) {
+    if (ti.command !== undefined && ti.patch !== undefined) {
+        insist(ti.command === ti.patch, 'BAD_PATCH', 'Patch fields disagree.');
+    }
     const patch = ti.command ?? ti.patch;
     insist(typeof patch === 'string', 'BAD_PATCH', 'Patch text is missing.');
     const lines = patch.replaceAll('\r\n', '\n').trim().split('\n');
@@ -211,12 +221,19 @@ function populateEventDetails(result, raw, host, root, cwd) {
 }
 
 function extractHookCwd(raw) {
-    if (raw.cwd !== undefined) return raw.cwd;
+    let toolCwd;
     if (isObject(raw.toolCall)) {
         const ti = resolveToolCallInput(raw.toolCall);
-        return isObject(ti) ? ti.Cwd : undefined;
+        toolCwd = isObject(ti) ? ti.Cwd : undefined;
     }
-    return undefined;
+    if (raw.cwd !== undefined && toolCwd !== undefined) {
+        insist(
+            typeof raw.cwd === 'string' && typeof toolCwd === 'string' && path.isAbsolute(raw.cwd) && path.isAbsolute(toolCwd) && rootOf(raw.cwd) === rootOf(toolCwd),
+            'BAD_CWD',
+            'Hook cwd fields disagree.'
+        );
+    }
+    return raw.cwd ?? toolCwd;
 }
 
 export function normalizeInput(host, raw, root, expectedEvent = null) {
@@ -231,6 +248,9 @@ export function normalizeInput(host, raw, root, expectedEvent = null) {
     const event = typeof rawEventName === 'string' && Object.hasOwn(events, rawEventName) ? events[rawEventName] : null;
     insist(event, 'BAD_EVENT', 'Unsupported host event.');
     const cwd = resolveHookCwd(root, extractHookCwd(raw));
+    if (raw.session_id !== undefined && raw.conversationId !== undefined) {
+        insist(raw.session_id === raw.conversationId, 'BAD_INPUT', 'session_id and conversationId disagree.');
+    }
     const result = { event, text: '', tool: null, paths: [], sessionId: raw.session_id ?? raw.conversationId ?? null };
     populateEventDetails(result, raw, host, root, cwd);
     return validateEvent(result);

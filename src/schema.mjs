@@ -175,14 +175,14 @@ function validateDecisionData(d) {
 function validateQuestionData(d) {
     text(d.question, 'question');
     strings(d.assumptions, 'assumptions', { empty: true });
-    insist(d.resolution === null || typeof d.resolution === 'string', 'SCHEMA', 'resolution must be null or text.');
+    if (d.resolution !== null) text(d.resolution, 'resolution');
     validateSupersedes(d.supersedes);
 }
 
 function validateKnowledgeData(d) {
     text(d.claim, 'claim');
     insist(['source', 'observation', 'assumption'].includes(d.basis), 'SCHEMA', 'Invalid knowledge basis.');
-    insist(Array.isArray(d.sources), 'SCHEMA', 'sources must be an array.');
+    insist(Array.isArray(d.sources) && d.sources.length <= 64, 'SCHEMA', 'sources must be an array (at most 64).');
     for (const s of d.sources) {
         object(s, ['reference', 'checkedAt'], 'source');
         text(s.reference, 'source.reference');

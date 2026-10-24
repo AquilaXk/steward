@@ -118,7 +118,10 @@
               "type": [
                 "string",
                 "null"
-              ]
+              ],
+              "minLength": 1,
+              "maxLength": 16000,
+              "pattern": "\\S"
             },
             "supersedes": {
               "anyOf": [
@@ -183,6 +186,7 @@
             },
             "sources": {
               "type": "array",
+              "maxItems": 64,
               "items": {
                 "type": "object",
                 "additionalProperties": false,

@@ -1,9 +1,3 @@
-/**
- * Steward Core Engine — Public Library API.
- * Provides programmatic access to policy evaluation, immutable journal storage,
- * verification execution, MCP adapters, and asymmetric digital signatures.
- */
-
 export { VERSION } from './version.mjs';
 export { evaluate, matches, normalizeTool, relativePath, validateEvent } from './engine.mjs';
 export { matchGlob, matchArgGlob, tokenizeCommand, isSafePattern } from './matcher.mjs';
@@ -49,7 +43,7 @@ export { doctor } from './doctor.mjs';
 export { report, pruneAudit } from './audit.mjs';
 export { auditInstructions } from './instructions.mjs';
 export { handleHook } from './service.mjs';
-export { normalizeInput, encode, eventKind, HOSTS } from './adapters.mjs';
+export { normalizeInput, encode, eventKind, inferAntigravityEvent, HOSTS } from './adapters.mjs';
 export {
     startMcpServer,
     handleMcpMessage,

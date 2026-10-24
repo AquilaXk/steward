@@ -55,9 +55,9 @@ function trimTrailingSlashes(value) {
 }
 function matchesPathPrefixes(prefixes, paths) {
     for (const rawPrefix of prefixes) {
-        const base = trimTrailingSlashes(rawPrefix);
+        const base = trimTrailingSlashes(rawPrefix).toLowerCase();
         const dirPrefix = base + '/';
-        if (paths.some(p => p === base || p.startsWith(dirPrefix))) return true;
+        if (paths.some(p => { const lp = p.toLowerCase(); return lp === base || lp.startsWith(dirPrefix); })) return true;
     }
     return false;
 }

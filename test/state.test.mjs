@@ -75,3 +75,19 @@ test('independent CLI processes append to one journal without lost records', asy
     await Promise.all(workers);
     assert.equal(readJournal(root).length, 8);
 });
+test('question resolution rejects empty string and knowledge sources enforce 64-item bound', async (t) => {
+    const { root } = sandbox(t);
+    await assert.rejects(() => appendEntry(root, {
+        type: 'question',
+        data: { question: 'Why?', assumptions: [], resolution: '   ', supersedes: null }
+    }), { code: 'SCHEMA' });
+    await assert.rejects(() => appendEntry(root, {
+        type: 'knowledge',
+        data: {
+            claim: 'Bounded sources',
+            basis: 'source',
+            sources: Array.from({ length: 65 }, (_, i) => ({ reference: `doc-${i}`, checkedAt: '2026-10-24T00:00:00Z' })),
+            expiresAt: null
+        }
+    }), { code: 'SCHEMA' });
+});

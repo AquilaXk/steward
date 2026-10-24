@@ -32,8 +32,10 @@ export function resolveCommand(cmd, env = {}) {
     if (!isBareWindowsCommand(cmd)) return cmd;
     const rawExts = (env.PATHEXT || process.env.PATHEXT || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean);
     const extensions = [...new Set(rawExts.flatMap(ext => [ext, ext.toLowerCase(), ext.toUpperCase()]))];
-    const pathDirs = (env.PATH || process.env.PATH || '').split(path.delimiter);
+    const delimiter = process.platform === 'win32' ? ';' : path.delimiter;
+    const pathDirs = (env.PATH || process.env.PATH || '').split(delimiter);
     for (const dir of pathDirs) {
+        if (!dir) continue;
         const hit = probeWindowsCandidate(dir, cmd, extensions);
         if (hit) return hit;
     }

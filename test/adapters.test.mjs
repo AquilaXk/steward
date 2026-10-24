@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as fs from 'node:fs';
 import path from 'node:path';
 import { normalizeInput, encode } from '../src/adapters.mjs';
 import { handleHook } from '../src/service.mjs';
@@ -281,6 +282,61 @@ test('codex and claude adapters support exec_command cmd, file path alias, and s
         tool_name: 'read_file',
         tool_input: { file_path: path.join(root, 'README.md'), path: path.join(root, 'memory', 'notes.md') }
     }, root), { code: 'BAD_INPUT' });
+
+    assert.throws(() => normalizeInput('codex', {
+        hook_event_name: 'PreToolUse',
+        cwd: root,
+        tool_name: 'apply_patch',
+        tool_input: {
+            command: '*** Begin Patch\n*** Update File: README.md\n@@\n-a\n+b\n*** End Patch',
+            patch: '*** Begin Patch\n*** Update File: memory/notes.md\n@@\n-a\n+b\n*** End Patch'
+        }
+    }, root), { code: 'BAD_PATCH' });
+
+    assert.throws(() => normalizeInput('antigravity', {
+        conversationId: 'conv-1',
+        session_id: 'conv-2',
+        terminationReason: 'NO_TOOL_CALL'
+    }, root), { code: 'BAD_INPUT' });
+
+    assert.throws(() => normalizeInput('antigravity', {
+        conversationId: 'conv-1',
+        prompt: 'safe prompt',
+        userPrompt: ' conflicting prompt'
+    }, root), { code: 'AMBIGUOUS_PROMPT' });
+
+    assert.throws(() => normalizeInput('antigravity', {
+        conversationId: 'conv-1',
+        cwd: root,
+        toolCall: {
+            name: 'run_command',
+            args: { CommandLine: 'npm test', Cwd: path.join(root, '.steward') }
+        }
+    }, root), { code: 'BAD_CWD' });
+
+    assert.throws(() => normalizeInput('antigravity', {
+        conversationId: 'conv-1',
+        invocationNum: 1,
+        transcriptPath: 'relative/transcript.jsonl'
+    }, root), { code: 'BAD_INPUT' });
+
+    const targetTranscript = path.join(root, '.steward/state/real-transcript.jsonl');
+    write(root, '.steward/state/real-transcript.jsonl', JSON.stringify({ step_index: 1, type: 'USER_INPUT', content: 'hi' }) + '\n');
+    const symlinkTranscript = path.join(root, '.steward/state/symlink-transcript.jsonl');
+    fs.symlinkSync(targetTranscript, symlinkTranscript);
+    assert.throws(() => normalizeInput('antigravity', {
+        conversationId: 'conv-1',
+        invocationNum: 1,
+        transcriptPath: symlinkTranscript
+    }, root), { code: 'BAD_INPUT' });
+
+    const oversizedTranscript = path.join(root, '.steward/state/oversized-transcript.jsonl');
+    write(root, '.steward/state/oversized-transcript.jsonl', JSON.stringify({ step_index: 1, type: 'USER_INPUT', content: 'x'.repeat(300 * 1024) }) + '\n');
+    assert.throws(() => normalizeInput('antigravity', {
+        conversationId: 'conv-1',
+        invocationNum: 1,
+        transcriptPath: oversizedTranscript
+    }, root), { code: 'BAD_EVENT' });
 });
 
 
