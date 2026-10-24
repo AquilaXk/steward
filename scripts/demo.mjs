@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// A real, isolated end-to-end run. No model, network or persistent user config.
 import * as fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -31,7 +30,6 @@ try {
     const policy = loadBundle(root).policy;
     policy.rules.push({ id: 'protect-policy', on: ['tool'], effect: 'deny', priority: 1000, body: 'Review policy changes outside this agent action.', required: false, match: { tools: ['Edit', 'Write'], pathPrefixes: ['.steward/policy.json'] } });
     write('.steward/policy.json', policy);
-    // This script owns the temporary workspace and explicitly approves only its own fixture.
     trustBundle(root, loadBundle(root).hash);
     await appendEntry(root, { type: 'checkpoint', data: { summary: 'Synthetic cost function implemented.', next: 'Run the approved cost contract checks.', blockers: [], session: sha256('demo') } });
     const prompt = handleHook(root, 'generic', { event: 'prompt', text: 'Verify the cost change and finish.', tool: null, paths: [], sessionId: 'demo' });

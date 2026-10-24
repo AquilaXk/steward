@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-// Static package checks. Runtime behavior is covered by npm test.
 import * as fs from 'node:fs';
 import * as crypto from 'node:crypto';
 import path from 'node:path';
@@ -67,9 +66,23 @@ function headingSlugs(markdown) {
     }
     return slugs;
 }
+const IGNORED_ENTRIES = new Set([
+    '.git',
+    'node_modules',
+    '.steward',
+    'evidence',
+    '.claude',
+    'CLAUDE.local.md',
+    '.codex',
+    '.cursor',
+    '.DS_Store',
+    'Thumbs.db',
+    'desktop.ini',
+    'coverage'
+]);
 function files(directory = '') {
     return fs.readdirSync(path.join(root, directory), { withFileTypes: true })
-        .filter((entry) => !['.git', 'node_modules', '.steward', 'evidence'].includes(entry.name))
+        .filter((entry) => !IGNORED_ENTRIES.has(entry.name) && !(directory === '' && (entry.name.endsWith('.tgz') || entry.name.endsWith('.tgz.sha256'))))
         .flatMap((entry) => {
         const relative = path.posix.join(directory, entry.name);
         assert(!entry.isSymbolicLink(), `Unexpected package symlink: ${relative}`);
@@ -159,6 +172,13 @@ try {
     for (const symbolName of Object.keys(publicApi)) {
         assert.match(dts, new RegExp(String.raw`export\s+(?:declare\s+)?(?:const|function|class)\s+${symbolName}\b`), `Missing symbol in index.d.ts: ${symbolName}`);
     }
+    const declaredTypes = new Set([
+        'Error', 'Record', 'Promise', 'Readonly', 'ReadonlyArray', 'Buffer', 'NodeJS', 'T',
+        ...Array.from(dts.matchAll(/export\s+(?:interface|type|class)\s+([A-Z]\w*)/g), m => m[1])
+    ]);
+    for (const match of dts.matchAll(/(?::\s*|\|\s*|<\s*|extends\s+)([A-Z][A-Za-z0-9_]*)\b/g)) {
+        assert(declaredTypes.has(match[1]), `Undeclared type reference in index.d.ts: ${match[1]}`);
+    }
     const journalSchema = json('schemas/journal-entry.schema.json');
     assert.deepEqual(journalSchema.oneOf.map(b => b.properties.type.const), RECORD_TYPES, 'Journal entry schema types drifted from RECORD_TYPES.');
     for (const branch of journalSchema.oneOf) {
@@ -174,7 +194,6 @@ try {
     assert.equal(read('CLAUDE.md').trim(), '@AGENTS.md');
     for (const file of ['README.md', 'README.ko.md', 'SECURITY.md', 'docs/MODEL-GUIDANCE.md', '.github/workflows/ci.yml', '.github/workflows/automerge.yml', '.github/workflows/release.yml'])
         assert(read(file).trim());
-    // Check local Markdown file links and #fragment heading anchors.
     let localLinks = 0;
     const slugCache = new Map();
     const getSlugs = (absPath) => {

@@ -1,13 +1,4 @@
-/**
- * TypeScript Type Definitions for Steward
- * Evidence-aware policy, immutable journal, and memory toolkit for coding agents.
- */
-
 export const VERSION: string;
-
-// ==========================================
-// Policy Engine & Schema
-// ==========================================
 
 export type RuleEvent = 'prompt' | 'tool' | 'session' | 'stop';
 export type EventType = RuleEvent | 'compact';
@@ -91,10 +82,6 @@ export function text(x: unknown, label: string, max?: number): void;
 export function strings(x: unknown, label: string, options?: { empty?: boolean; max?: number }): void;
 export function date(x: unknown, label: string): void;
 
-// ==========================================
-// Safe Glob & CLI Argument Pattern Matcher
-// ==========================================
-
 export interface GlobOptions {
     caseSensitive?: boolean;
     maxSteps?: number;
@@ -104,10 +91,6 @@ export function matchGlob(pattern: string, text: string, options?: GlobOptions):
 export function matchArgGlob(patterns: string[], text: string, options?: GlobOptions): boolean;
 export function tokenizeCommand(text: string): string[];
 export function isSafePattern(pattern: string): boolean;
-
-// ==========================================
-// Journal & Memory Models
-// ==========================================
 
 export type UserRecordType =
     | 'decision'
@@ -247,10 +230,6 @@ export function syncJournalCache(root: string): { rows: JournalRecord[]; cache: 
 export function queryJournalIndexed(root: string, options?: JournalQueryOptions): JournalQueryResult;
 export function invalidateJournalCache(root: string): void;
 
-// ==========================================
-// Verification & Gates
-// ==========================================
-
 export interface VerificationCheck {
     id: string;
     description: string;
@@ -313,10 +292,6 @@ export function resolveCommand(cmd: string, env?: Record<string, string | undefi
 export function runVerification(root: string): Promise<VerificationReport & { evidence: string; evidenceHash: string }>;
 export function completionGate(root: string, evidence?: string | null): CompletionGateResult;
 
-// ==========================================
-// Trust & Diagnostics
-// ==========================================
-
 export interface TrustBundle {
     policy: Policy;
     plan: VerificationPlan;
@@ -356,12 +331,17 @@ export interface InstructionsAuditResult {
     completeSecurityReview: boolean;
 }
 
+export interface PublicErrorObject {
+    code: string;
+    message: string;
+}
+
 export interface DoctorResult {
     healthy: boolean;
     localHealthy: boolean;
     trusted: boolean;
     trustError?: PublicErrorObject;
-    status: 'unchecked' | 'needs-attention' | 'untrusted';
+    status: 'unchecked' | 'needs-attention';
     bundleHash: string | null;
     journal: JournalHead;
     instructions: InstructionsAuditResult;
@@ -407,11 +387,8 @@ export function report(root: string): AuditReport;
 export function pruneAudit(root: string, options?: { keep?: number }): { deleted: number; remaining: number };
 export function auditInstructions(root: string): InstructionsAuditResult;
 
-// ==========================================
-// Host Adapters & Hooks
-// ==========================================
-
 export type HostType = 'generic' | 'codex' | 'claude' | 'antigravity';
+export type AntigravityHookEvent = 'SessionStart' | 'PreInvocation' | 'PreToolUse' | 'Stop';
 export const HOSTS: readonly HostType[];
 
 export interface EncodedOutput {
@@ -423,11 +400,8 @@ export interface EncodedOutput {
 export function normalizeInput(host: HostType, raw: unknown, root: string, expectedEvent?: string | null): EventInput;
 export function encode(host: HostType, event: EventType | 'stop', result: EvaluationResult): EncodedOutput;
 export function eventKind(hostEvent?: string | null): EventType | 'stop';
+export function inferAntigravityEvent(raw: unknown): AntigravityHookEvent | undefined;
 export function handleHook(root: string, host: HostType, input: unknown, expectedEvent?: string | null): { result: EvaluationResult; encoded: EncodedOutput; receipt: string };
-
-// ==========================================
-// MCP Server Adapter
-// ==========================================
 
 export interface McpToolDefinition {
     name: string;
@@ -455,10 +429,6 @@ export function executeTool(root: string, name: string, args?: Record<string, un
 export function readResource(root: string, uri: string): { uri: string; mimeType: string; text: string };
 export function formatMcpConfig(options?: { host?: string; project?: string; runner?: string | null }): object;
 export function startMcpServer(root: string, streams?: { inStream?: NodeJS.ReadableStream; outStream?: NodeJS.WritableStream }): Promise<void>;
-
-// ==========================================
-// Ed25519 Asymmetric Digital Signatures
-// ==========================================
 
 export interface SigningKeyPair {
     privateKeyPem: string;
@@ -500,10 +470,6 @@ export function verifyBundleSignature(root: string, publicKeyInput: string, sigR
 export function signVerificationEvidence(root: string, evidenceHash: string, privateKeyInput: string): EvidenceSignatureRecord;
 export function verifyVerificationEvidence(root: string, evidenceHash: string, publicKeyInput: string, sigRecord?: EvidenceSignatureRecord | null): { valid: true; evidenceHash: string; keyId: string; signedAt: string };
 
-// ==========================================
-// Setup & Errors
-// ==========================================
-
 export interface InitProjectResult {
     project: string;
     profile: string;
@@ -536,5 +502,5 @@ export class StewardError extends Error {
 }
 
 export function insist(condition: unknown, code: string, message: string): asserts condition;
-export function publicError(error: unknown): { code: string; message: string };
+export function publicError(error: unknown): PublicErrorObject;
 

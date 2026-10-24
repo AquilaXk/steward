@@ -273,7 +273,7 @@ export function installHooks(root, host, { plugin = false, update = false, unins
     try {
         return prepareInstallation(root, host, plugin, update, uninstall);
     } finally {
-        fs.rmdirSync(lock); //NOSONAR
+        try { fs.rmdirSync(lock); } catch {} //NOSONAR
     }
 }
 
