@@ -2,15 +2,31 @@
 
 ![Steward architecture overview](assets/banner.svg)
 
+[![CI](https://github.com/AquilaXk/steward/actions/workflows/ci.yml/badge.svg)](https://github.com/AquilaXk/steward/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/AquilaXk/steward)](https://github.com/AquilaXk/steward/releases)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22-339933)](package.json)
+[![Dependencies](https://img.shields.io/badge/dependencies-0-blue)](package.json)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+[English](README.md) · [한국어](README.ko.md) · [Releases](https://github.com/AquilaXk/steward/releases) · [Discussions](https://github.com/AquilaXk/steward/discussions)
+
 **Local policy enforcement, hash-linked memory, and source-bound verification for coding agents.**
-
-Node.js 22+ · MIT · Zero runtime dependencies · English / 한국어
-
-[English](README.md) · [한국어](README.ko.md) · [CI](https://github.com/AquilaXk/steward/actions/workflows/ci.yml) · [Discussions](https://github.com/AquilaXk/steward/discussions)
 
 During multi-step coding tasks, policy rules, recorded architectural decisions, and proof that checks actually passed are often scattered across chat history and ad-hoc files. Steward connects them through local CLI commands, a stdio Model Context Protocol (MCP) server, typed Node.js APIs, and eight agent skills. Run the isolated demo first, inspect the generated `.steward/` files, and adopt the procedures your project needs.
 
 > **Verification scope.** Steward records policy evaluations, journal entries, and the output of reviewed local commands. A passing completion gate binds those checks to the current source tree snapshot, executable paths, verification plan, and runtime environment. Steward does not authenticate human identity, certify model behavior, verify remote deployment state, or replace OS-level sandboxing.
+
+---
+
+## Key Highlights
+
+- **Zero-dependency Node.js 22+ toolkit**: One portable codebase (`bin/steward.mjs`, `src/`, `index.d.ts`) providing a local CLI, a programmatic ESM/TypeScript library, a newline-delimited stdio JSON-RPC 2.0 MCP server, and native host plugin bundles with zero runtime or development third-party packages.
+- **Bit-level policy & glob engine (`src/engine.mjs`, `src/matcher.mjs`)**: Linear-time glob matching backed by `Uint32Array(4)` 128-bit ASCII bitmaps, a `Uint8Array` character-class table, 16-bit packed POSIX.1 shell operator lexing, single-pass per-event memoization (`prepareEventContext`, `prepareGlobTargets`), and a fail-closed `GLOB_COMPLEXITY` step budget.
+- **$O(1)$ indexed hash-chained journal (`src/journal.mjs`, `src/index-cache.mjs`)**: Append-only SHA-256 hash-linked records (`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`) with deep-frozen in-memory secondary indexes (`byHash`, `metaByHash`, `byType`, `byRecordId`, `bySession`, `byTag`), smallest-bucket set intersection, reverse early-exit pagination, and single-`lstatSync` incremental cache validation.
+- **Source-bound verification & Ed25519 signatures (`src/verify.mjs`, `src/crypto.mjs`)**: Reviewed `argv` check arrays run without a shell (`shell: false`), bind stdout/stderr digests to a workspace file snapshot, and support domain-separated Ed25519 signing envelopes (`steward.bundle.v1`, `steward.evidence.v1`).
+- **Multi-host plugin & MCP ecosystem**: First-class lifecycle hooks (`install`, `update`, `uninstall`, `doctor`), 8 compact procedures (`skills/`), 11 MCP Tools, and 6 `steward://` MCP Resources for Claude Code, Codex CLI, Google Antigravity, and Cursor.
+
+---
 
 ## Install
 
@@ -35,12 +51,29 @@ codex plugin add steward@steward
 Start a new session and select `steward-policy` from the installed Steward plugin,
 then ask it to set up the current project.
 
-**Model Context Protocol (MCP)**
+**Google Antigravity**
 
-Generate client configuration for Claude Desktop, Cursor, or Antigravity:
+Install the plugin directory (`plugin.json`, `mcp_config.json`, `rules/AGENTS.md`, `skills/`) or register project lifecycle hooks directly:
 
 ```sh
-node bin/steward.mjs mcp --config --host claude   # or cursor, antigravity
+node bin/steward.mjs install --project /absolute/path/to/project --host antigravity --plugin
+```
+
+**Model Context Protocol (MCP)**
+
+Generate client configuration for Claude Code, Cursor, Codex, or Antigravity:
+
+```sh
+node bin/steward.mjs mcp --config --host claude   # or cursor, codex, antigravity
+```
+
+**GitHub Release Archive**
+
+Download `steward-0.2.0.tgz` and `steward-0.2.0.tgz.sha256` from [GitHub Releases](https://github.com/AquilaXk/steward/releases) and verify the archive digest:
+
+```sh
+shasum -a 256 -c steward-0.2.0.tgz.sha256
+tar -xzf steward-0.2.0.tgz
 ```
 
 The agent configures the project's checks, shows the policy and executable commands
@@ -295,36 +328,40 @@ Print client configuration for Claude Code, Cursor, Codex, or Antigravity:
 node bin/steward.mjs mcp --config --host claude   # or cursor, codex, antigravity
 ```
 
-**Exposed MCP Tools:**
+**Exposed MCP Tools (11):**
 
-- `steward_policy_eval`: Evaluate prompt, tool, session, or stop events against active policy rules.
-- `steward_recall`: Query journal records with `type`, `text`, `tag`, `since`, `until`, `sessionId` (or `session`), `recordId`, and `history` filters.
-- `steward_record_decision`: Append an attributed decision with authority reference and quote.
-- `steward_checkpoint`: Persist session summary, next concrete action, and blockers (`sessionId` or `session`).
-- `steward_verify`: Run approved verification checks and capture execution evidence.
-- `steward_completion_gate`: Check if recorded evidence satisfies plan and source snapshot.
-- `steward_record_knowledge`: Record verified domain assertions with basis and expiration timestamps.
-- `steward_schedule_manage`: Create or supersede milestone schedules with identity preservation.
-- `steward_goal_manage`: Record or update durable work goals with acceptance criteria and verification evidence references.
-- `steward_record_handoff`: Record bounded subagent delegation or session handoff contracts with file scope and acceptance criteria.
-- `steward_record_question`: Record open or resolved design questions, working assumptions, and resolutions.
+| Tool | Purpose |
+|---|---|
+| `steward_policy_eval` | Evaluate `prompt`, `tool`, `session`, or `stop` events against active policy rules |
+| `steward_recall` | Query journal records by `type`, `text`, `tag`, `since`, `until`, `sessionId` (`session`), `recordId`, and `history` |
+| `steward_record_decision` | Append an attributed decision with authority reference and quote |
+| `steward_checkpoint` | Persist session summary, next concrete action, and blockers (`sessionId` or `session`) |
+| `steward_verify` | Run approved verification checks and capture execution evidence |
+| `steward_completion_gate` | Verify that recorded evidence satisfies the active plan and source snapshot |
+| `steward_record_knowledge` | Record verified domain assertions with basis, sources, and expiration timestamps |
+| `steward_schedule_manage` | Create or supersede milestone schedules with identity preservation |
+| `steward_goal_manage` | Record or update durable work goals with acceptance criteria and evidence hashes |
+| `steward_record_handoff` | Record bounded subagent delegation or session handoff contracts |
+| `steward_record_question` | Record open or resolved design questions, working assumptions, and resolutions |
 
-**Exposed MCP Resources:**
+**Exposed MCP Resources (6):**
 
-- `steward://policy`: Active policy rules and budget configuration.
-- `steward://verification-plan`: Approved verification checks and timeout budgets.
-- `steward://journal/head`: Current sequence count and latest head hash.
-- `steward://checkpoint/latest`: Most recent session progress checkpoint (supports `?sessionId=<id>` or `?session=<id>`).
-- `steward://doctor`: Health check and local trust status report.
-- `steward://trust/status`: Non-throwing trust and bundle diagnostic report.
+| Resource URI | Contents |
+|---|---|
+| `steward://policy` | Active policy rules and context budget configuration |
+| `steward://verification-plan` | Approved verification checks and timeout budgets |
+| `steward://journal/head` | Current journal sequence count and latest head hash |
+| `steward://checkpoint/latest` | Most recent session checkpoint (supports `?sessionId=<id>` or `?session=<id>`) |
+| `steward://doctor` | Health check and local host wiring report |
+| `steward://trust/status` | Non-throwing trust and bundle diagnostic report |
 
 All MCP tools accept an optional `project` directory parameter, and all `steward://` resources accept `?project=<urlencoded-path>` for multi-workspace sessions.
 
 ### In-memory index cache and recall
 
-Steward maintains an in-memory metadata index cache (`src/index-cache.mjs`) tracking
-records by `type`, `recordId`, `session`, `tag`, and `supersededHashes` alongside file `mtimeMs`, `size`, `ino`, and `ctimeMs`.
-Repeated queries avoid scanning the filesystem, freeze returned rows against caller mutation, and verify cryptographic hash-chain integrity on cache misses and gate checks.
+Steward maintains an in-memory metadata index cache (`src/index-cache.mjs`) indexing
+records by `byHash`, `metaByHash` (precomputed timestamps, lowercased search text, and tag sets), `byType`, `byRecordId`, `bySession` (including unscoped `null` checkpoints), `byTag`, and `supersededHashes` alongside file `mtimeMs`, `size`, `ino`, and `ctimeMs`.
+Multi-filter queries intersect the smallest candidate buckets first, scan newest-first with early `limit` exit, freeze returned rows against caller mutation, and verify cryptographic hash-chain integrity on cache misses and gate checks.
 
 ### Programmatic TypeScript and Node.js API
 

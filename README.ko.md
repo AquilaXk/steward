@@ -2,15 +2,31 @@
 
 ![Steward 아키텍처 개요](assets/banner.svg)
 
+[![CI](https://github.com/AquilaXk/steward/actions/workflows/ci.yml/badge.svg)](https://github.com/AquilaXk/steward/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/AquilaXk/steward)](https://github.com/AquilaXk/steward/releases)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22-339933)](package.json)
+[![Dependencies](https://img.shields.io/badge/dependencies-0-blue)](package.json)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+
+[English](README.md) · [한국어](README.ko.md) · [Releases](https://github.com/AquilaXk/steward/releases) · [Discussions](https://github.com/AquilaXk/steward/discussions)
+
 **코딩 에이전트를 위한 로컬 정책 집행, 해시 체인 기억, 소스 바인딩 검증 도구.**
-
-Node.js 22+ · MIT · 런타임 의존성 없음 · English / 한국어
-
-[English](README.md) · [한국어](README.ko.md) · [CI](https://github.com/AquilaXk/steward/actions/workflows/ci.yml) · [Discussions](https://github.com/AquilaXk/steward/discussions)
 
 다단계 코딩 작업에서는 정책 규칙, 아키텍처 결정, 검증 통과 근거가 대화 로그와 임시 파일에 흩어지기 쉽습니다. Steward는 로컬 CLI 명령, stdio 모델 컨텍스트 프로토콜(MCP) 서버, TypeScript/Node.js API, 그리고 8개의 에이전트 스킬로 이 상태를 연결합니다. 격리된 데모를 먼저 실행해 `.steward/` 파일을 확인한 뒤 프로젝트에 필요한 절차만 적용하세요.
 
 > **검증 범위.** Steward는 정책 평가 결과, 저널 항목, 검토된 로컬 명령의 실행 출력을 기록합니다. 완료 게이트는 검사 결과를 현재 소스 트리 스냅샷, 실행 파일 경로, 검증 계획, 런타임 환경에 연결합니다. 작성자 신원 인증, 모델 동작 보증, 원격 배포 상태 확인이나 OS 수준 샌드박스를 대체하지는 않습니다.
+
+---
+
+## 핵심 특징
+
+- **무의존성 Node.js 22+ 툴킷**: 런타임·개발 서드파티 의존성 없이 단일 코드베이스(`bin/steward.mjs`, `src/`, `index.d.ts`)로 로컬 CLI, ESM/TypeScript 라이브러리, 개행 구분 stdio JSON-RPC 2.0 MCP 서버, 네이티브 호스트 플러그인 번들을 제공합니다.
+- **비트 수준 정책·글롭 엔진 (`src/engine.mjs`, `src/matcher.mjs`)**: `Uint32Array(4)` 128비트 ASCII 비트맵, `Uint8Array` 문자 분류 테이블, 16비트 정수 패킹 POSIX.1 셸 토크나이저, 이벤트 단위 1회 메모이제이션(`prepareEventContext`, `prepareGlobTargets`), Fail-Closed `GLOB_COMPLEXITY` 스텝 예산을 결합한 선형 시간 매칭을 수행합니다.
+- **$O(1)$ 색인 기반 해시 체인 저널 (`src/journal.mjs`, `src/index-cache.mjs`)**: SHA-256 해시로 연결되는 불변 저널 레코드(`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`)를 인메모리 보조 색인(`byHash`, `metaByHash`, `byType`, `byRecordId`, `bySession`, `byTag`), 최소 버킷 교집합, 역방향 조기 종료, 파일당 단일 `lstatSync` 증분 검증으로 빠르게 조회합니다.
+- **소스 바인딩 검증 및 Ed25519 전자서명 (`src/verify.mjs`, `src/crypto.mjs`)**: 검토된 `argv` 배열을 셸 없이(`shell: false`) 실행해 표준 출력·오류 해시를 소스 트리 스냅샷에 결합하며, 도메인 분리 Ed25519 서명 Envelope(`steward.bundle.v1`, `steward.evidence.v1`)를 지원합니다.
+- **다중 호스트 플러그인 및 MCP 생태계**: Claude Code, Codex CLI, Google Antigravity, Cursor를 위한 수명주기 훅(`install`, `update`, `uninstall`, `doctor`), 8개 스킬(`skills/`), 11개 MCP 도구, 6개 `steward://` MCP 리소스를 기본 제공합니다.
+
+---
 
 ## 설치
 
@@ -35,12 +51,29 @@ codex plugin add steward@steward
 새 세션에서 설치된 Steward 플러그인의 `steward-policy` 스킬을 선택하고
 현재 프로젝트에 설정해 달라고 요청하세요.
 
-**모델 컨텍스트 프로토콜 (MCP)**
+**Google Antigravity**
 
-Claude Desktop, Cursor, Antigravity 환경을 위한 클라이언트 설정을 생성합니다:
+플러그인 디렉터리(`plugin.json`, `mcp_config.json`, `rules/AGENTS.md`, `skills/`)를 설치하거나 프로젝트 수명주기 훅을 직접 등록합니다:
 
 ```sh
-node bin/steward.mjs mcp --config --host claude   # 또는 cursor, antigravity
+node bin/steward.mjs install --project /absolute/path/to/project --host antigravity --plugin
+```
+
+**모델 컨텍스트 프로토콜 (MCP)**
+
+Claude Code, Cursor, Codex, Antigravity 환경을 위한 클라이언트 설정을 생성합니다:
+
+```sh
+node bin/steward.mjs mcp --config --host claude   # 또는 cursor, codex, antigravity
+```
+
+**GitHub 릴리스 아카이브**
+
+[GitHub Releases](https://github.com/AquilaXk/steward/releases)에서 `steward-0.2.0.tgz`와 `steward-0.2.0.tgz.sha256`을 내려받아 체크섬을 검증합니다:
+
+```sh
+shasum -a 256 -c steward-0.2.0.tgz.sha256
+tar -xzf steward-0.2.0.tgz
 ```
 
 에이전트가 프로젝트 검사를 구성하고, 정책과 실행 명령을 보여주고 승인받은 뒤
@@ -293,35 +326,39 @@ Claude Code, Cursor, Codex, Antigravity 환경용 클라이언트 설정을 출�
 node bin/steward.mjs mcp --config --host claude   # 또는 cursor, codex, antigravity
 ```
 
-**제공 MCP 도구 (Tools):**
+**제공 MCP 도구 (11종):**
 
-- `steward_policy_eval`: 프롬프트, 도구 호출, 세션, 종료(`stop`) 이벤트를 활성 정책 규칙에 따라 평가합니다.
-- `steward_recall`: `type`, `text`, `tag`, `since`, `until`, `sessionId` (또는 `session`), `recordId`, `history` 필터로 저널 기록을 조회합니다.
-- `steward_record_decision`: 근거 참조 및 인용문을 포함하여 확인된 아키텍처 결정을 저널에 기록합니다.
-- `steward_checkpoint`: 세션 진행 요약, 다음 구체적 행동, 차단 요소를 체크포인트로 저장합니다(`sessionId` 또는 `session`).
-- `steward_verify`: 승인된 검증 계획 명령을 실행하고 실행 결과의 암호학적 증거를 캡처합니다.
-- `steward_completion_gate`: 기록된 증거가 검증 계획 및 소스 스냅샷 조건을 충족하는지 검증합니다.
-- `steward_record_knowledge`: 근거 유형 및 만료 시각을 명시하여 검증된 도메인 사실을 기록합니다.
-- `steward_schedule_manage`: 식별자를 보존하며 마일스톤 일정을 생성하거나 개정(대체)합니다.
-- `steward_goal_manage`: 수용 기준 및 검증 증거 참조를 포함하여 작업 목표를 기록하거나 갱신합니다.
-- `steward_record_handoff`: 허용 파일 범위 및 수용 기준을 명시하여 서브에이전트 위임 또는 세션 인계 계약을 기록합니다.
-- `steward_record_question`: 미해결 또는 해결된 설계 질문, 작업 가정, 해결 내용을 저널에 기록합니다.
+| 도구 이름 | 설명 |
+|---|---|
+| `steward_policy_eval` | `prompt`, `tool`, `session`, `stop` 이벤트를 활성 정책 규칙에 따라 평가 |
+| `steward_recall` | `type`, `text`, `tag`, `since`, `until`, `sessionId` (`session`), `recordId`, `history` 필터로 저널 조회 |
+| `steward_record_decision` | 근거 참조와 인용문을 포함해 확인된 아키텍처 결정을 저널에 기록 |
+| `steward_checkpoint` | 세션 진행 요약, 다음 행동, 차단 요소를 체크포인트로 저장 (`sessionId` 또는 `session`) |
+| `steward_verify` | 승인된 검증 계획 명령을 실행하고 실행 결과의 암호학적 증거 캡처 |
+| `steward_completion_gate` | 기록된 증거가 활성 검증 계획과 현재 소스 스냅샷 조건을 충족하는지 검증 |
+| `steward_record_knowledge` | 근거 유형, 출처, 만료 시각을 명시해 검증된 도메인 지식을 기록 |
+| `steward_schedule_manage` | 식별자를 보존하며 마일스톤 일정을 생성하거나 개정(대체) |
+| `steward_goal_manage` | 수용 기준 및 검증 증거 해시를 포함해 작업 목표를 기록하거나 갱신 |
+| `steward_record_handoff` | 허용 파일 범위 및 수용 기준을 명시해 서브에이전트 위임 또는 세션 인계 계약 기록 |
+| `steward_record_question` | 미해결 또는 해결된 설계 질문, 작업 가정, 해결 내용을 저널에 기록 |
 
-**제공 MCP 리소스 (Resources):**
+**제공 MCP 리소스 (6종):**
 
-- `steward://policy`: 활성 정책 규칙 및 컨텍스트 예산 설정 조회.
-- `steward://verification-plan`: 승인된 검증 검사 목록 및 타임아웃 예산 조회.
-- `steward://journal/head`: 현재 저널 시퀀스 번호 및 최신 헤드 해시 조회.
-- `steward://checkpoint/latest`: 가장 최근에 저장된 세션 진행 체크포인트 조회(`?sessionId=<id>` 또는 `?session=<id>` 지원).
-- `steward://doctor`: 헬스체크 및 로컬 신뢰 상태 보고서 조회.
-- `steward://trust/status`: 미승인 상태에서도 예외 없이 구조화된 신뢰·번들 진단 보고서 조회.
+| 리소스 URI | 제공 내용 |
+|---|---|
+| `steward://policy` | 활성 정책 규칙 및 컨텍스트 예산 설정 |
+| `steward://verification-plan` | 승인된 검증 검사 목록 및 타임아웃 예산 |
+| `steward://journal/head` | 현재 저널 시퀀스 개수 및 최신 헤드 해시 |
+| `steward://checkpoint/latest` | 가장 최근에 저장된 세션 체크포인트 (`?sessionId=<id>` 또는 `?session=<id>` 지원) |
+| `steward://doctor` | 헬스체크 및 로컬 호스트 배선 상태 보고서 |
+| `steward://trust/status` | 미승인 상태에서도 예외 없이 반환되는 신뢰·번들 진단 보고서 |
 
 모든 MCP 도구는 선택적 `project` 디렉터리 파라미터를 수용하며, 모든 `steward://` 리소스는 멀티 워크스페이스 세션을 위한 `?project=<urlencoded-path>` 쿼리를 지원합니다.
 
 ### 인메모리 색인 캐시 및 회상
 
-Steward는 파일 상태(`mtimeMs`, `size`, `ino`, `ctimeMs`)를 추적하며 레코드를 `type`, `recordId`, `session`, `tag`, `supersededHashes`별로 인덱싱하는 인메모리 색인 캐시(`src/index-cache.mjs`)를 유지합니다.
-반복 조회 시 불필요한 디스크 스캔을 생략하고, 반환 객체를 동결(`Object.freeze`)하여 호출자 변조를 차단하며, 캐시 미스 및 완료 게이트 실행 시 암호학적 해시 체인 전체를 검증합니다.
+Steward는 파일 상태(`mtimeMs`, `size`, `ino`, `ctimeMs`)를 추적하며 레코드를 `byHash`, `metaByHash`(사전 계산된 타임스탬프·소문자 검색 텍스트·태그 집합), `byType`, `byRecordId`, `bySession`(세션 미지정 `null` 체크포인트 포함), `byTag`, `supersededHashes`별로 인덱싱하는 인메모리 색인 캐시(`src/index-cache.mjs`)를 유지합니다.
+복합 필터 질의는 가장 작은 후보 버킷부터 교집합을 구하고 최신순 역방향 순회와 `limit` 조기 종료로 탐색 비용을 줄이며, 반환 객체를 동결(`Object.freeze`)해 호출자 변조를 차단하고 캐시 미스 및 완료 게이트 실행 시 암호학적 해시 체인 전체를 검증합니다.
 
 ### 프로그래밍 방식 라이브러리 연동 및 TypeScript (`index.d.ts`)
 

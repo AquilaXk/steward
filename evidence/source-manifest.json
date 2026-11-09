@@ -108,13 +108,13 @@
     },
     {
       "path": "README.ko.md",
-      "bytes": 27150,
-      "sha256": "29b97ae8fb7aed842cd3758472e34a3ec40f9fd5665474832f5c4555f775b383"
+      "bytes": 30153,
+      "sha256": "d88cf56eb4b25fe3b9615d5ae5ccd022274fcddba885d1dc30b18b50588111bb"
     },
     {
       "path": "README.md",
-      "bytes": 23900,
-      "sha256": "2e710fba07761c443395149b34ca3ca7f386a78dd49396c11859026b133d0e22"
+      "bytes": 26872,
+      "sha256": "cf3c6b658aedbf5f102085f482576eafbd4ff164458e70b1936322234535a505"
     },
     {
       "path": "SECURITY.md",
