@@ -189,10 +189,15 @@ function loadJournalRow(root, resolvedDir, name, expectedSeq, previousHash) {
  * Detects incremental additions or invalidations.
  *
  * @param {string} root - Project root directory.
+ * @param {object} [options] - Sync options.
+ * @param {boolean} [options.fresh=false] - Force cache invalidation before reading.
  * @returns {{ rows: object[], cache: object }} Synced journal rows and index.
  */
-export function syncJournalCache(root) {
+export function syncJournalCache(root, { fresh = false } = {}) {
     root = rootOf(root);
+    if (fresh) {
+        caches.delete(root);
+    }
     const listed = listJournalFiles(root);
     if (listed === null) {
         caches.delete(root);

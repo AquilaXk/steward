@@ -8,8 +8,22 @@ export function audit(root, host, event, result, bundleHash) {
     root = rootOf(root);
     const id = randomUUID();
     // These are output-preparation receipts. The process cannot observe host/model receipt.
-    const row = { version: 1, id, time: new Date().toISOString(), project: sha256(root), host, event: event.event, bundleHash, decision: result.decision,
-        matched: result.matched, emitted: result.emitted, omitted: result.omitted, bytes: result.bytes, stage: 'prepared', hostAcknowledged: false };
+    const row = {
+        version: 1,
+        id,
+        time: new Date().toISOString(),
+        project: sha256(root),
+        host,
+        event: event.event,
+        bundleHash,
+        decision: result.decision,
+        matched: result.matched,
+        emitted: result.emitted,
+        omitted: result.omitted,
+        bytes: result.bytes,
+        stage: 'prepared',
+        hostAcknowledged: false
+    };
     const dir = safePath(root, '.steward/state/audit');
     let count = 0;
     try {
@@ -74,10 +88,23 @@ export function report(root) {
         currentReceipts++;
         accumulateCurrentBundleReceipt(r, byId);
     }
-    return { receipts: names.length, denied, emitted: counts, stage: 'prepared', hostAcknowledged: false,
-        current: { bundleHash: bundle.hash, receipts: currentReceipts, rules,
-            neverEmitted: rules.filter(r => r.effect === 'inject' && r.emitted === 0).map(r => r.id) },
-        retention: { limit: AUDIT_LIMIT, remaining: Math.max(0, AUDIT_LIMIT - entries) } };
+    return {
+        receipts: names.length,
+        denied,
+        emitted: counts,
+        stage: 'prepared',
+        hostAcknowledged: false,
+        current: {
+            bundleHash: bundle.hash,
+            receipts: currentReceipts,
+            rules,
+            neverEmitted: rules.filter(r => r.effect === 'inject' && r.emitted === 0).map(r => r.id)
+        },
+        retention: {
+            limit: AUDIT_LIMIT,
+            remaining: Math.max(0, AUDIT_LIMIT - entries)
+        }
+    };
 }
 export function pruneAudit(root, { keep = 5000 } = {}) {
     root = rootOf(root);

@@ -31,6 +31,12 @@ const CHAR_FLAGS = (() => {
     return table;
 })();
 
+export const SHA256_HEX_RE = /^[a-f0-9]{64}$/;
+
+export function isSha256Hex(value) {
+    return typeof value === 'string' && SHA256_HEX_RE.test(value);
+}
+
 export function compareAscii(a, b) {
     if (a < b) return -1;
     if (a > b) return 1;
@@ -165,34 +171,41 @@ function addSingleCodePoint(cp, asciiBits, unicodeSet) {
 }
 
 function compileCharClass(content, caseSensitive) {
-    const negated = content.startsWith('!') || content.startsWith('^');
-    const raw = negated ? content.slice(1) : content;
-    if (!raw) {
+    const firstCode = content.charCodeAt(0);
+    const negated = firstCode === 0x21 || firstCode === 0x5e;
+    const startIdx = negated ? 1 : 0;
+    const len = content.length;
+    if (startIdx >= len) {
         return { type: TOK_CLASS, match: () => false };
     }
-    const units = Array.from(raw);
     const asciiBits = new Uint32Array(4);
     const unicodeSet = new Set();
     const unicodeRanges = [];
 
-    let i = 0;
-    while (i < units.length) {
-        if (units[i] === '\\' && i + 1 < units.length) {
-            const cp = normalizeCodePoint(units[i + 1].codePointAt(0), caseSensitive);
+    let i = startIdx;
+    while (i < len) {
+        if (content.charCodeAt(i) === 0x5c && i + 1 < len) {
+            const rawCp = content.codePointAt(i + 1);
+            const cp = normalizeCodePoint(rawCp, caseSensitive);
             addSingleCodePoint(cp, asciiBits, unicodeSet);
-            i += 2;
+            i += 1 + (rawCp > 0xffff ? 2 : 1);
             continue;
         }
-        if (i + 2 < units.length && units[i + 1] === '-' && units[i + 2] !== '\\') {
-            const start = normalizeCodePoint(units[i].codePointAt(0), caseSensitive);
-            const end = normalizeCodePoint(units[i + 2].codePointAt(0), caseSensitive);
+        const rawStart = content.codePointAt(i);
+        const startStep = rawStart > 0xffff ? 2 : 1;
+        const dashIdx = i + startStep;
+        if (dashIdx + 1 < len && content.charCodeAt(dashIdx) === 0x2d && content.charCodeAt(dashIdx + 1) !== 0x5c) {
+            const rawEnd = content.codePointAt(dashIdx + 1);
+            const endStep = rawEnd > 0xffff ? 2 : 1;
+            const start = normalizeCodePoint(rawStart, caseSensitive);
+            const end = normalizeCodePoint(rawEnd, caseSensitive);
             addCodePointRange(start, end, asciiBits, unicodeRanges);
-            i += 3;
+            i = dashIdx + 1 + endStep;
             continue;
         }
-        const cp = normalizeCodePoint(units[i].codePointAt(0), caseSensitive);
+        const cp = normalizeCodePoint(rawStart, caseSensitive);
         addSingleCodePoint(cp, asciiBits, unicodeSet);
-        i++;
+        i += startStep;
     }
 
     if (unicodeSet.size === 0 && unicodeRanges.length === 0) {
@@ -224,28 +237,31 @@ function compileCharClass(content, caseSensitive) {
     };
 }
 
-function findClosingBracket(chars, startIndex) {
-    for (let j = startIndex; j < chars.length; j++) {
-        if (chars[j] === '\\') {
-            j++;
+function findClosingBracket(pattern, startIndex) {
+    for (let j = startIndex; j < pattern.length; j++) {
+        const code = pattern.charCodeAt(j);
+        if (code === 0x5c) {
+            if (j + 1 < pattern.length) {
+                j += pattern.codePointAt(j + 1) > 0xffff ? 2 : 1;
+            }
             continue;
         }
-        if (chars[j] === ']') {
+        if (code === 0x5d) {
             return j;
         }
     }
     return -1;
 }
 
-function parseBracketToken(chars, i, caseSensitive) {
-    const closeIdx = findClosingBracket(chars, i + 1);
+function parseBracketToken(pattern, i, caseSensitive) {
+    const closeIdx = findClosingBracket(pattern, i + 1);
     if (closeIdx === -1) {
         return {
             token: { type: TOK_CHAR, code: normalizeCodePoint(0x5b, caseSensitive) },
             nextIndex: i + 1
         };
     }
-    const classContent = chars.slice(i + 1, closeIdx).join('');
+    const classContent = pattern.slice(i + 1, closeIdx);
     return {
         token: compileCharClass(classContent, caseSensitive),
         nextIndex: closeIdx + 1
@@ -259,29 +275,31 @@ function pushStar(tokens) {
 }
 
 function parseTokens(pattern, caseSensitive) {
-    const chars = Array.from(pattern);
+    const len = pattern.length;
     const tokens = [];
     let i = 0;
-    while (i < chars.length) {
-        const c = chars[i];
-        if (c === '\\') {
+    while (i < len) {
+        const cp = pattern.codePointAt(i);
+        if (cp === 0x5c) {
             i++;
-            if (i < chars.length) {
-                tokens.push({ type: TOK_CHAR, code: normalizeCodePoint(chars[i++].codePointAt(0), caseSensitive) });
+            if (i < len) {
+                const escapedCp = pattern.codePointAt(i);
+                tokens.push({ type: TOK_CHAR, code: normalizeCodePoint(escapedCp, caseSensitive) });
+                i += escapedCp > 0xffff ? 2 : 1;
             }
-        } else if (c === '*') {
+        } else if (cp === 0x2a) {
             pushStar(tokens);
             i++;
-        } else if (c === '?') {
+        } else if (cp === 0x3f) {
             tokens.push({ type: TOK_ANY });
             i++;
-        } else if (c === '[') {
-            const parsed = parseBracketToken(chars, i, caseSensitive);
+        } else if (cp === 0x5b) {
+            const parsed = parseBracketToken(pattern, i, caseSensitive);
             tokens.push(parsed.token);
             i = parsed.nextIndex;
         } else {
-            tokens.push({ type: TOK_CHAR, code: normalizeCodePoint(c.codePointAt(0), caseSensitive) });
-            i++;
+            tokens.push({ type: TOK_CHAR, code: normalizeCodePoint(cp, caseSensitive) });
+            i += cp > 0xffff ? 2 : 1;
         }
     }
     return tokens;

@@ -5,7 +5,6 @@ import { insist, StewardError } from './errors.mjs';
 import { canonical, sha256, safePath, readText, parseJSON, atomicWrite } from './fs.mjs';
 import { isObject } from './schema.mjs';
 import { loadBundle } from './trust.mjs';
-import { readJournal } from './journal.mjs';
 import { syncJournalCache } from './index-cache.mjs';
 
 const HEX_128_RE = /^[0-9a-fA-F]{128}$/;
@@ -341,8 +340,7 @@ export function verifyBundleSignature(root, publicKeyInput, sigRecord = null) {
  * @returns {object} Signed evidence record.
  */
 export function signVerificationEvidence(root, evidenceHash, privateKeyInput) {
-    readJournal(root, { fresh: true });
-    const row = syncJournalCache(root).cache.index.byHash.get(evidenceHash);
+    const row = syncJournalCache(root, { fresh: true }).cache.index.byHash.get(evidenceHash);
     insist(row && row.type === 'verification', 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
 
     const privPem = resolveKeyPem(privateKeyInput, 'private');
@@ -377,8 +375,7 @@ export function signVerificationEvidence(root, evidenceHash, privateKeyInput) {
  * @returns {{ valid: boolean, evidenceHash: string, keyId: string, signedAt: string }}
  */
 export function verifyVerificationEvidence(root, evidenceHash, publicKeyInput, sigRecord = null) {
-    readJournal(root, { fresh: true });
-    const row = syncJournalCache(root).cache.index.byHash.get(evidenceHash);
+    const row = syncJournalCache(root, { fresh: true }).cache.index.byHash.get(evidenceHash);
     insist(row && row.type === 'verification', 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
 
     const pubPem = resolveKeyPem(publicKeyInput, 'public');

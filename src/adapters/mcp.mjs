@@ -6,6 +6,7 @@ import { evaluate } from '../engine.mjs';
 import { normalizeInput } from '../adapters.mjs';
 import { requireTrust } from '../trust.mjs';
 import { appendEntry, readJournal, journalHead, queryJournal, latestCheckpoint } from '../journal.mjs';
+import { syncJournalCache } from '../index-cache.mjs';
 import { runVerification, completionGate } from '../verify.mjs';
 import { doctor } from '../doctor.mjs';
 import { PACKAGE_ROOT } from '../setup.mjs';
@@ -482,7 +483,7 @@ const RESOURCE_HANDLERS = {
         const sessionId = resolveResourceSessionParam(params);
         const checkpoint = sessionId
             ? latestCheckpoint(root, sessionId)
-            : (latestCheckpoint(root, null) ?? readJournal(root).findLast(r => r.type === 'checkpoint') ?? null);
+            : (latestCheckpoint(root, null) ?? syncJournalCache(root).cache.index.byType.get('checkpoint')?.at(-1) ?? null);
         return { uri, mimeType: 'application/json', text: JSON.stringify(checkpoint, null, 2) };
     },
     'steward://doctor': (root, uri) => {

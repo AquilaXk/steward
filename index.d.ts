@@ -226,7 +226,7 @@ export function journalHead(rows: JournalRecord[]): JournalHead;
 export function queryJournal(root: string, options?: JournalQueryOptions): JournalQueryResult;
 export function latestCheckpoint(root: string, sessionId?: string | null): JournalRecord<CheckpointData> | null;
 export function saveCompaction(root: string, sessionId?: string | null): CompactionSnapshot;
-export function syncJournalCache(root: string): { rows: JournalRecord[]; cache: unknown };
+export function syncJournalCache(root: string, options?: { fresh?: boolean }): { rows: JournalRecord[]; cache: unknown };
 export function queryJournalIndexed(root: string, options?: JournalQueryOptions): JournalQueryResult;
 export function invalidateJournalCache(root: string): void;
 

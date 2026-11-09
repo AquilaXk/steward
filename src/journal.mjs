@@ -2,12 +2,10 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, sha256, canonical, atomicWrite, withLock, rootOf, toSessionHash } from './fs.mjs';
 import { validateEntry, validateJournalRow } from './schema.mjs';
 import { insist } from './errors.mjs';
-import { syncJournalCache, queryJournalIndexed, invalidateJournalCache } from './index-cache.mjs';
+import { syncJournalCache, queryJournalIndexed } from './index-cache.mjs';
 const DIRECTORY = '.steward/state/journal';
 export function readJournal(root, { anchor = null, fresh = false } = {}) {
-    root = rootOf(root);
-    if (fresh) invalidateJournalCache(root);
-    const { rows } = syncJournalCache(root);
+    const { rows } = syncJournalCache(root, { fresh });
     if (anchor) {
         insist(Number.isInteger(anchor.count) && anchor.count >= 0, 'BAD_ANCHOR', 'Invalid journal anchor.');
         const actual = anchor.count === 0 ? null : rows[anchor.count - 1]?.hash;

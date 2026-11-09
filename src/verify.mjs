@@ -4,14 +4,25 @@ import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { requireTrust } from './trust.mjs';
 import { snapshot, sha256, atomicWrite, canonical, safePath, readText, rootOf } from './fs.mjs';
-import { appendInternal, readJournal } from './journal.mjs';
+import { appendInternal } from './journal.mjs';
 import { syncJournalCache } from './index-cache.mjs';
 import { insist } from './errors.mjs';
+const CLEAN_ENV_KEYS = [
+    'PATH', 'HOME', 'USERPROFILE', 'SystemRoot', 'SYSTEMROOT',
+    'WINDIR', 'ComSpec', 'PATHEXT', 'TMP', 'TEMP', 'TMPDIR', 'LANG', 'LC_ALL'
+];
+const VERIFICATION_LIMITATIONS = [
+    'Commands execute with local user privileges.',
+    'Recorded output may contain sensitive test data.',
+    'node_modules and external services are outside the source snapshot.'
+];
 function cleanEnvironment() {
     const env = {};
-    for (const k of ['PATH', 'HOME', 'USERPROFILE', 'SystemRoot', 'SYSTEMROOT', 'WINDIR', 'ComSpec', 'PATHEXT', 'TMP', 'TEMP', 'TMPDIR', 'LANG', 'LC_ALL'])
-        if (process.env[k] !== undefined)
+    for (const k of CLEAN_ENV_KEYS) {
+        if (process.env[k] !== undefined) {
             env[k] = process.env[k];
+        }
+    }
     env.CI = 'true';
     env.NO_COLOR = '1';
     return env;
@@ -44,41 +55,71 @@ export function resolveCommand(cmd, env = {}) {
 }
 export async function runVerification(root) {
     root = rootOf(root);
-    const { plan, hash: bundleHash } = requireTrust(root), before = snapshot(root, plan.exclude || []);
-    const id = randomUUID(), checks = [];
+    const { plan, hash: bundleHash } = requireTrust(root);
+    const before = snapshot(root, plan.exclude || []);
+    const id = randomUUID();
+    const checks = [];
     const env = cleanEnvironment();
     for (const check of plan.checks) {
         const start = Date.now();
         const command = resolveCommand(check.argv[0], env);
-        const child = spawnSync(command, check.argv.slice(1), { cwd: root, env, encoding: 'utf8', shell: false, timeout: check.timeoutMs, killSignal: 'SIGKILL', maxBuffer: 1024 * 1024, windowsHide: true });
-        let status = 'pass', error = null;
+        const child = spawnSync(command, check.argv.slice(1), {
+            cwd: root,
+            env,
+            encoding: 'utf8',
+            shell: false,
+            timeout: check.timeoutMs,
+            killSignal: 'SIGKILL',
+            maxBuffer: 1024 * 1024,
+            windowsHide: true
+        });
+        let status = 'pass';
+        let error = null;
         if (child.error) {
             error = child.error.code || 'SPAWN_ERROR';
             status = error === 'ENOENT' ? 'unavailable' : 'fail';
-        }
-        else if (child.status !== 0 || child.signal) {
+        } else if (child.status !== 0 || child.signal) {
             status = 'fail';
             error = child.signal ? 'SIGNAL' : `EXIT_${child.status}`;
         }
-        const stdout = child.stdout || '', stderr = child.stderr || '';
+        const stdout = child.stdout || '';
+        const stderr = child.stderr || '';
         const prefix = `.steward/state/checks/${id}/${check.id}`;
         atomicWrite(root, prefix + '.stdout.txt', stdout);
         atomicWrite(root, prefix + '.stderr.txt', stderr);
-        checks.push({ id: check.id, status, error, exitCode: child.status, signal: child.signal || null, durationMs: Date.now() - start,
-            stdout: { path: prefix + '.stdout.txt', sha256: sha256(stdout) }, stderr: { path: prefix + '.stderr.txt', sha256: sha256(stderr) } });
+        checks.push({
+            id: check.id,
+            status,
+            error,
+            exitCode: child.status,
+            signal: child.signal || null,
+            durationMs: Date.now() - start,
+            stdout: { path: prefix + '.stdout.txt', sha256: sha256(stdout) },
+            stderr: { path: prefix + '.stderr.txt', sha256: sha256(stderr) }
+        });
     }
-    const after = snapshot(root, plan.exclude || []), unchanged = before.hash === after.hash;
-    const report = { version: 1, runId: id, bundleHash, planHash: sha256(canonical(plan)), workspace: before, workspaceAfter: after.hash,
-        sourceUnchanged: unchanged, runtime: { node: process.version, platform: process.platform, arch: process.arch }, checks,
-        allPassed: unchanged && checks.every(c => c.status === 'pass'), limitations: ['Commands execute with local user privileges.', 'Recorded output may contain sensitive test data.', 'node_modules and external services are outside the source snapshot.'] };
+    const after = snapshot(root, plan.exclude || []);
+    const unchanged = before.hash === after.hash;
+    const report = {
+        version: 1,
+        runId: id,
+        bundleHash,
+        planHash: sha256(canonical(plan)),
+        workspace: before,
+        workspaceAfter: after.hash,
+        sourceUnchanged: unchanged,
+        runtime: { node: process.version, platform: process.platform, arch: process.arch },
+        checks,
+        allPassed: unchanged && checks.every(c => c.status === 'pass'),
+        limitations: VERIFICATION_LIMITATIONS
+    };
     const record = await appendInternal(root, 'verification', report);
     return { ...report, evidence: record.hash, evidenceHash: record.hash };
 }
 export function completionGate(root, evidence = null) {
     root = rootOf(root);
     const bundle = requireTrust(root);
-    readJournal(root, { fresh: true });
-    const { cache } = syncJournalCache(root);
+    const { cache } = syncJournalCache(root, { fresh: true });
     const row = evidence
         ? cache.index.byHash.get(evidence)
         : cache.index.byType.get('verification')?.at(-1);

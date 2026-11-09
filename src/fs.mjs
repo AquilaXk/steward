@@ -2,15 +2,9 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { insist, StewardError } from './errors.mjs';
-import { compareAscii, trimTrailingSlashes } from './matcher.mjs';
+import { compareAscii, trimTrailingSlashes, SHA256_HEX_RE, isSha256Hex } from './matcher.mjs';
 
-export { compareAscii, trimTrailingSlashes };
-
-export const SHA256_HEX_RE = /^[a-f0-9]{64}$/;
-
-export function isSha256Hex(value) {
-    return typeof value === 'string' && SHA256_HEX_RE.test(value);
-}
+export { compareAscii, trimTrailingSlashes, SHA256_HEX_RE, isSha256Hex };
 
 export function sha256(value) {
     return createHash('sha256').update(value).digest('hex');

@@ -1,5 +1,5 @@
 import { insist } from './errors.mjs';
-import { isSafePattern } from './matcher.mjs';
+import { isSafePattern, isSha256Hex } from './matcher.mjs';
 
 export const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
 
@@ -154,10 +154,6 @@ const ENTRY_FIELDS = {
     schedule: ['title', 'dueAt', 'status', 'members', 'id', 'supersedes', 'tags'],
     handoff: ['task', 'scope', 'constraints', 'acceptance', 'evidence', 'tags']
 };
-
-function isSha256Hex(x) {
-    return typeof x === 'string' && /^[a-f0-9]{64}$/.test(x);
-}
 
 function validateSupersedes(value, message = 'supersedes must be null or a record hash.') {
     insist(value === null || isSha256Hex(value), 'SCHEMA', message);

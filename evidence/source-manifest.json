@@ -248,8 +248,8 @@
     },
     {
       "path": "index.d.ts",
-      "bytes": 15216,
-      "sha256": "0db33c8bc19eab39646cb85a7dfe4cded6f344efe0145c599c4fb4c5c189a534"
+      "bytes": 15247,
+      "sha256": "d4703eb13d912e1c7b73dac2cfe3c42b6d1fc69100aed3a70c549d633faafa7a"
     },
     {
       "path": "mcp_config.json",
@@ -448,18 +448,18 @@
     },
     {
       "path": "src/adapters/mcp.mjs",
-      "bytes": 35742,
-      "sha256": "8a540a7309b163c95060ddd5a9f5e179b9c416aa3825bdad887ec329e78eb9c4"
+      "bytes": 35808,
+      "sha256": "d7d12163d17061b9f330b7698d2088ef3b21c0c7bd70b9dfdfaeb81eeca8d172"
     },
     {
       "path": "src/audit.mjs",
-      "bytes": 5070,
-      "sha256": "fd4564dccb7b1fbc8612a17213e5b870d1f12e8ae03715ce20b4444ea727b008"
+      "bytes": 5298,
+      "sha256": "4041fd25987ab0cc461019a8b966c5a2249aa88eff7386371fd747c25ad5fb3b"
     },
     {
       "path": "src/crypto.mjs",
-      "bytes": 17270,
-      "sha256": "4d8660b07f12d20fded0fb9ea1a68c3b0724eb390a800ccd464e7fb4c386264b"
+      "bytes": 17179,
+      "sha256": "d47245dfcf8686d424485bd67fdb0095d3e1e96d63ae49c029162ee1ed819eb6"
     },
     {
       "path": "src/doctor.mjs",
@@ -478,13 +478,13 @@
     },
     {
       "path": "src/fs.mjs",
-      "bytes": 8388,
-      "sha256": "3d8b55c090605bafca5defac53ea30689c3704771e4fbe574152dc80bf726b84"
+      "bytes": 8289,
+      "sha256": "a2eabb34666fcd9a686ee750a44ff1a72716eedc676052cbc5ca7296a1296760"
     },
     {
       "path": "src/index-cache.mjs",
-      "bytes": 12523,
-      "sha256": "06ebe3776141d621b6eff56363092d9edb5f32f10d1084322423c00fb01d7b66"
+      "bytes": 12729,
+      "sha256": "781033c1282c9e31cfd2a4247ba9be522c07467fb419d4db9a747a1e8cab6b3b"
     },
     {
       "path": "src/index.mjs",
@@ -498,18 +498,18 @@
     },
     {
       "path": "src/journal.mjs",
-      "bytes": 4125,
-      "sha256": "dd92373a8478203da6a82d29d6f5c31e4e9f9bd137308711eee1f0a5cb2517ca"
+      "bytes": 4042,
+      "sha256": "9fb2d867baa516ea63acc19daee01512c3e267e24466ed5f56ddf99bcca2937a"
     },
     {
       "path": "src/matcher.mjs",
-      "bytes": 18147,
-      "sha256": "70697c79187131390ece5f92d8cc85b194ffe53fecd7d19102a45bdff9b700c4"
+      "bytes": 18896,
+      "sha256": "ea611945a3920ab6eb50a32493afe9c1adf6ae7c7c4f4a8fe8d5fed3c82b8d48"
     },
     {
       "path": "src/schema.mjs",
-      "bytes": 15062,
-      "sha256": "e04b5800cc28836d41d7f2221baef57f91df5acf1bfb5921bb78103427d1d563"
+      "bytes": 14984,
+      "sha256": "a57237bd7cb37fd474832e6e37926899c7aae3bb077e25f57c3fd2551aa4e0c4"
     },
     {
       "path": "src/service.mjs",
@@ -528,13 +528,13 @@
     },
     {
       "path": "src/trust.mjs",
-      "bytes": 2668,
-      "sha256": "cc2db1f81ba28b2cfa06fbc193c007f820f9713f943766cad97618f1e8c3f60c"
+      "bytes": 2773,
+      "sha256": "152604e7eae1eb3b3beed6d21b7e2e75080186750b28f0902ccb91efb3b60416"
     },
     {
       "path": "src/verify.mjs",
-      "bytes": 6672,
-      "sha256": "33dc7d8e610b11eac400a8db418c7b4a7835ae959b11880fa34e20741a7ff138"
+      "bytes": 7098,
+      "sha256": "4c3799b160eb4fa350bc813b3490adbf4d73dd7602caeb599c8157a9d32debcc"
     },
     {
       "path": "src/version.mjs",
