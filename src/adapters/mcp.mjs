@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { rootOf, safePath, sha256 } from '../fs.mjs';
+import { rootOf, safePath, toSessionHash } from '../fs.mjs';
 import { VERSION } from '../version.mjs';
 import { evaluate } from '../engine.mjs';
 import { normalizeInput } from '../adapters.mjs';
@@ -242,12 +242,6 @@ export const STEWARD_RESOURCES = [
 
 function optStr(val) {
     return typeof val === 'string' && !val.trim() ? undefined : val;
-}
-
-const SESSION_HASH_RE = /^[a-f0-9]{64}$/;
-
-function toSessionHash(val) {
-    return SESSION_HASH_RE.test(val) ? val : sha256(val);
 }
 
 function resolveSessionId(args, { allowPrehashed = false } = {}) {

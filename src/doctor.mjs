@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
-import { safePath, readJSON, rootOf } from './fs.mjs';
+import { safePath, readJSON, rootOf, compareAscii, isSha256Hex } from './fs.mjs';
 import { insist, publicError } from './errors.mjs';
 import { loadBundle, requireTrust } from './trust.mjs';
 import { readJournal, journalHead } from './journal.mjs';
@@ -73,15 +73,12 @@ function resolveSkillsRoot(root, host, skillSource) {
     return safePath(root, localDir);
 }
 
-const SHA256_RE = /^[a-f0-9]{64}$/;
-
 function isValidReceipt(receipt, host) {
     return (
         receipt.version === 1 &&
         receipt.host === host &&
         Array.isArray(receipt.commands) &&
-        typeof receipt.configHash === 'string' &&
-        SHA256_RE.test(receipt.configHash)
+        isSha256Hex(receipt.configHash)
     );
 }
 
@@ -103,7 +100,7 @@ function inspectHost(root, host) {
         }
         checkHostHookEvents(root, host, config, receipt.commands, result.problems);
         const skillsRoot = resolveSkillsRoot(root, host, receipt.skillSource);
-        for (const name of fs.readdirSync(path.join(PACKAGE_ROOT, 'procedures')).sort((a, b) => a.localeCompare(b, 'en'))) {
+        for (const name of fs.readdirSync(path.join(PACKAGE_ROOT, 'procedures')).sort(compareAscii)) {
             if (!fs.existsSync(path.join(skillsRoot, name, 'SKILL.md')))
                 result.problems.push(`Missing skill: ${name}. Restore it through the matching installation mode.`);
         }

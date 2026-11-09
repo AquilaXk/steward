@@ -184,3 +184,148 @@ test('validatePlan rejects glob wildcards in exclude, snapshot strips trailing s
     assert.throws(() => completionGate(root, report.evidence), { code: 'JOURNAL_CORRUPT' });
 });
 
+test('byHash, metaByHash, and null-session checkpoint index support O(1) lookups', async (t) => {
+    const { latestCheckpoint } = await import('../src/journal.mjs');
+    const { toSessionHash } = await import('../src/fs.mjs');
+    const { root } = sandbox(t);
+
+    const decision = await appendEntry(root, {
+        type: 'decision',
+        data: {
+            statement: 'Use O(1) hash lookup map',
+            authority: { kind: 'user', reference: 'task', quote: 'index by hash' },
+            supersedes: null,
+            tags: ['perf', 'index']
+        }
+    });
+    const knowledge = await appendEntry(root, {
+        type: 'knowledge',
+        data: {
+            claim: 'Precompute metadata per row',
+            basis: 'observation',
+            sources: [],
+            expiresAt: '2030-01-01T00:00:00.000Z',
+            tags: ['meta']
+        }
+    });
+    const ckptNull = await appendEntry(root, {
+        type: 'checkpoint',
+        data: {
+            summary: 'Unscoped checkpoint',
+            next: 'Verify null session bucket',
+            blockers: []
+        }
+    });
+    const sessionHash = toSessionHash('session-alpha');
+    const ckptSession = await appendEntry(root, {
+        type: 'checkpoint',
+        data: {
+            summary: 'Scoped checkpoint',
+            next: 'Verify session bucket',
+            blockers: [],
+            session: sessionHash
+        }
+    });
+
+    const { cache } = syncJournalCache(root);
+    assert.equal(cache.index.byHash.get(decision.hash)?.id, decision.id);
+    const meta = cache.index.metaByHash.get(knowledge.hash);
+    assert.ok(meta);
+    assert.equal(Number.isFinite(meta.timeMs), true);
+    assert.equal(meta.expiresAtMs, Date.parse('2030-01-01T00:00:00.000Z'));
+    assert.equal(meta.searchText.includes('precompute metadata'), true);
+    assert.equal(meta.tagSet.has('meta'), true);
+
+    assert.equal(cache.index.bySession.get(null)?.length, 1);
+    assert.equal(cache.index.bySession.get(null)[0].hash, ckptNull.hash);
+    assert.equal(latestCheckpoint(root, null)?.hash, ckptNull.hash);
+    assert.equal(latestCheckpoint(root, 'session-alpha')?.hash, ckptSession.hash);
+});
+
+test('multi-index bucket intersection and reverse early-exit limit preserve total and ordering', async (t) => {
+    const { root } = sandbox(t);
+    const first = await appendEntry(root, {
+        type: 'schedule',
+        data: {
+            id: 'sched-intersect',
+            title: 'Phase 1 milestone',
+            dueAt: '2026-12-01T00:00:00.000Z',
+            status: 'planned',
+            members: ['agent'],
+            supersedes: null,
+            tags: ['release', 'v2']
+        }
+    });
+    await appendEntry(root, {
+        type: 'decision',
+        data: {
+            statement: 'Unrelated decision with release tag',
+            authority: { kind: 'user', reference: 'task', quote: 'keep separate' },
+            supersedes: null,
+            tags: ['release']
+        }
+    });
+    const second = await appendEntry(root, {
+        type: 'schedule',
+        data: {
+            id: 'sched-intersect',
+            title: 'Phase 2 milestone',
+            dueAt: '2026-12-10T00:00:00.000Z',
+            status: 'staged',
+            members: ['agent'],
+            supersedes: first.hash,
+            tags: ['release', 'v2']
+        }
+    });
+
+    const res = queryJournal(root, {
+        type: 'schedule',
+        tag: 'release',
+        recordId: 'sched-intersect',
+        history: true,
+        limit: 1
+    });
+    assert.equal(res.total, 2);
+    assert.equal(res.truncated, true);
+    assert.equal(res.rows.length, 1);
+    assert.equal(res.rows[0].hash, second.hash);
+
+    const disjoint = queryJournal(root, {
+        type: 'schedule',
+        tag: 'missing-tag',
+        recordId: 'sched-intersect',
+        history: true
+    });
+    assert.equal(disjoint.total, 0);
+    assert.equal(disjoint.rows.length, 0);
+});
+
+test('ASCII bitmap char classes, Unicode char classes, and prepareGlobTargets match identically', async () => {
+    const { matchGlob, matchArgGlob, prepareGlobTargets } = await import('../src/matcher.mjs');
+
+    assert.equal(matchGlob('file-[a-z0-9].mjs', 'file-7.mjs'), true);
+    assert.equal(matchGlob('file-[a-z0-9].mjs', 'file-_.mjs'), false);
+    assert.equal(matchGlob('file-[!0-9].mjs', 'file-a.mjs'), true);
+    assert.equal(matchGlob('file-[!0-9].mjs', 'file-5.mjs'), false);
+    assert.equal(matchGlob('문서-[가-힣].md', '문서-가.md'), true);
+    assert.equal(matchGlob('문서-[!가-힣].md', '문서-1.md'), true);
+    assert.equal(matchGlob('문서-[!가-힣].md', '문서-나.md'), false);
+
+    const cmd = 'git push --force-with-lease origin main && echo "done"';
+    const preparedTargets = prepareGlobTargets(cmd, false);
+    const matchingPatterns = ['git *[a-z0-9_-]* --force*', 'npm *'];
+    const nonMatchingPatterns = ['docker *[0-9a-f]*', 'cargo *'];
+
+    assert.equal(
+        matchArgGlob(matchingPatterns, cmd, { preparedTargets }),
+        matchArgGlob(matchingPatterns, cmd)
+    );
+    assert.equal(matchArgGlob(matchingPatterns, cmd, { preparedTargets }), true);
+    assert.equal(
+        matchArgGlob(nonMatchingPatterns, cmd, { preparedTargets }),
+        matchArgGlob(nonMatchingPatterns, cmd)
+    );
+    assert.equal(matchArgGlob(nonMatchingPatterns, cmd, { preparedTargets }), false);
+});
+
+

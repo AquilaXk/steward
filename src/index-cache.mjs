@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
-import { readJSON, sha256, canonical, safePath, rootOf } from './fs.mjs';
+import { readJSON, sha256, canonical, safePath, rootOf, compareAscii, toSessionHash } from './fs.mjs';
 import { validateJournalRow, RECORD_TYPES } from './schema.mjs';
 import { insist, StewardError } from './errors.mjs';
 
@@ -38,6 +38,8 @@ function createEmptyCache() {
         inos: new Map(),
         ctimes: new Map(),
         index: {
+            byHash: new Map(),
+            metaByHash: new Map(),
             byType: new Map(),
             byRecordId: new Map(),
             bySession: new Map(),
@@ -52,16 +54,17 @@ function extractRowTags(row) {
 }
 
 function indexRowSession(index, row) {
-    if (row.type === 'checkpoint' && row.data?.session) {
-        if (!index.bySession.has(row.data.session)) {
-            index.bySession.set(row.data.session, []);
+    if (row.type === 'checkpoint') {
+        const sessionKey = row.data?.session ?? null;
+        if (!index.bySession.has(sessionKey)) {
+            index.bySession.set(sessionKey, []);
         }
-        index.bySession.get(row.data.session).push(row);
+        index.bySession.get(sessionKey).push(row);
     }
 }
 
-function indexRowTags(index, row) {
-    for (const tag of extractRowTags(row)) {
+function indexRowTags(index, row, tags) {
+    for (const tag of tags) {
         if (typeof tag === 'string') {
             if (!index.byTag.has(tag)) index.byTag.set(tag, []);
             index.byTag.get(tag).push(row);
@@ -73,7 +76,16 @@ function indexRowTags(index, row) {
  * Indexes a single journal row into the in-memory index structures.
  */
 function indexRow(index, row) {
-    // Index by type
+    index.byHash.set(row.hash, row);
+
+    const tags = extractRowTags(row);
+    index.metaByHash.set(row.hash, {
+        timeMs: Date.parse(row.time),
+        expiresAtMs: row.type === 'knowledge' && row.data.expiresAt !== null ? Date.parse(row.data.expiresAt) : null,
+        searchText: JSON.stringify(row.data).toLocaleLowerCase('en-US'),
+        tagSet: new Set(tags)
+    });
+
     if (!index.byType.has(row.type)) {
         index.byType.set(row.type, []);
     }
@@ -88,27 +100,17 @@ function indexRow(index, row) {
     }
 
     indexRowSession(index, row);
-    indexRowTags(index, row);
+    indexRowTags(index, row, tags);
 
-    // Index superseded hashes
     if (row.data?.supersedes) {
         index.supersededHashes.add(row.data.supersedes);
     }
 }
 
-/**
- * Safely resolves a validated journal filename relative to project root.
- * Guarantees the filename matches the strict journal format and prevents symlink/path traversal.
- */
-function getRecordPath(root, name) {
-    if (typeof name !== 'string') {
+function validateJournalFilename(name) {
+    if (typeof name !== 'string' || path.basename(name) !== name || !JOURNAL_FILE_RE.test(name)) {
         throw new StewardError('BAD_PATH', 'Invalid journal filename');
     }
-    const fileName = path.basename(name);
-    if (fileName !== name || !JOURNAL_FILE_RE.test(fileName)) {
-        throw new StewardError('BAD_PATH', 'Invalid journal filename');
-    }
-    return safePath(root, `${DIRECTORY}/${fileName}`);
 }
 
 /**
@@ -117,8 +119,10 @@ function getRecordPath(root, name) {
 function listJournalFiles(root) {
     const resolvedDir = safePath(root, DIRECTORY);
     try {
-        const names = fs.readdirSync(resolvedDir).filter(n => !n.startsWith('.tmp-')).sort(); //NOSONAR
-        return names.filter(n => !n.startsWith('.') && n !== 'Thumbs.db' && n !== 'desktop.ini');
+        const names = fs.readdirSync(resolvedDir) //NOSONAR
+            .filter(n => !n.startsWith('.') && n !== 'Thumbs.db' && n !== 'desktop.ini')
+            .sort(compareAscii);
+        return { resolvedDir, names };
     } catch (e) {
         if (e.code !== 'ENOENT') throw e;
         return null;
@@ -137,7 +141,7 @@ function isFileStatFresh(cache, name, stat) {
 /**
  * Checks whether the existing in-memory cache is still fresh and matches disk state.
  */
-function isCacheUpToDate(root, cache, names) {
+function isCacheUpToDate(resolvedDir, cache, names) {
     if (!cache || cache.files.length > names.length) {
         return false;
     }
@@ -147,9 +151,10 @@ function isCacheUpToDate(root, cache, names) {
             return false;
         }
         try {
-            const filePath = getRecordPath(root, name);
-            const stat = fs.statSync(filePath); //NOSONAR
-            if (!isFileStatFresh(cache, name, stat)) {
+            validateJournalFilename(name);
+            const filePath = path.join(resolvedDir, name);
+            const stat = fs.lstatSync(filePath); //NOSONAR
+            if (stat.isSymbolicLink() || !isFileStatFresh(cache, name, stat)) {
                 return false;
             }
         } catch {
@@ -162,9 +167,11 @@ function isCacheUpToDate(root, cache, names) {
 /**
  * Reads, verifies cryptographic integrity, and validates a single journal record from disk.
  */
-function loadJournalRow(root, name, expectedSeq, previousHash) {
-    const filePath = getRecordPath(root, name);
-    const stat = fs.statSync(filePath); //NOSONAR
+function loadJournalRow(root, resolvedDir, name, expectedSeq, previousHash) {
+    validateJournalFilename(name);
+    const filePath = path.join(resolvedDir, name);
+    const stat = fs.lstatSync(filePath); //NOSONAR
+    insist(!stat.isSymbolicLink(), 'SYMLINK', `Refusing symbolic link: ${path.relative(root, filePath)}`);
     const row = readJSON(filePath, 4 * 1024 * 1024);
     try {
         validateJournalRow(row);
@@ -186,14 +193,15 @@ function loadJournalRow(root, name, expectedSeq, previousHash) {
  */
 export function syncJournalCache(root) {
     root = rootOf(root);
-    const names = listJournalFiles(root);
-    if (names === null) {
+    const listed = listJournalFiles(root);
+    if (listed === null) {
         caches.delete(root);
         return { rows: [], cache: createEmptyCache() };
     }
+    const { resolvedDir, names } = listed;
 
     let cache = caches.get(root);
-    if (!isCacheUpToDate(root, cache, names)) {
+    if (!isCacheUpToDate(resolvedDir, cache, names)) {
         cache = createEmptyCache();
         caches.set(root, cache);
     }
@@ -203,7 +211,7 @@ export function syncJournalCache(root) {
 
     for (let i = startIndex; i < names.length; i++) {
         const name = names[i];
-        const { row, mtimeMs, size, ino, ctimeMs } = loadJournalRow(root, name, cache.rows.length + 1, previous);
+        const { row, mtimeMs, size, ino, ctimeMs } = loadJournalRow(root, resolvedDir, name, cache.rows.length + 1, previous);
         cache.files.push(name);
         cache.rows.push(row);
         cache.mtimes.set(name, mtimeMs);
@@ -244,45 +252,44 @@ function parseTimestampBound(value, label) {
 }
 
 /**
- * Selects the smallest candidate bucket across all active indexed filters.
+ * Intersects active indexed filter buckets starting from the smallest bucket.
  * Returns [] immediately if any specified indexed filter has 0 matches.
  */
 function selectSmallestCandidateSet(rows, index, { type, tag, session, recordId }) {
-    let best = rows;
     const lookups = [
         [type, index.byType],
         [tag, index.byTag],
         [session, index.bySession],
         [recordId, index.byRecordId]
     ];
+    const activeBuckets = [];
     for (const [key, map] of lookups) {
         if (key === undefined) continue;
         const bucket = map.get(key);
         if (!bucket || bucket.length === 0) return [];
-        if (bucket.length < best.length) best = bucket;
+        activeBuckets.push(bucket);
     }
-    return best;
+    if (activeBuckets.length === 0) return rows;
+    if (activeBuckets.length === 1) return activeBuckets[0];
+
+    activeBuckets.sort((a, b) => a.length - b.length);
+    const smallest = activeBuckets[0];
+    const otherSets = activeBuckets.slice(1).map(b => new Set(b));
+    return smallest.filter(row => otherSets.every(s => s.has(row)));
 }
 
 /**
- * Evaluates whether a journal row matches all specified query filter criteria.
+ * Evaluates whether a journal row and its precomputed metadata match all query filter criteria.
  */
-function matchesQueryFilter(row, { type, recordId, session, needle, sinceMs, untilMs, tag }) {
+function matchesQueryFilter(row, meta, { type, recordId, session, needle, sinceMs, untilMs, tag }) {
     if (type !== undefined && row.type !== type) return false;
     if (recordId !== undefined && row.data?.id !== recordId) return false;
-    if (session !== undefined && (row.type !== 'checkpoint' || row.data?.session !== session)) return false;
-    if (needle && !JSON.stringify(row.data).toLocaleLowerCase('en-US').includes(needle)) return false;
-    if (sinceMs !== undefined && Date.parse(row.time) < sinceMs) return false;
-    if (untilMs !== undefined && Date.parse(row.time) > untilMs) return false;
-    if (tag !== undefined && !extractRowTags(row).includes(tag)) return false;
+    if (session !== undefined && (row.type !== 'checkpoint' || (row.data?.session ?? null) !== session)) return false;
+    if (tag !== undefined && !meta.tagSet.has(tag)) return false;
+    if (sinceMs !== undefined && meta.timeMs < sinceMs) return false;
+    if (untilMs !== undefined && meta.timeMs > untilMs) return false;
+    if (needle && !meta.searchText.includes(needle)) return false;
     return true;
-}
-
-const SESSION_HASH_RE = /^[a-f0-9]{64}$/;
-
-function normalizeSessionHash(sessionId) {
-    if (sessionId === undefined) return undefined;
-    return SESSION_HASH_RE.test(sessionId) ? sessionId : sha256(sessionId);
 }
 
 /**
@@ -306,29 +313,37 @@ export function queryJournalIndexed(root, { type, text = '', limit = 20, history
     const untilMs = parseTimestampBound(until, 'until');
 
     const { rows, cache } = syncJournalCache(root);
-    const session = normalizeSessionHash(sessionId);
-    const needle = text.toLocaleLowerCase('en-US');
+    const session = sessionId === undefined ? undefined : toSessionHash(sessionId);
+    const needle = text ? text.toLocaleLowerCase('en-US') : '';
 
     const candidates = selectSmallestCandidateSet(rows, cache.index, { type, tag, session, recordId });
     const filterContext = { type, recordId, session, needle, sinceMs, untilMs, tag };
+    const { supersededHashes, metaByHash } = cache.index;
 
-    const matches = candidates.map(row => Object.freeze({
-        ...row,
-        superseded: cache.index.supersededHashes.has(row.hash),
-        expired: row.type === 'knowledge' && row.data.expiresAt !== null && Date.parse(row.data.expiresAt) <= now
-    })).filter(row =>
-        (history || (!row.superseded && !row.expired)) &&
-        matchesQueryFilter(row, filterContext)
-    ).reverse();
+    const matchedRows = [];
+    let total = 0;
+    for (let i = candidates.length - 1; i >= 0; i--) {
+        const row = candidates[i];
+        const meta = metaByHash.get(row.hash);
+        const superseded = supersededHashes.has(row.hash);
+        const expired = meta.expiresAtMs !== null && meta.expiresAtMs <= now;
+        if (!history && (superseded || expired)) continue;
+        if (!matchesQueryFilter(row, meta, filterContext)) continue;
+        total++;
+        if (matchedRows.length < limit) {
+            matchedRows.push(Object.freeze({ ...row, superseded, expired }));
+        }
+    }
 
     const head = { count: rows.length, head: rows.at(-1)?.hash || null };
     return {
         ...head,
-        total: matches.length,
+        total,
         limit,
-        truncated: matches.length > limit,
+        truncated: total > limit,
         history,
-        rows: matches.slice(0, limit)
+        rows: matchedRows
     };
 }
+
 

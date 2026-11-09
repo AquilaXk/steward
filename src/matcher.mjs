@@ -7,6 +7,7 @@ const TOK_STAR = 1;
 const TOK_ANY = 2;
 const TOK_CHAR = 3;
 const TOK_CLASS = 4;
+const TOK_ASCII_CLASS = 5;
 
 const FLAG_WS = 1;
 const FLAG_OP = 1 << 1;
@@ -30,7 +31,34 @@ const CHAR_FLAGS = (() => {
     return table;
 })();
 
-const TWO_CHAR_OPS = new Set(['&&', '||', ';;', '<<', '>>', '<&', '>&', '<>', '>|']);
+export function compareAscii(a, b) {
+    if (a < b) return -1;
+    if (a > b) return 1;
+    return 0;
+}
+
+export function trimTrailingSlashes(value) {
+    let end = value.length;
+    while (end > 0 && value.codePointAt(end - 1) === 0x2f) {
+        end--;
+    }
+    return end === value.length ? value : value.slice(0, end);
+}
+
+function isTwoCharOperator(c0, c1) {
+    const packed = (c0 << 8) | c1;
+    return (
+        packed === 0x2626 ||
+        packed === 0x7c7c ||
+        packed === 0x3b3b ||
+        packed === 0x3c3c ||
+        packed === 0x3e3e ||
+        packed === 0x3c26 ||
+        packed === 0x3e26 ||
+        packed === 0x3c3e ||
+        packed === 0x3e7c
+    );
+}
 
 function normalizeCodePoint(cp, caseSensitive) {
     if (caseSensitive) return cp;
@@ -139,7 +167,9 @@ function addSingleCodePoint(cp, asciiBits, unicodeSet) {
 function compileCharClass(content, caseSensitive) {
     const negated = content.startsWith('!') || content.startsWith('^');
     const raw = negated ? content.slice(1) : content;
-    if (!raw) return () => false;
+    if (!raw) {
+        return { type: TOK_CLASS, match: () => false };
+    }
     const units = Array.from(raw);
     const asciiBits = new Uint32Array(4);
     const unicodeSet = new Set();
@@ -165,21 +195,32 @@ function compileCharClass(content, caseSensitive) {
         i++;
     }
 
-    return (cp) => {
-        let matched = false;
-        if (cp < ASCII_LIMIT) {
-            matched = (asciiBits[cp >>> 5] & (1 << (cp & 31))) !== 0;
-        } else if (unicodeSet.has(cp)) {
-            matched = true;
-        } else {
-            for (let r = 0; r < unicodeRanges.length; r += 2) {
-                if (cp >= unicodeRanges[r] && cp <= unicodeRanges[r + 1]) {
-                    matched = true;
-                    break;
+    if (unicodeSet.size === 0 && unicodeRanges.length === 0) {
+        return {
+            type: TOK_ASCII_CLASS,
+            bits: asciiBits,
+            negatedBit: negated ? 1 : 0
+        };
+    }
+
+    return {
+        type: TOK_CLASS,
+        match: (cp) => {
+            let matched = false;
+            if (cp < ASCII_LIMIT) {
+                matched = ((asciiBits[cp >>> 5] >>> (cp & 31)) & 1) === 1;
+            } else if (unicodeSet.has(cp)) {
+                matched = true;
+            } else {
+                for (let r = 0; r < unicodeRanges.length; r += 2) {
+                    if (cp >= unicodeRanges[r] && cp <= unicodeRanges[r + 1]) {
+                        matched = true;
+                        break;
+                    }
                 }
             }
+            return negated ? !matched : matched;
         }
-        return negated ? !matched : matched;
     };
 }
 
@@ -206,7 +247,7 @@ function parseBracketToken(chars, i, caseSensitive) {
     }
     const classContent = chars.slice(i + 1, closeIdx).join('');
     return {
-        token: { type: TOK_CLASS, match: compileCharClass(classContent, caseSensitive) },
+        token: compileCharClass(classContent, caseSensitive),
         nextIndex: closeIdx + 1
     };
 }
@@ -249,6 +290,10 @@ function parseTokens(pattern, caseSensitive) {
 function matchesToken(tok, cp) {
     if (tok.type === TOK_ANY) return true;
     if (tok.type === TOK_CHAR) return tok.code === cp;
+    if (tok.type === TOK_ASCII_CLASS) {
+        const hit = cp < ASCII_LIMIT ? ((tok.bits[cp >>> 5] >>> (cp & 31)) & 1) : 0;
+        return (hit ^ tok.negatedBit) === 1;
+    }
     return tok.match(cp);
 }
 
@@ -295,6 +340,22 @@ function matchCompiledTokens(tokens, targetCodes, maxSteps) {
     return state.pIdx === tokens.length;
 }
 
+const PATTERN_CACHE_LIMIT = 512;
+const patternCacheInsensitive = new Map();
+const patternCacheSensitive = new Map();
+
+function getCompiledTokens(pattern, caseSensitive) {
+    const cache = caseSensitive ? patternCacheSensitive : patternCacheInsensitive;
+    let tokens = cache.get(pattern);
+    if (tokens !== undefined) return tokens;
+    tokens = parseTokens(pattern, caseSensitive);
+    if (cache.size >= PATTERN_CACHE_LIMIT) {
+        cache.clear();
+    }
+    cache.set(pattern, tokens);
+    return tokens;
+}
+
 /**
  * Deterministic linear-time glob matching with bit-level ASCII class lookup.
  * Enforces a fail-closed execution step budget (throws GLOB_COMPLEXITY on exhaustion).
@@ -310,7 +371,7 @@ export function matchGlob(pattern, text, { caseSensitive = false, maxSteps } = {
     if (typeof pattern !== 'string' || typeof text !== 'string') return false;
     if (pattern === '*') return true;
 
-    const tokens = parseTokens(pattern, caseSensitive);
+    const tokens = getCompiledTokens(pattern, caseSensitive);
     const targetCodes = toCodePoints(text, caseSensitive);
     return matchCompiledTokens(tokens, targetCodes, maxSteps);
 }
@@ -323,8 +384,8 @@ function flushArg(args, state) {
     }
 }
 
-function isWhitespaceChar(c, code) {
-    return code < ASCII_LIMIT ? (CHAR_FLAGS[code] & FLAG_WS) !== 0 : /\s/.test(c);
+function isWhitespaceCode(code, text, i) {
+    return code < ASCII_LIMIT ? (CHAR_FLAGS[code] & FLAG_WS) !== 0 : /\s/.test(text[i]);
 }
 
 function isOperatorCode(code) {
@@ -336,17 +397,22 @@ function isDoubleQuoteEscapable(code) {
 }
 
 function skipLineContinuation(text, i) {
-    if (i + 1 < text.length && text[i + 1] === '\n') return i + 2;
-    if (i + 2 < text.length && text[i + 1] === '\r' && text[i + 2] === '\n') return i + 3;
+    if (i + 1 < text.length && text.codePointAt(i + 1) === 0x0a) return i + 2;
+    if (i + 2 < text.length && text.codePointAt(i + 1) === 0x0d && text.codePointAt(i + 2) === 0x0a) return i + 3;
     return -1;
 }
 
-function consumeSingleQuoted(c, state) {
-    if (c === "'") {
-        state.quote = QUOTE_NONE;
-    } else {
-        state.current += c;
+function consumeSingleQuoted(text, i, state) {
+    const closeIdx = text.indexOf("'", i);
+    if (closeIdx === -1) {
+        state.current += text.slice(i);
+        return text.length;
     }
+    if (closeIdx > i) {
+        state.current += text.slice(i, closeIdx);
+    }
+    state.quote = QUOTE_NONE;
+    return closeIdx + 1;
 }
 
 function consumeDoubleQuoted(text, i, state) {
@@ -369,12 +435,9 @@ function consumeDoubleQuoted(text, i, state) {
 
 function consumeUnquotedOperator(text, i, args, state) {
     flushArg(args, state);
-    if (i + 1 < text.length) {
-        const pair = text.slice(i, i + 2);
-        if (TWO_CHAR_OPS.has(pair)) {
-            args.push(pair);
-            return i + 2;
-        }
+    if (i + 1 < text.length && isTwoCharOperator(text.codePointAt(i), text.codePointAt(i + 1))) {
+        args.push(text.slice(i, i + 2));
+        return i + 2;
     }
     args.push(text[i]);
     return i + 1;
@@ -393,29 +456,28 @@ function consumeBackslashEscape(text, i, state) {
 }
 
 function consumeUnquotedStep(text, i, args, state) {
-    const c = text[i];
     const code = text.codePointAt(i);
-    if (c === '\\') {
+    if (code === 0x5c) {
         return consumeBackslashEscape(text, i, state);
     }
-    if (c === "'") {
+    if (code === 0x27) {
         state.quote = QUOTE_SINGLE;
         state.hasToken = true;
         return i + 1;
     }
-    if (c === '"') {
+    if (code === 0x22) {
         state.quote = QUOTE_DOUBLE;
         state.hasToken = true;
         return i + 1;
     }
-    if (isWhitespaceChar(c, code)) {
+    if (isWhitespaceCode(code, text, i)) {
         flushArg(args, state);
         return i + 1;
     }
     if (isOperatorCode(code)) {
         return consumeUnquotedOperator(text, i, args, state);
     }
-    state.current += c;
+    state.current += text[i];
     state.hasToken = true;
     return i + 1;
 }
@@ -438,8 +500,7 @@ export function tokenizeCommand(text) {
 
     while (i < text.length) {
         if (state.quote === QUOTE_SINGLE) {
-            consumeSingleQuoted(text[i], state);
-            i++;
+            i = consumeSingleQuoted(text, i, state);
         } else if (state.quote === QUOTE_DOUBLE) {
             i = consumeDoubleQuoted(text, i, state);
         } else {
@@ -456,7 +517,7 @@ function compilePatterns(patterns, caseSensitive) {
     for (const pat of patterns) {
         if (typeof pat !== 'string') continue;
         if (pat === '*') return { matchAll: true, compiled: [] };
-        compiled.push(parseTokens(pat, caseSensitive));
+        compiled.push(getCompiledTokens(pat, caseSensitive));
     }
     return { matchAll: false, compiled };
 }
@@ -466,6 +527,22 @@ function matchesAnyCompiled(compiled, targetCodes, maxSteps) {
         if (matchCompiledTokens(patTokens, targetCodes, maxSteps)) return true;
     }
     return false;
+}
+
+/**
+ * Precomputes full-string and per-token code-point arrays for repeated glob evaluations.
+ *
+ * @param {string} text - Command or text to tokenize and convert to code points.
+ * @param {boolean} [caseSensitive=false] - Whether matching is case-sensitive.
+ * @returns {{ fullTarget: Uint32Array, tokenTargets: Uint32Array[] }}
+ */
+export function prepareGlobTargets(text, caseSensitive = false) {
+    if (typeof text !== 'string') {
+        return { fullTarget: new Uint32Array(0), tokenTargets: [] };
+    }
+    const fullTarget = toCodePoints(text, caseSensitive);
+    const tokenTargets = tokenizeCommand(text).map(tok => toCodePoints(tok, caseSensitive));
+    return { fullTarget, tokenTargets };
 }
 
 /**
@@ -485,6 +562,15 @@ export function matchArgGlob(patterns, text, options = {}) {
     if (matchAll) return true;
     if (compiled.length === 0) return false;
 
+    if (options.preparedTargets) {
+        const { fullTarget, tokenTargets } = options.preparedTargets;
+        if (matchesAnyCompiled(compiled, fullTarget, maxSteps)) return true;
+        for (const tokTarget of tokenTargets) {
+            if (matchesAnyCompiled(compiled, tokTarget, maxSteps)) return true;
+        }
+        return false;
+    }
+
     const fullTarget = toCodePoints(text, caseSensitive);
     if (matchesAnyCompiled(compiled, fullTarget, maxSteps)) return true;
 
@@ -495,3 +581,4 @@ export function matchArgGlob(patterns, text, options = {}) {
     }
     return false;
 }
+

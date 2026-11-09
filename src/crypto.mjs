@@ -6,6 +6,7 @@ import { canonical, sha256, safePath, readText, parseJSON, atomicWrite } from '.
 import { isObject } from './schema.mjs';
 import { loadBundle } from './trust.mjs';
 import { readJournal } from './journal.mjs';
+import { syncJournalCache } from './index-cache.mjs';
 
 const HEX_128_RE = /^[0-9a-fA-F]{128}$/;
 const ISO_DATE_PREFIX_RE = /^\d{4}-\d\d-\d\dT/;
@@ -340,9 +341,9 @@ export function verifyBundleSignature(root, publicKeyInput, sigRecord = null) {
  * @returns {object} Signed evidence record.
  */
 export function signVerificationEvidence(root, evidenceHash, privateKeyInput) {
-    const rows = readJournal(root, { fresh: true });
-    const row = rows.find(r => r.hash === evidenceHash && r.type === 'verification');
-    insist(row, 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
+    readJournal(root, { fresh: true });
+    const row = syncJournalCache(root).cache.index.byHash.get(evidenceHash);
+    insist(row && row.type === 'verification', 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
 
     const privPem = resolveKeyPem(privateKeyInput, 'private');
     const keyId = deriveKeyIdFromPrivateKey(privPem);
@@ -376,9 +377,9 @@ export function signVerificationEvidence(root, evidenceHash, privateKeyInput) {
  * @returns {{ valid: boolean, evidenceHash: string, keyId: string, signedAt: string }}
  */
 export function verifyVerificationEvidence(root, evidenceHash, publicKeyInput, sigRecord = null) {
-    const rows = readJournal(root, { fresh: true });
-    const row = rows.find(r => r.hash === evidenceHash && r.type === 'verification');
-    insist(row, 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
+    readJournal(root, { fresh: true });
+    const row = syncJournalCache(root).cache.index.byHash.get(evidenceHash);
+    insist(row && row.type === 'verification', 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
 
     const pubPem = resolveKeyPem(publicKeyInput, 'public');
     const sigPath = safePath(root, `.steward/state/checks/${row.data.runId}/evidence.sig.json`);

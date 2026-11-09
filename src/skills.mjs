@@ -1,7 +1,6 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
-
-const compareAscii = (a, b) => a.localeCompare(b, 'en');
+import { compareAscii } from './matcher.mjs';
 
 export function claudeSkill(body, name) {
     return ['steward-policy', 'steward-schedule'].includes(name) ?

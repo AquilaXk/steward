@@ -1,6 +1,6 @@
 import * as fs from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { safePath, readJSON, atomicWrite, sha256, rootOf } from './fs.mjs';
+import { safePath, readJSON, atomicWrite, sha256, rootOf, compareAscii } from './fs.mjs';
 import { insist } from './errors.mjs';
 import { loadBundle } from './trust.mjs';
 const AUDIT_LIMIT = 20000;
@@ -26,7 +26,7 @@ export function audit(root, host, event, result, bundleHash) {
 function readAuditDirectory(dir) {
     try {
         const contents = fs.readdirSync(dir); //NOSONAR
-        const names = contents.filter(n => n.endsWith('.json')).sort((a, b) => a.localeCompare(b, 'en'));
+        const names = contents.filter(n => n.endsWith('.json')).sort(compareAscii);
         return { entries: contents.length, names };
     }
     catch (e) {

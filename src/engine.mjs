@@ -1,7 +1,7 @@
 import path from 'node:path';
 import { insist } from './errors.mjs';
 import { validatePolicy, object, text, strings } from './schema.mjs';
-import { matchArgGlob } from './matcher.mjs';
+import { matchArgGlob, prepareGlobTargets, trimTrailingSlashes, compareAscii } from './matcher.mjs';
 const aliases = {
     bash: 'shell',
     shell_command: 'shell',
@@ -46,47 +46,111 @@ export function relativePath(root, input, cwd = root) {
     const p = path.relative(root, path.resolve(cwd, cleaned)).split(path.sep).join('/');
     return p === '..' || p.startsWith('../') ? '@outside/' + p : p;
 }
-function normalizedWords(raw) { return (raw.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}_-]+/gu) || []).join(' '); }
-function wordMatch(term, normalized) { const needle = normalizedWords(term); return !!needle && (' ' + normalized + ' ').includes(' ' + needle + ' '); }
-function trimTrailingSlashes(value) {
-    let end = value.length;
-    while (end > 0 && value.codePointAt(end - 1) === 0x2f) end--;
-    return end === value.length ? value : value.slice(0, end);
+const WORD_CACHE_LIMIT = 512;
+const wordCache = new Map();
+function normalizedWords(raw) {
+    if (raw.length <= 128) {
+        const cached = wordCache.get(raw);
+        if (cached !== undefined) return cached;
+        const tokens = raw.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}_-]+/gu);
+        const result = tokens ? tokens.join(' ') : '';
+        if (wordCache.size >= WORD_CACHE_LIMIT) {
+            wordCache.clear();
+        }
+        wordCache.set(raw, result);
+        return result;
+    }
+    const tokens = raw.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}_-]+/gu);
+    return tokens ? tokens.join(' ') : '';
 }
-function matchesPathPrefixes(prefixes, paths) {
+function wordMatch(term, normalized) {
+    const needle = normalizedWords(term);
+    if (!needle) return false;
+    return (' ' + normalized + ' ').includes(' ' + needle + ' ');
+}
+function matchesPathPrefixes(prefixes, lowerPaths) {
     for (const rawPrefix of prefixes) {
         const base = trimTrailingSlashes(rawPrefix).toLowerCase();
         const dirPrefix = base + '/';
-        if (paths.some(p => { const lp = p.toLowerCase(); return lp === base || lp.startsWith(dirPrefix); })) return true;
+        const matched = lowerPaths.some(lp => lp === base || lp.startsWith(dirPrefix));
+        if (matched) return true;
     }
     return false;
+}
+function prepareEventContext(event, precomputedWords = null) {
+    let normalizedTool = null;
+    let lowerText = null;
+    let words = typeof precomputedWords === 'string' ? precomputedWords : null;
+    let lowerPaths = null;
+    let globTargets = null;
+    return {
+        getNormalizedTool() {
+            if (normalizedTool === null) {
+                normalizedTool = event.tool ? normalizeTool(event.tool) : '';
+            }
+            return normalizedTool;
+        },
+        getLowerText() {
+            if (lowerText === null) {
+                lowerText = event.text.toLowerCase();
+            }
+            return lowerText;
+        },
+        getWords() {
+            if (words === null) {
+                words = normalizedWords(event.text);
+            }
+            return words;
+        },
+        getLowerPaths() {
+            if (lowerPaths === null) {
+                lowerPaths = event.paths.map(p => p.toLowerCase());
+            }
+            return lowerPaths;
+        },
+        getGlobTargets() {
+            if (globTargets === null) {
+                globTargets = prepareGlobTargets(event.text, false);
+            }
+            return globTargets;
+        }
+    };
 }
 export function matches(r, e, words = null) {
     if (!r.on.includes(e.event))
         return false;
+    const ctx = (words !== null && typeof words === 'object')
+        ? words
+        : prepareEventContext(e, words);
     const m = r.match;
-    if (m.tools && !m.tools.some(t => normalizeTool(t) === normalizeTool(e.tool || '')))
-        return false;
+    if (m.tools) {
+        const eventTool = ctx.getNormalizedTool();
+        if (!m.tools.some(t => normalizeTool(t) === eventTool))
+            return false;
+    }
     if (m.always)
         return true;
-    if (m.textAny && !m.textAny.some(t => e.text.toLowerCase().includes(t.toLowerCase())))
+    if (m.textAny) {
+        const lowerText = ctx.getLowerText();
+        if (!m.textAny.some(t => lowerText.includes(t.toLowerCase())))
+            return false;
+    }
+    if (m.wordsAny) {
+        const eventWords = ctx.getWords();
+        if (!m.wordsAny.some(t => wordMatch(t, eventWords)))
+            return false;
+    }
+    if (m.patternsAny && !matchArgGlob(m.patternsAny, e.text, { preparedTargets: ctx.getGlobTargets() }))
         return false;
-    if (m.wordsAny && !m.wordsAny.some(t => wordMatch(t, words ?? normalizedWords(e.text))))
+    if (m.globsAny && !matchArgGlob(m.globsAny, e.text, { preparedTargets: ctx.getGlobTargets() }))
         return false;
-    if (m.patternsAny && !matchArgGlob(m.patternsAny, e.text))
-        return false;
-    if (m.globsAny && !matchArgGlob(m.globsAny, e.text))
-        return false;
-    if (m.pathPrefixes && !matchesPathPrefixes(m.pathPrefixes, e.paths))
+    if (m.pathPrefixes && !matchesPathPrefixes(m.pathPrefixes, ctx.getLowerPaths()))
         return false;
     return true;
 }
 function compareMatchedRules(a, b) {
     const diff = b.priority - a.priority;
-    if (diff !== 0) return diff;
-    if (a.id < b.id) return -1;
-    if (a.id > b.id) return 1;
-    return 0;
+    return diff !== 0 ? diff : compareAscii(a.id, b.id);
 }
 function budgetOmissionReason(emittedCount, candidate, budget) {
     if (emittedCount >= budget.rules) return 'rule_limit';
@@ -96,8 +160,8 @@ function budgetOmissionReason(emittedCount, candidate, budget) {
 export function evaluate(policy, event) {
     validatePolicy(policy);
     validateEvent(event);
-    const words = normalizedWords(event.text);
-    const matched = policy.rules.filter(r => matches(r, event, words)).sort(compareMatchedRules);
+    const ctx = prepareEventContext(event);
+    const matched = policy.rules.filter(r => matches(r, event, ctx)).sort(compareMatchedRules);
     const denied = matched.filter(r => r.effect === 'deny');
     const base = { decision: 'allow', reason: null, matched: matched.map(r => r.id), emitted: [], omitted: [], context: '', bytes: 0 };
     if (denied.length)

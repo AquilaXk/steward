@@ -1,5 +1,9 @@
 export class StewardError extends Error {
-    constructor(code, message) { super(message); this.name = 'StewardError'; this.code = code; }
+    constructor(code, message) {
+        super(message);
+        this.name = 'StewardError';
+        this.code = code;
+    }
 }
 export function insist(value, code, message) {
     if (!value)

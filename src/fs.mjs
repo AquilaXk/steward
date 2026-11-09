@@ -2,12 +2,25 @@ import * as fs from 'node:fs';
 import path from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { insist, StewardError } from './errors.mjs';
-export const sha256 = (value) => createHash('sha256').update(value).digest('hex');
-function compareAscii(a, b) {
-    if (a < b) return -1;
-    if (a > b) return 1;
-    return 0;
+import { compareAscii, trimTrailingSlashes } from './matcher.mjs';
+
+export { compareAscii, trimTrailingSlashes };
+
+export const SHA256_HEX_RE = /^[a-f0-9]{64}$/;
+
+export function isSha256Hex(value) {
+    return typeof value === 'string' && SHA256_HEX_RE.test(value);
 }
+
+export function sha256(value) {
+    return createHash('sha256').update(value).digest('hex');
+}
+
+export function toSessionHash(sessionId) {
+    if (sessionId == null) return null;
+    return isSha256Hex(sessionId) ? sessionId : sha256(sessionId);
+}
+
 export function canonical(value) {
     if (Array.isArray(value))
         return '[' + value.map(canonical).join(',') + ']';
@@ -75,7 +88,9 @@ export function parseJSON(text, label = 'input') {
         throw new StewardError('INVALID_JSON', `Invalid JSON in ${label}.`);
     }
 }
-export const readJSON = (file, maxBytes) => parseJSON(readText(file, maxBytes), path.basename(file));
+export function readJSON(file, maxBytes) {
+    return parseJSON(readText(file, maxBytes), path.basename(file));
+}
 export function mkdir(root, relative) {
     const target = safePath(root, relative);
     fs.mkdirSync(target, { recursive: true, mode: 0o700 }); //NOSONAR
@@ -147,34 +162,41 @@ export async function withLock(root, relative, fn, timeoutMs = 5000) {
 }
 export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
     const result = [];
+    let total = 0;
+    function readTextOrBytes(file) {
+        const stat = fs.statSync(file); //NOSONAR
+        total += stat.size;
+        insist(total <= 128 * 1024 * 1024, 'WORKSPACE_TOO_LARGE', 'Snapshot exceeds 128 MiB.');
+        return {
+            executable: stat.mode & 0o111,
+            bytes: fs.readFileSync(file) //NOSONAR
+        };
+    }
     function visit(dir) {
-        for (const entry of fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'en'))) { //NOSONAR
+        const entries = fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => compareAscii(a.name, b.name)); //NOSONAR
+        for (const entry of entries) {
             const file = path.join(dir, entry.name);
             const rel = path.relative(root, file).split(path.sep).join('/');
             if (exclude(rel, entry))
                 continue;
             insist(result.length < maxFiles, 'TOO_MANY_FILES', 'Workspace file limit exceeded.');
-            if (entry.isDirectory())
+            if (entry.isDirectory()) {
                 visit(file);
-            else if (entry.isSymbolicLink())
+            }
+            else if (entry.isSymbolicLink()) {
                 result.push({ path: rel, kind: 'link', hash: sha256(fs.readlinkSync(file)) }); //NOSONAR
-            else if (entry.isFile())
-                result.push({ path: rel, kind: 'file', executable: fs.statSync(file).mode & 0o111, hash: sha256(readTextOrBytes(file)) }); //NOSONAR
-            else
+            }
+            else if (entry.isFile()) {
+                const { executable, bytes } = readTextOrBytes(file);
+                result.push({ path: rel, kind: 'file', executable, hash: sha256(bytes) });
+            }
+            else {
                 throw new StewardError('SPECIAL_FILE', 'Workspace contains a non-regular file.');
+            }
         }
     }
-    let total = 0;
-    function readTextOrBytes(file) { const s = fs.statSync(file); total += s.size; insist(total <= 128 * 1024 * 1024, 'WORKSPACE_TOO_LARGE', 'Snapshot exceeds 128 MiB.'); return fs.readFileSync(file); } //NOSONAR
     visit(root);
     return result;
-}
-function trimTrailingSlashes(value) {
-    let end = value.length;
-    while (end > 0 && value.codePointAt(end - 1) === 47) {
-        end--;
-    }
-    return end === value.length ? value : value.slice(0, end);
 }
 export function snapshot(root, extraExcludes = []) {
     const normalizedExcludes = extraExcludes.map(x => trimTrailingSlashes(String(x))).filter(Boolean);

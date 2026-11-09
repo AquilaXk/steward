@@ -5,6 +5,7 @@ import { randomUUID } from 'node:crypto';
 import { requireTrust } from './trust.mjs';
 import { snapshot, sha256, atomicWrite, canonical, safePath, readText, rootOf } from './fs.mjs';
 import { appendInternal, readJournal } from './journal.mjs';
+import { syncJournalCache } from './index-cache.mjs';
 import { insist } from './errors.mjs';
 function cleanEnvironment() {
     const env = {};
@@ -75,8 +76,12 @@ export async function runVerification(root) {
 }
 export function completionGate(root, evidence = null) {
     root = rootOf(root);
-    const bundle = requireTrust(root), rows = readJournal(root, { fresh: true });
-    const row = evidence ? rows.find(r => r.hash === evidence) : rows.findLast(r => r.type === 'verification');
+    const bundle = requireTrust(root);
+    readJournal(root, { fresh: true });
+    const { cache } = syncJournalCache(root);
+    const row = evidence
+        ? cache.index.byHash.get(evidence)
+        : cache.index.byType.get('verification')?.at(-1);
     insist(row && row.type === 'verification', 'NO_EVIDENCE', 'No verification evidence exists for this project.');
     const r = row.data;
     insist(r.allPassed === true && r.sourceUnchanged === true && Array.isArray(r.checks) && r.checks.length > 0 && r.checks.every(c => c.status === 'pass'), 'CHECKS_FAILED', 'Verification did not pass every required check.');

@@ -109,12 +109,12 @@
     {
       "path": "README.ko.md",
       "bytes": 27150,
-      "sha256": "3f228fc752d8996c1961490c22748a7b853ea501de4069d38c61b9ee0f5774c6"
+      "sha256": "29b97ae8fb7aed842cd3758472e34a3ec40f9fd5665474832f5c4555f775b383"
     },
     {
       "path": "README.md",
       "bytes": 23900,
-      "sha256": "5c739608f1fbc914323af7e0fa46f95104c49fbc792acc2026df882a56a3025c"
+      "sha256": "2e710fba07761c443395149b34ca3ca7f386a78dd49396c11859026b133d0e22"
     },
     {
       "path": "SECURITY.md",
@@ -138,8 +138,8 @@
     },
     {
       "path": "bin/steward.mjs",
-      "bytes": 15357,
-      "sha256": "26030ad7b5ccf31e562303027eb879c976ac19daae77592451a0adb172b73ec1"
+      "bytes": 15406,
+      "sha256": "8c79db3775af11d5aad91916fb8497b404f8ae428effc66d8d74b7de2dc4a16e"
     },
     {
       "path": "docs/ARCHITECTURE.md",
@@ -204,12 +204,12 @@
     {
       "path": "evidence/0.2.0.md",
       "bytes": 3127,
-      "sha256": "bdc9fb5d6bd77eaeeb1f3765e9cfe9df4e30774b2183ecaf7ce0ed61d39ac0f5"
+      "sha256": "e8db4cef3295782452828af10ff1d7fb1660be185a3e80b435bf947a858e57cb"
     },
     {
       "path": "evidence/VERIFICATION.md",
       "bytes": 2365,
-      "sha256": "58f40775f43f110c2e811e78f7f569170b60a3260092b0955b3e34f9f3bebb18"
+      "sha256": "3a202a26e36c95b6c22a1c4afe9c4b60041a7b259543af6e83fb4c4b5d92d14f"
     },
     {
       "path": "evidence/check-results.json",
@@ -219,7 +219,7 @@
     {
       "path": "evidence/delivery.json",
       "bytes": 1295,
-      "sha256": "54be8735db448cf1ab47a5e151613da717e13b1dcdb94376339b92097e7b29fb"
+      "sha256": "70f20166f5c47a478741b178addd46ca47ed89d13d7eec118f31c33bbfb0de45"
     },
     {
       "path": "evidence/demo-results.json",
@@ -238,8 +238,8 @@
     },
     {
       "path": "evidence/source-manifest.json",
-      "bytes": 19409,
-      "sha256": "1c8d897acdea81b7643fd545551a97deaa251fda1ca1ff129e1ea5db2d012dbd"
+      "bytes": 19410,
+      "sha256": "3de053cde65dec6991f0084b723b2c13e5df37ab8a5ad36708671a80c59a9684"
     },
     {
       "path": "evidence/test-results.tap",
@@ -493,43 +493,43 @@
     },
     {
       "path": "src/adapters/mcp.mjs",
-      "bytes": 35869,
-      "sha256": "bef44c8d38269af2a5eb8becee242b1dfa8565d5e28d7b6154899c19c24a20eb"
+      "bytes": 35742,
+      "sha256": "8a540a7309b163c95060ddd5a9f5e179b9c416aa3825bdad887ec329e78eb9c4"
     },
     {
       "path": "src/audit.mjs",
-      "bytes": 5078,
-      "sha256": "af1ab66c5dcb6a91c4919082764c8469551ffa660acad8b36f7c29c533a73977"
+      "bytes": 5070,
+      "sha256": "fd4564dccb7b1fbc8612a17213e5b870d1f12e8ae03715ce20b4444ea727b008"
     },
     {
       "path": "src/crypto.mjs",
-      "bytes": 17198,
-      "sha256": "17b034673222879ad85b3e3bd05482b3a50f87c96f12a0f4438ac6e93c7b5fb8"
+      "bytes": 17270,
+      "sha256": "4d8660b07f12d20fded0fb9ea1a68c3b0724eb390a800ccd464e7fb4c386264b"
     },
     {
       "path": "src/doctor.mjs",
-      "bytes": 7358,
-      "sha256": "dc33334569aba3c4a97e338b9a8bb971e5b8223e00d07e2e72b74913e914c2de"
+      "bytes": 7273,
+      "sha256": "09f865c6f291f3f54127822f63ad08d60d9f6c6f4619db4bfd379871d6d4738a"
     },
     {
       "path": "src/engine.mjs",
-      "bytes": 5824,
-      "sha256": "db8484dc3e04e8f5e6a4aebc07cef974f5b7badf8a509f46c0382dac6b676750"
+      "bytes": 7742,
+      "sha256": "68007b9a7054ee55e20fd2404dc499621d8da84338d40c69976479f33142151c"
     },
     {
       "path": "src/errors.mjs",
-      "bytes": 653,
-      "sha256": "46bc397eb0fbb4efbc42ad3ffedef4784abdbefe9879cfe435b4da4585402a85"
+      "bytes": 681,
+      "sha256": "7b6649f53756708f4361580a21ee94abd73672f6dd3d3ef01db434b3d340fae9"
     },
     {
       "path": "src/fs.mjs",
-      "bytes": 8020,
-      "sha256": "e64c343c7081ab0ff4e3230db26a863a42df8ded9d2bf247bd5ecf321a8b23c4"
+      "bytes": 8388,
+      "sha256": "3d8b55c090605bafca5defac53ea30689c3704771e4fbe574152dc80bf726b84"
     },
     {
       "path": "src/index-cache.mjs",
-      "bytes": 11780,
-      "sha256": "32f95f9a64059d31869f5f73838f424cfecc143ee05eac4b90a176eedc65c083"
+      "bytes": 12523,
+      "sha256": "06ebe3776141d621b6eff56363092d9edb5f32f10d1084322423c00fb01d7b66"
     },
     {
       "path": "src/index.mjs",
@@ -538,18 +538,18 @@
     },
     {
       "path": "src/instructions.mjs",
-      "bytes": 1995,
-      "sha256": "959fcf064b24ad937544a3b2bfd49c605d761208b6aa499fcd1c086930bb000b"
+      "bytes": 2397,
+      "sha256": "3cab8b693c6b551cb27d22d26234e2098792a938d7ae9875109d281a5c096b96"
     },
     {
       "path": "src/journal.mjs",
-      "bytes": 4067,
-      "sha256": "9d606faf5090549b3f993c47cbc538fa8e25be41761ebd33345a944269ea02a9"
+      "bytes": 4125,
+      "sha256": "dd92373a8478203da6a82d29d6f5c31e4e9f9bd137308711eee1f0a5cb2517ca"
     },
     {
       "path": "src/matcher.mjs",
-      "bytes": 15241,
-      "sha256": "076676733ba46df0ed908f3e0a6a66ffd72d34ca46f785dc5475890aebebcffd"
+      "bytes": 18147,
+      "sha256": "70697c79187131390ece5f92d8cc85b194ffe53fecd7d19102a45bdff9b700c4"
     },
     {
       "path": "src/schema.mjs",
@@ -563,13 +563,13 @@
     },
     {
       "path": "src/setup.mjs",
-      "bytes": 22994,
-      "sha256": "8c79fe2e97af378e67da3514aa9eab34f92ee1952d3438b671cb3ea6194c7683"
+      "bytes": 23005,
+      "sha256": "02d8ac954283273a60eed695ceaed16cd00365aa7a021a3becbaf99a88b80a10"
     },
     {
       "path": "src/skills.mjs",
-      "bytes": 905,
-      "sha256": "f127c013bac42c9b68e41857ccd887a3b651e0442c33df71c403967f6423f2e1"
+      "bytes": 893,
+      "sha256": "a559461f0ddbe01e825a679dfd6317af20745bfe30944ba9b78e57a48ec293ec"
     },
     {
       "path": "src/trust.mjs",
@@ -578,8 +578,8 @@
     },
     {
       "path": "src/verify.mjs",
-      "bytes": 6561,
-      "sha256": "4f092a0f6910d6355746776486e10bac21c496dc5365df9959cb52abfcdb0569"
+      "bytes": 6672,
+      "sha256": "33dc7d8e610b11eac400a8db418c7b4a7835ae959b11880fa34e20741a7ff138"
     },
     {
       "path": "src/version.mjs",
@@ -623,8 +623,8 @@
     },
     {
       "path": "test/index-cache.test.mjs",
-      "bytes": 7026,
-      "sha256": "0a6329c6f4f52420134df22d4024d45df95f190c8f518e46ebf7b631cd73e417"
+      "bytes": 12350,
+      "sha256": "843f83de80f0e604cd9b5fbd99543b216f77e88c7168cb9cb4278ea05e58feef"
     },
     {
       "path": "test/lifecycle.test.mjs",

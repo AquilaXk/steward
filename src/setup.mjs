@@ -1,7 +1,7 @@
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { safePath, rootOf, readText, readJSON, atomicWrite, sha256, canonical } from './fs.mjs';
+import { safePath, rootOf, readText, readJSON, atomicWrite, sha256, canonical, compareAscii, isSha256Hex } from './fs.mjs';
 import { validatePolicy, validatePlan } from './schema.mjs';
 import { insist } from './errors.mjs';
 import { VERSION } from './version.mjs';
@@ -17,7 +17,7 @@ function isPlainObject(value) {
 }
 
 function isValidManagedSkillEntry(file, hash, prefix) {
-    if (!file.startsWith(prefix) || !/^[a-f0-9]{64}$/.test(hash)) return false;
+    if (!file.startsWith(prefix) || !isSha256Hex(hash)) return false;
     const segments = file.slice(prefix.length).split('/');
     return !segments.some(p => !p || p === '.' || p === '..');
 }
@@ -70,7 +70,7 @@ function copySkillFile(ctx, suffix, absolute) {
 }
 
 function copySkillDirectory(ctx, directory, relative = '') {
-    const entries = fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name, 'en')); //NOSONAR
+    const entries = fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => compareAscii(a.name, b.name)); //NOSONAR
     for (const item of entries) {
         insist(!item.isSymbolicLink(), 'BAD_SKILL_SOURCE', 'Skill sources must be regular files or directories.');
         const suffix = path.posix.join(relative, item.name);
