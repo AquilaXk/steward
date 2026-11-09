@@ -113,7 +113,7 @@ The demo creates a temporary project, runs three synthetic arithmetic tests, rec
 and restores a checkpoint, and rejects evidence after a source change. It removes its
 fixture afterward and does not launch a native agent application.
 
-For the full local software suite (222 tests covering engine, journal, index cache,
+For the full local software suite (225 tests covering engine, journal, index cache,
 MCP server, Ed25519 crypto, pattern matcher, and CLI integration), run `npm run verify`
 (or `npm test`). See the [verification record](evidence/VERIFICATION.md) for observed results
 and their scope.
@@ -414,7 +414,7 @@ steward/
 ├── examples/            # Synthetic JSON inputs
 ├── test/                # Unit, filesystem-boundary, index cache, crypto, and CLI tests
 ├── scripts/             # Static checks, test runner, release prep, and isolated demo
-├── docs/                # Contracts, architecture, agent context, host setup and model guidance
+├── docs/                # Contracts, architecture, host setup and model guidance
 ├── evals/               # Supervised behavioral cases; no fabricated live scores
 ├── evidence/            # Recorded local results and integrity manifests
 └── assets/              # Original project artwork
@@ -424,7 +424,7 @@ steward/
 |---|---|
 | The isolated demo | [Policy contract](docs/POLICIES.md) and [Architecture](docs/ARCHITECTURE.md) |
 | Project initialization | [Host setup](docs/HOSTS.md) and [Operations](docs/OPERATIONS.md) |
-| Working context | [Agent context](docs/AGENT-CONTEXT.md) and [Security boundaries](SECURITY.md) |
+| Security boundaries | [Security boundaries](SECURITY.md) |
 | Saved decisions and checkpoints | [Memory contract](docs/MEMORY.md) |
 | Completion claims | [Verification contract](docs/VERIFICATION.md) |
 | Skill adoption | [Skill scopes](docs/SKILLS.md) and [Model guidance](docs/MODEL-GUIDANCE.md) |

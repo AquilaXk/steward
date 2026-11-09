@@ -1,6 +1,6 @@
 # Operations
 
-Use `doctor --host codex` or `doctor --host claude` after setup or a policy change.
+Use `doctor --host <codex|claude|antigravity|all>` after setup or a policy change.
 It validates trust and the journal, inventories instruction files and checks the
 four registered handlers, their command paths, matchers, synchronous configuration,
 skill files and runner instructions. Unrelated hook entries are preserved.

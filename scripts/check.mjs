@@ -75,6 +75,9 @@ const IGNORED_ENTRIES = new Set([
     'CLAUDE.local.md',
     '.codex',
     '.cursor',
+    '.worktrees',
+    'implementation_plan.md',
+    'walkthrough.md',
     '.DS_Store',
     'Thumbs.db',
     'desktop.ini',
@@ -82,7 +85,7 @@ const IGNORED_ENTRIES = new Set([
 ]);
 function files(directory = '') {
     return fs.readdirSync(path.join(root, directory), { withFileTypes: true })
-        .filter((entry) => !IGNORED_ENTRIES.has(entry.name) && !(directory === '' && (entry.name.endsWith('.tgz') || entry.name.endsWith('.tgz.sha256'))))
+        .filter((entry) => !IGNORED_ENTRIES.has(entry.name) && !(directory === '' && (entry.name === 'AGENTS.md' || entry.name === 'CLAUDE.md' || entry.name === 'GEMINI.md' || entry.name.endsWith('.tgz') || entry.name.endsWith('.tgz.sha256'))))
         .flatMap((entry) => {
         const relative = path.posix.join(directory, entry.name);
         assert(!entry.isSymbolicLink(), `Unexpected package symlink: ${relative}`);
@@ -191,9 +194,16 @@ try {
     assert.equal(rubric.status, 'not_run_on_live_model');
     assert.equal(rubric.cases.length, 19);
     assert.equal(new Set(rubric.cases.map(item => item.id)).size, rubric.cases.length);
-    assert.equal(read('CLAUDE.md').trim(), '@AGENTS.md');
-    for (const file of ['README.md', 'README.ko.md', 'SECURITY.md', 'docs/MODEL-GUIDANCE.md', '.github/workflows/ci.yml', '.github/workflows/automerge.yml', '.github/workflows/release.yml'])
+    for (const file of ['README.md', 'README.ko.md', 'SECURITY.md', 'TODO.md', 'docs/MODEL-GUIDANCE.md', '.github/workflows/ci.yml', '.github/workflows/release.yml'])
         assert(read(file).trim());
+    if (fs.existsSync(path.join(root, '.git'))) {
+        const lsFiles = spawnSync('git', ['ls-files'], { cwd: root, encoding: 'utf8', timeout: 10000 });
+        assert.equal(lsFiles.status, 0, `git ls-files failed:\n${lsFiles.stderr || lsFiles.error || ''}`);
+        const forbiddenTracked = new Set(['AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'CLAUDE.local.md', 'docs/AGENT-CONTEXT.md']);
+        for (const tracked of lsFiles.stdout.split(/\r?\n/).filter(Boolean)) {
+            assert(!forbiddenTracked.has(tracked) && !tracked.startsWith('.claude/'), `Forbidden local-only agent file tracked by git: ${tracked}`);
+        }
+    }
     let localLinks = 0;
     const slugCache = new Map();
     const getSlugs = (absPath) => {

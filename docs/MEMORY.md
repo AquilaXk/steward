@@ -53,8 +53,9 @@ Omit the option only for unscoped records. Named sessions never restore unscoped
 or another session's data; events without a session restore only unscoped records.
 If the host session ID is unavailable, do not guess it or promise automatic recovery.
 `PreCompact` takes a snapshot of the existing chain head and matching checkpoint. A
-snapshot explicitly states `conversationCaptured:false`. No transcript path supplied
-by a host is opened by this implementation.
+snapshot explicitly states `conversationCaptured:false`. PreCompact never opens a host
+transcript path; Antigravity PreInvocation reads only the trailing 256 KiB of a verified
+regular file when inline prompt text is absent.
 
 Keep an anchor outside the project to detect truncation:
 

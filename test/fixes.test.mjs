@@ -148,3 +148,12 @@ test('snapshot excludes nested node_modules and git submodules', t => {
     const s = snapshot(root);
     assert.equal(s.files, before + 1);
 });
+
+test('snapshot excludes .worktrees directories', t => {
+    const { root } = sandbox(t);
+    const before = snapshot(root).files;
+    write(root, 'src/main.js', 'console.log(1);\n');
+    write(root, '.worktrees/wt-feature/src/main.js', 'console.log(2);\n');
+    const s = snapshot(root);
+    assert.equal(s.files, before + 1);
+});

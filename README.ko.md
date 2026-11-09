@@ -112,7 +112,7 @@ node bin/steward.mjs --help
 소스 변경 후에는 기존 검증 근거를 거부합니다. 실행 후 임시 파일을 정리하며,
 실제 에이전트 앱은 실행하지 않습니다.
 
-전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 222개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
+전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 225개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
 실행 결과와 검증 범위는 [검증 기록](evidence/VERIFICATION.md)을 확인하세요.
 
 ## 4. 프로젝트 설정
@@ -411,7 +411,7 @@ steward/
 ├── examples/            # 합성 JSON 입력
 ├── test/                # 단위, 파일시스템 경계, 색인 캐시, 암호화, CLI 프로세스 검사
 ├── scripts/             # 정적 검사, 테스트 실행기, 릴리즈 준비, 격리 데모
-├── docs/                # 계약, 아키텍처, 에이전트 맥락, 호스트 설정, 모델 지침
+├── docs/                # 계약, 아키텍처, 호스트 설정, 모델 지침
 ├── evals/               # 지도형 행동 평가 사례; 허구의 실측 점수 없음
 ├── evidence/            # 로컬 실행 결과와 무결성 매니페스트
 └── assets/              # 직접 제작한 프로젝트 이미지
@@ -421,7 +421,7 @@ steward/
 |---|---|
 | 격리된 데모 | [정책 계약](docs/POLICIES.md), [아키텍처](docs/ARCHITECTURE.md) |
 | 프로젝트 초기화 | [호스트 설정](docs/HOSTS.md), [운영 안내](docs/OPERATIONS.md) |
-| 작업 맥락 및 보안 | [에이전트 컨텍스트](docs/AGENT-CONTEXT.md), [보안 경계](SECURITY.md) |
+| 보안 경계 | [보안 경계](SECURITY.md) |
 | 결정과 체크포인트 | [기억 계약](docs/MEMORY.md) |
 | 완료 판단 | [검증 계약](docs/VERIFICATION.md) |
 | 스킬 적용 | [스킬 범위](docs/SKILLS.md), [모델 지침](docs/MODEL-GUIDANCE.md) |

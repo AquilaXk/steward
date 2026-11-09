@@ -26,7 +26,7 @@ predicates are errors. An empty rules array is valid; a missing policy file is n
 }
 ```
 
-`on` selects prompt, tool or session. Denial is allowed for prompt and tool rules;
+`on` selects prompt, tool, session or stop. Denial is allowed for prompt, tool and stop rules;
 session rules only inject. A rule can have an effect of `inject` or `deny`.
 `required` means injected guidance must fit; it is false for a denial.
 
@@ -44,9 +44,9 @@ The canonical aliases are:
 
 | Native names | Canonical name |
 |---|---|
-| Bash, shell_command, exec_command, shell | shell |
-| Edit, Write, apply_patch | file.write |
-| Read, read_file | file.read |
+| Bash, shell_command, exec_command, run_command, shell | shell |
+| Edit, Write, apply_patch, write_to_file, replace_file_content, multi_replace_file_content, multiedit, multi_edit, notebookedit, notebook_edit | file.write |
+| Read, read_file, view_file | file.read |
 
 Other names are matched case-insensitively as exact names. The generic interface
 normalizes supplied file paths too. The pure engine expects a normalized event.

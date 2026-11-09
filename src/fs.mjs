@@ -182,6 +182,7 @@ export function snapshot(root, extraExcludes = []) {
         exclude: (p, entry) =>
             entry.name === '.git' ||
             entry.name === 'node_modules' ||
+            entry.name === '.worktrees' ||
             entry.name === '.DS_Store' ||
             entry.name === 'Thumbs.db' ||
             entry.name === 'desktop.ini' ||
