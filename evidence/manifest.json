@@ -93,8 +93,8 @@
     },
     {
       "path": "CHANGELOG.md",
-      "bytes": 3759,
-      "sha256": "06f0e69b6f864a8a9b895eac81d9ce2957b89e3926dfd8127f6f6cee36a72911"
+      "bytes": 4086,
+      "sha256": "4d85696a687fad303e4ae99405ecb04a2fdc94f2aa7996f4d7d700b630e5eb09"
     },
     {
       "path": "CONTRIBUTING.md",
@@ -239,7 +239,7 @@
     {
       "path": "evidence/source-manifest.json",
       "bytes": 19410,
-      "sha256": "c679d6c050fb806b0f7d3d5bd081f7f745390bd7255b9bdab961e44303593ba8"
+      "sha256": "278a05ac5b7f39b0f8fd4343d42da93869f3f8b70b8b3a75bc06268b157d8f3c"
     },
     {
       "path": "evidence/test-results.tap",
