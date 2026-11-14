@@ -1,26 +1,38 @@
+// SPDX-License-Identifier: Apache-2.0
+
 import { insist } from './errors.mjs';
-import { isSafePattern, isSha256Hex } from './matcher.mjs';
+import { isSafePattern, isSha256Hex, hasNonWhitespace, utf8Within } from './matcher.mjs';
 
 export const isObject = (x) => x !== null && typeof x === 'object' && !Array.isArray(x);
 
 export function object(x, keys, label) {
     insist(isObject(x), 'SCHEMA', `${label} must be an object.`);
-    for (const k of Object.keys(x)) {
-        insist(keys.includes(k), 'SCHEMA', `${label}: unknown field ${k}.`);
+    const isSet = keys instanceof Set;
+    const ownKeys = Object.keys(x);
+    for (let i = 0; i < ownKeys.length; i++) {
+        const k = ownKeys[i];
+        insist(isSet ? keys.has(k) : keys.includes(k), 'SCHEMA', `${label}: unknown field ${k}.`);
     }
 }
 
 export function text(x, label, max = 16000) {
-    insist(typeof x === 'string' && x.trim() && Buffer.byteLength(x) <= max, 'SCHEMA', `${label} must be a nonempty string of at most ${max} UTF-8 bytes.`);
+    insist(typeof x === 'string' && hasNonWhitespace(x) && utf8Within(x, max), 'SCHEMA', `${label} must be a nonempty string of at most ${max} UTF-8 bytes.`);
 }
 
 export function strings(x, label, { empty = false, max = 100 } = {}) {
     const validLen = Array.isArray(x) && (empty || x.length > 0) && x.length <= max;
     insist(validLen, 'SCHEMA', `${label} must be ${empty ? 'an' : 'a nonempty'} array (at most ${max}).`);
-    for (const v of x) {
-        text(v, label, 2048);
+    const len = x.length;
+    for (let i = 0; i < len; i++) {
+        text(x[i], label, 2048);
     }
-    insist(new Set(x).size === x.length, 'SCHEMA', `${label} contains duplicates.`);
+    if (len === 2) {
+        insist(x[0] !== x[1], 'SCHEMA', `${label} contains duplicates.`);
+    } else if (len === 3) {
+        insist(x[0] !== x[1] && x[0] !== x[2] && x[1] !== x[2], 'SCHEMA', `${label} contains duplicates.`);
+    } else if (len >= 4) {
+        insist(new Set(x).size === len, 'SCHEMA', `${label} contains duplicates.`);
+    }
 }
 
 function integer(x, min, max, label) {
@@ -28,7 +40,7 @@ function integer(x, min, max, label) {
 }
 
 function hasDotSegment(v) {
-    return v.split('/').some(s => s === '..' || s === '.');
+    return v === '.' || v === '..' || v.startsWith('./') || v.startsWith('../') || v.endsWith('/.') || v.endsWith('/..') || v.includes('/./') || v.includes('/../');
 }
 
 function isRelativeLiteralPrefix(v) {
@@ -38,56 +50,82 @@ function isRelativeLiteralPrefix(v) {
 
 const MATCH_ARRAY_KEYS = ['tools', 'textAny', 'wordsAny', 'patternsAny', 'globsAny', 'pathPrefixes'];
 const CONTENT_PREDICATE_KEYS = ['textAny', 'wordsAny', 'patternsAny', 'globsAny', 'pathPrefixes'];
+const POLICY_KEYS = new Set(['version', 'budget', 'rules']);
+const BUDGET_KEYS = new Set(['bytes', 'rules']);
+const RULE_KEYS = new Set(['id', 'on', 'effect', 'priority', 'body', 'required', 'match']);
+const RULE_MATCH_KEYS = new Set(['always', ...MATCH_ARRAY_KEYS]);
+const PLAN_KEYS = new Set(['version', 'maxAgeSeconds', 'checks', 'exclude']);
+const CHECK_KEYS = new Set(['id', 'description', 'argv', 'timeoutMs']);
+const RULE_EVENT_SET = new Set(['prompt', 'tool', 'session', 'stop']);
+const RULE_EFFECT_SET = new Set(['inject', 'deny']);
 
 function validateMatchArrays(m) {
-    for (const key of MATCH_ARRAY_KEYS) {
+    for (let i = 0; i < MATCH_ARRAY_KEYS.length; i++) {
+        const key = MATCH_ARRAY_KEYS[i];
         if (m[key] !== undefined) {
             strings(m[key], `match.${key}`);
         }
     }
-    for (const term of m.wordsAny ?? []) {
-        insist(/[\p{L}\p{N}_-]/u.test(term), 'SCHEMA', 'wordsAny must contain a searchable token.');
+    if (m.wordsAny) {
+        for (let i = 0; i < m.wordsAny.length; i++) {
+            insist(/[\p{L}\p{N}_-]/u.test(m.wordsAny[i]), 'SCHEMA', 'wordsAny must contain a searchable token.');
+        }
     }
 }
 
 function validateMatchPatternsAndTools(m) {
-    for (const key of ['patternsAny', 'globsAny']) {
-        for (const pat of m[key] ?? []) {
-            insist(isSafePattern(pat), 'SCHEMA', `${key} contains an unsafe or malformed pattern.`);
+    if (m.patternsAny) {
+        for (let i = 0; i < m.patternsAny.length; i++) {
+            insist(isSafePattern(m.patternsAny[i]), 'SCHEMA', 'patternsAny contains an unsafe or malformed pattern.');
         }
     }
-    for (const tool of m.tools ?? []) {
-        insist(!tool.includes('*'), 'SCHEMA', 'Tool wildcards are not supported; omit tools to match all tools.');
+    if (m.globsAny) {
+        for (let i = 0; i < m.globsAny.length; i++) {
+            insist(isSafePattern(m.globsAny[i]), 'SCHEMA', 'globsAny contains an unsafe or malformed pattern.');
+        }
     }
-    for (const v of m.pathPrefixes ?? []) {
-        insist(isRelativeLiteralPrefix(v) && !v.includes('*'), 'SCHEMA', 'pathPrefixes must be project-relative literal paths.');
+    if (m.tools) {
+        for (let i = 0; i < m.tools.length; i++) {
+            insist(!m.tools[i].includes('*'), 'SCHEMA', 'Tool wildcards are not supported; omit tools to match all tools.');
+        }
+    }
+    if (m.pathPrefixes) {
+        for (let i = 0; i < m.pathPrefixes.length; i++) {
+            const v = m.pathPrefixes[i];
+            insist(isRelativeLiteralPrefix(v) && !v.includes('*'), 'SCHEMA', 'pathPrefixes must be project-relative literal paths.');
+        }
     }
 }
 
 function validateRuleMatch(m, r) {
-    object(m, ['always', ...MATCH_ARRAY_KEYS], 'rule.match');
+    object(m, RULE_MATCH_KEYS, 'rule.match');
     if (m.always !== undefined) {
         insist(m.always === true, 'SCHEMA', 'always, when provided, must be true.');
     }
     validateMatchArrays(m);
     validateMatchPatternsAndTools(m);
-    const content = CONTENT_PREDICATE_KEYS.filter(k => m[k] !== undefined);
-    insist(m.always === true || content.length > 0, 'SCHEMA', 'A match needs always:true or a content predicate.');
-    insist(!(m.always && content.length > 0), 'SCHEMA', 'always cannot be mixed with content predicates.');
+    let contentCount = 0;
+    for (let i = 0; i < CONTENT_PREDICATE_KEYS.length; i++) {
+        if (m[CONTENT_PREDICATE_KEYS[i]] !== undefined) contentCount++;
+    }
+    insist(m.always === true || contentCount > 0, 'SCHEMA', 'A match needs always:true or a content predicate.');
+    insist(!(m.always && contentCount > 0), 'SCHEMA', 'always cannot be mixed with content predicates.');
     if (m.tools || m.pathPrefixes) {
         insist(r.on.length === 1 && r.on[0] === 'tool', 'SCHEMA', 'tools and pathPrefixes are tool-only.');
     }
 }
 
 function validatePolicyRule(r, ids) {
-    object(r, ['id', 'on', 'effect', 'priority', 'body', 'required', 'match'], 'rule');
+    object(r, RULE_KEYS, 'rule');
     text(r.id, 'rule.id', 80);
     insist(/^[a-z][a-z0-9-]*$/.test(r.id), 'SCHEMA', 'Rule IDs must be lowercase kebab-case.');
     insist(!ids.has(r.id), 'SCHEMA', `Duplicate rule ID: ${r.id}`);
     ids.add(r.id);
     strings(r.on, 'rule.on');
-    insist(r.on.every(e => ['prompt', 'tool', 'session', 'stop'].includes(e)), 'SCHEMA', 'Unknown rule event.');
-    insist(['inject', 'deny'].includes(r.effect), 'SCHEMA', 'effect must be inject or deny.');
+    for (let i = 0; i < r.on.length; i++) {
+        insist(RULE_EVENT_SET.has(r.on[i]), 'SCHEMA', 'Unknown rule event.');
+    }
+    insist(RULE_EFFECT_SET.has(r.effect), 'SCHEMA', 'effect must be inject or deny.');
     text(r.body, 'rule.body');
     integer(r.priority, 0, 1000, 'rule.priority');
     insist(typeof r.required === 'boolean', 'SCHEMA', 'required must be boolean.');
@@ -97,35 +135,36 @@ function validatePolicyRule(r, ids) {
 }
 
 export function validatePolicy(p) {
-    object(p, ['version', 'budget', 'rules'], 'policy');
+    object(p, POLICY_KEYS, 'policy');
     insist(p.version === 1, 'SCHEMA', 'Unsupported policy version.');
-    object(p.budget, ['bytes', 'rules'], 'budget');
+    object(p.budget, BUDGET_KEYS, 'budget');
     integer(p.budget.bytes, 128, 32768, 'budget.bytes');
     integer(p.budget.rules, 1, 64, 'budget.rules');
     insist(Array.isArray(p.rules) && p.rules.length <= 256, 'SCHEMA', 'rules must be an array of at most 256 entries.');
     const ids = new Set();
-    for (const r of p.rules) {
-        validatePolicyRule(r, ids);
+    for (let i = 0; i < p.rules.length; i++) {
+        validatePolicyRule(p.rules[i], ids);
     }
     return p;
 }
 
 function validatePlanCheck(c, ids) {
-    object(c, ['id', 'description', 'argv', 'timeoutMs'], 'check');
+    object(c, CHECK_KEYS, 'check');
     text(c.id, 'check.id', 80);
     text(c.description, 'check.description', 2048);
     insist(/^[a-z][a-z0-9-]*$/.test(c.id) && !ids.has(c.id), 'SCHEMA', 'Invalid or duplicate check ID.');
     ids.add(c.id);
     insist(Array.isArray(c.argv) && c.argv.length > 0 && c.argv.length <= 100, 'SCHEMA', 'check.argv must contain 1..100 strings.');
-    for (const a of c.argv) {
-        insist(typeof a === 'string' && Buffer.byteLength(a) <= 16384 && !a.includes('\0'), 'SCHEMA', 'Invalid command argument.');
+    for (let i = 0; i < c.argv.length; i++) {
+        const a = c.argv[i];
+        insist(typeof a === 'string' && utf8Within(a, 16384) && !a.includes('\0'), 'SCHEMA', 'Invalid command argument.');
     }
     text(c.argv[0], 'command', 4096);
     integer(c.timeoutMs, 50, 120000, 'timeoutMs');
 }
 
 export function validatePlan(p) {
-    object(p, ['version', 'maxAgeSeconds', 'checks', 'exclude'], 'verification plan');
+    object(p, PLAN_KEYS, 'verification plan');
     insist(p.version === 1, 'SCHEMA', 'Unsupported plan version.');
     integer(p.maxAgeSeconds, 1, 604800, 'maxAgeSeconds');
     if (p.exclude !== undefined) {

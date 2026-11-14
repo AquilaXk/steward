@@ -934,3 +934,26 @@ test('steward://checkpoint/latest resolves session-scoped checkpoints and MCP sc
     assert.match(cpConflict.result.content[0].text, /USAGE/);
 });
 
+test('startMcpServer decodes multi-byte UTF-8 JSON-RPC messages split across raw Buffer chunks', async (t) => {
+    const { root } = sandbox(t);
+    const inStream = new PassThrough();
+    const outStream = new PassThrough();
+    const chunks = [];
+    outStream.on('data', (d) => chunks.push(d));
+
+    const serverDone = startMcpServer(root, { inStream, outStream });
+    const payload = Buffer.from(
+        JSON.stringify({ jsonrpc: '2.0', id: 401, method: 'ping', params: { note: '한글🚀테스트' } }) + '\n',
+        'utf8'
+    );
+    // Split mid-character inside multi-byte UTF-8 sequences
+    inStream.write(payload.subarray(0, 46));
+    inStream.write(payload.subarray(46, 51));
+    inStream.end(payload.subarray(51));
+
+    await serverDone;
+    const response = JSON.parse(Buffer.concat(chunks).toString('utf8').trim());
+    assert.equal(response.id, 401);
+    assert.deepEqual(response.result, {});
+});
+

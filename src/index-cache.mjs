@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+// Word-packed Uint32Array bitset intersection (8-way unrolled) and reverse clz32 bit scanning
+// adapted from lemire/FastBitSet.js (Apache-2.0). See THIRD_PARTY_NOTICES.md for details.
+
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { readJSON, sha256, canonical, safePath, rootOf, compareAscii, toSessionHash } from './fs.mjs';
@@ -7,12 +11,15 @@ import { insist, StewardError } from './errors.mjs';
 const DIRECTORY = '.steward/state/journal';
 const JOURNAL_FILE_RE = /^\d{8}-[a-f0-9-]+\.json$/;
 const ISO_PREFIX_RE = /^\d{4}-\d\d-\d\dT/;
+const INITIAL_BITSET_WORDS = 8;
+const INITIAL_ROW_CAPACITY = 256;
 
 /**
  * Global in-memory cache registry keyed by canonical project root path.
- * @type {Map<string, JournalCache>}
+ * @type {Map<string, object>}
  */
 const caches = new Map();
+let intersectScratch = new Uint32Array(64);
 
 function deepFreeze(value) {
     if (value !== null && typeof value === 'object' && !Object.isFrozen(value)) {
@@ -26,8 +33,72 @@ function deepFreeze(value) {
     return value;
 }
 
+function clonePlain(value) {
+    return value === null || typeof value !== 'object' ? value : structuredClone(value);
+}
+
+function collectSearchableValues(value, out) {
+    if (value === null || value === undefined) return;
+    if (typeof value === 'string') {
+        if (value.length > 0) out.push(value);
+        return;
+    }
+    if (typeof value === 'number' || typeof value === 'boolean') {
+        out.push(String(value));
+        return;
+    }
+    if (Array.isArray(value)) {
+        for (let i = 0; i < value.length; i++) {
+            collectSearchableValues(value[i], out);
+        }
+        return;
+    }
+    if (typeof value === 'object') {
+        const keys = Object.keys(value);
+        for (let i = 0; i < keys.length; i++) {
+            collectSearchableValues(value[keys[i]], out);
+        }
+    }
+}
+
+function buildSearchText(data) {
+    const parts = [];
+    collectSearchableValues(data, parts);
+    return parts.join(' ').toLowerCase();
+}
+
+function ensureBitCapacity(bits, wordIndex) {
+    if (wordIndex < bits.length) return bits;
+    let newLen = Math.max(INITIAL_BITSET_WORDS, bits.length * 2);
+    while (newLen <= wordIndex) newLen *= 2;
+    const next = new Uint32Array(newLen);
+    next.set(bits);
+    return next;
+}
+
+function setBitInMap(map, key, rowIdx) {
+    const wordIdx = rowIdx >>> 5;
+    let bits = map.get(key);
+    if (bits === undefined) {
+        bits = new Uint32Array(Math.max(INITIAL_BITSET_WORDS, wordIdx + 1));
+    } else if (wordIdx >= bits.length) {
+        bits = ensureBitCapacity(bits, wordIdx);
+    }
+    bits[wordIdx] |= (1 << (rowIdx & 31));
+    map.set(key, bits);
+}
+
+function ensureFloat64Capacity(arr, targetIdx) {
+    if (targetIdx < arr.length) return arr;
+    let newLen = arr.length * 2;
+    while (newLen <= targetIdx) newLen *= 2;
+    const next = new Float64Array(newLen);
+    next.set(arr);
+    return next;
+}
+
 /**
- * Creates an empty journal cache structure.
+ * Creates an empty journal cache structure with object indices and aligned Uint32Array bitsets.
  */
 function createEmptyCache() {
     return {
@@ -39,12 +110,21 @@ function createEmptyCache() {
         ctimes: new Map(),
         index: {
             byHash: new Map(),
+            rowIndexByHash: new Map(),
             metaByHash: new Map(),
             byType: new Map(),
             byRecordId: new Map(),
             bySession: new Map(),
             byTag: new Map(),
-            supersededHashes: new Set()
+            byTypeBits: new Map(),
+            byRecordIdBits: new Map(),
+            bySessionBits: new Map(),
+            byTagBits: new Map(),
+            supersededHashes: new Set(),
+            supersededBits: new Uint32Array(INITIAL_BITSET_WORDS),
+            timeMsArr: new Float64Array(INITIAL_ROW_CAPACITY),
+            expiresAtMsArr: new Float64Array(INITIAL_ROW_CAPACITY),
+            searchTextArr: []
         }
     };
 }
@@ -53,57 +133,80 @@ function extractRowTags(row) {
     return Array.isArray(row.data?.tags) ? row.data.tags : [];
 }
 
-function indexRowSession(index, row) {
-    if (row.type === 'checkpoint') {
-        const sessionKey = row.data?.session ?? null;
-        if (!index.bySession.has(sessionKey)) {
-            index.bySession.set(sessionKey, []);
-        }
-        index.bySession.get(sessionKey).push(row);
-    }
-}
-
-function indexRowTags(index, row, tags) {
-    for (const tag of tags) {
-        if (typeof tag === 'string') {
-            if (!index.byTag.has(tag)) index.byTag.set(tag, []);
-            index.byTag.get(tag).push(row);
-        }
-    }
-}
-
-/**
- * Indexes a single journal row into the in-memory index structures.
- */
-function indexRow(index, row) {
+function indexRow(index, row, rowIdx) {
     index.byHash.set(row.hash, row);
+    index.rowIndexByHash.set(row.hash, rowIdx);
 
+    const timeMs = Date.parse(row.time);
+    const expiresAtMs = row.type === 'knowledge' && row.data.expiresAt !== null
+        ? Date.parse(row.data.expiresAt)
+        : null;
+    const searchText = buildSearchText(row.data);
     const tags = extractRowTags(row);
+
     index.metaByHash.set(row.hash, {
-        timeMs: Date.parse(row.time),
-        expiresAtMs: row.type === 'knowledge' && row.data.expiresAt !== null ? Date.parse(row.data.expiresAt) : null,
-        searchText: JSON.stringify(row.data).toLocaleLowerCase('en-US'),
+        timeMs,
+        expiresAtMs,
+        searchText,
         tagSet: new Set(tags)
     });
 
-    if (!index.byType.has(row.type)) {
-        index.byType.set(row.type, []);
+    index.timeMsArr = ensureFloat64Capacity(index.timeMsArr, rowIdx);
+    index.expiresAtMsArr = ensureFloat64Capacity(index.expiresAtMsArr, rowIdx);
+    index.timeMsArr[rowIdx] = timeMs;
+    index.expiresAtMsArr[rowIdx] = expiresAtMs === null ? Number.NaN : expiresAtMs;
+    index.searchTextArr[rowIdx] = searchText;
+
+    let typeBucket = index.byType.get(row.type);
+    if (typeBucket === undefined) {
+        typeBucket = [];
+        index.byType.set(row.type, typeBucket);
     }
-    index.byType.get(row.type).push(row);
+    typeBucket.push(row);
+    setBitInMap(index.byTypeBits, row.type, rowIdx);
 
     // Index by record ID (preserve all revisions for history queries)
     if (row.data?.id) {
-        if (!index.byRecordId.has(row.data.id)) {
-            index.byRecordId.set(row.data.id, []);
+        let recBucket = index.byRecordId.get(row.data.id);
+        if (recBucket === undefined) {
+            recBucket = [];
+            index.byRecordId.set(row.data.id, recBucket);
         }
-        index.byRecordId.get(row.data.id).push(row);
+        recBucket.push(row);
+        setBitInMap(index.byRecordIdBits, row.data.id, rowIdx);
     }
 
-    indexRowSession(index, row);
-    indexRowTags(index, row, tags);
+    if (row.type === 'checkpoint') {
+        const sessKey = row.data?.session ?? null;
+        let sessBucket = index.bySession.get(sessKey);
+        if (sessBucket === undefined) {
+            sessBucket = [];
+            index.bySession.set(sessKey, sessBucket);
+        }
+        sessBucket.push(row);
+        setBitInMap(index.bySessionBits, sessKey, rowIdx);
+    }
+
+    for (let i = 0; i < tags.length; i++) {
+        const tag = tags[i];
+        let tagBucket = index.byTag.get(tag);
+        if (tagBucket === undefined) {
+            tagBucket = [];
+            index.byTag.set(tag, tagBucket);
+        }
+        tagBucket.push(row);
+        setBitInMap(index.byTagBits, tag, rowIdx);
+    }
 
     if (row.data?.supersedes) {
-        index.supersededHashes.add(row.data.supersedes);
+        const prevHash = row.data.supersedes;
+        index.supersededHashes.add(prevHash);
+        const prevIdx = index.rowIndexByHash.get(prevHash);
+        if (prevIdx !== undefined) {
+            const wordIdx = prevIdx >>> 5;
+            index.supersededBits = ensureBitCapacity(index.supersededBits, wordIdx);
+            index.supersededBits[wordIdx] |= (1 << (prevIdx & 31));
+        }
     }
 }
 
@@ -140,20 +243,20 @@ function isFileStatFresh(cache, name, stat) {
 
 /**
  * Checks whether the existing in-memory cache is still fresh and matches disk state.
+ * Retains per-file lstatSync checks so out-of-band in-place file edits are always caught.
  */
 function isCacheUpToDate(resolvedDir, cache, names) {
     if (!cache || cache.files.length > names.length) {
         return false;
     }
+    const prefix = resolvedDir + path.sep;
     for (let i = 0; i < cache.files.length; i++) {
         const name = names[i];
         if (cache.files[i] !== name) {
             return false;
         }
         try {
-            validateJournalFilename(name);
-            const filePath = path.join(resolvedDir, name);
-            const stat = fs.lstatSync(filePath); //NOSONAR
+            const stat = fs.lstatSync(prefix + name); //NOSONAR
             if (stat.isSymbolicLink() || !isFileStatFresh(cache, name, stat)) {
                 return false;
             }
@@ -184,16 +287,18 @@ function loadJournalRow(root, resolvedDir, name, expectedSeq, previousHash) {
     return { row: deepFreeze(row), mtimeMs: stat.mtimeMs, size: stat.size, ino: stat.ino, ctimeMs: stat.ctimeMs };
 }
 
-/**
- * Synchronizes the in-memory journal cache for a given project root.
- * Detects incremental additions or invalidations.
- *
- * @param {string} root - Project root directory.
- * @param {object} [options] - Sync options.
- * @param {boolean} [options.fresh=false] - Force cache invalidation before reading.
- * @returns {{ rows: object[], cache: object }} Synced journal rows and index.
- */
-export function syncJournalCache(root, { fresh = false } = {}) {
+function appendToCacheState(cache, name, row, stat) {
+    const rowIdx = cache.rows.length;
+    cache.files.push(name);
+    cache.rows.push(row);
+    cache.mtimes.set(name, stat.mtimeMs);
+    cache.sizes.set(name, stat.size);
+    cache.inos.set(name, stat.ino);
+    cache.ctimes.set(name, stat.ctimeMs);
+    indexRow(cache.index, row, rowIdx);
+}
+
+function syncJournalCacheInternal(root, fresh) {
     root = rootOf(root);
     if (fresh) {
         caches.delete(root);
@@ -216,18 +321,47 @@ export function syncJournalCache(root, { fresh = false } = {}) {
 
     for (let i = startIndex; i < names.length; i++) {
         const name = names[i];
-        const { row, mtimeMs, size, ino, ctimeMs } = loadJournalRow(root, resolvedDir, name, cache.rows.length + 1, previous);
-        cache.files.push(name);
-        cache.rows.push(row);
-        cache.mtimes.set(name, mtimeMs);
-        cache.sizes.set(name, size);
-        cache.inos.set(name, ino);
-        cache.ctimes.set(name, ctimeMs);
-        indexRow(cache.index, row);
-        previous = row.hash;
+        const loaded = loadJournalRow(root, resolvedDir, name, cache.rows.length + 1, previous);
+        appendToCacheState(cache, name, loaded.row, loaded);
+        previous = loaded.row.hash;
     }
 
-    return { rows: cache.rows.slice(), cache };
+    return { rows: cache.rows, cache };
+}
+
+/**
+ * Synchronizes the in-memory journal cache for a given project root.
+ * Detects incremental additions or invalidations.
+ *
+ * @param {string} root - Project root directory.
+ * @param {object} [options] - Sync options.
+ * @param {boolean} [options.fresh=false] - Force cache invalidation before reading.
+ * @returns {{ rows: object[], cache: object }} Synced journal rows and index.
+ */
+export function syncJournalCache(root, { fresh = false } = {}) {
+    const { rows, cache } = syncJournalCacheInternal(root, fresh);
+    return { rows: rows.slice(), cache };
+}
+
+/**
+ * Internal write-through helper called by journal appendInternal after atomicWrite.
+ * Registers the newly appended record in the already-synced cache without re-reading JSON or re-hashing.
+ */
+export function recordAppendedJournalRow(root, fileName, row) {
+    const resolvedRoot = rootOf(root);
+    const cache = caches.get(resolvedRoot);
+    if (!cache || cache.rows.length !== row.seq - 1) return;
+    try {
+        const stat = fs.lstatSync(path.join(resolvedRoot, DIRECTORY, fileName)); //NOSONAR
+        if (stat.isSymbolicLink()) {
+            caches.delete(resolvedRoot);
+            return;
+        }
+        const frozen = deepFreeze({ ...row, data: clonePlain(row.data) });
+        appendToCacheState(cache, fileName, frozen, stat);
+    } catch {
+        caches.delete(resolvedRoot);
+    }
 }
 
 /**
@@ -256,50 +390,79 @@ function parseTimestampBound(value, label) {
     insist(false, 'BAD_QUERY', `Invalid ${label} timestamp.`);
 }
 
-/**
- * Intersects active indexed filter buckets starting from the smallest bucket.
- * Returns [] immediately if any specified indexed filter has 0 matches.
- */
-function selectSmallestCandidateSet(rows, index, { type, tag, session, recordId }) {
-    const lookups = [
-        [type, index.byType],
-        [tag, index.byTag],
-        [session, index.bySession],
-        [recordId, index.byRecordId]
-    ];
-    const activeBuckets = [];
-    for (const [key, map] of lookups) {
-        if (key === undefined) continue;
-        const bucket = map.get(key);
-        if (!bucket || bucket.length === 0) return [];
-        activeBuckets.push(bucket);
+function collectActiveBitsets(index, { type, tag, session, recordId }) {
+    const bitsets = [];
+    if (type !== undefined) {
+        const bs = index.byTypeBits.get(type);
+        if (bs === undefined) return null;
+        bitsets.push(bs);
     }
-    if (activeBuckets.length === 0) return rows;
-    if (activeBuckets.length === 1) return activeBuckets[0];
+    if (tag !== undefined) {
+        const bs = index.byTagBits.get(tag);
+        if (bs === undefined) return null;
+        bitsets.push(bs);
+    }
+    if (session !== undefined) {
+        const bs = index.bySessionBits.get(session);
+        if (bs === undefined) return null;
+        bitsets.push(bs);
+    }
+    if (recordId !== undefined) {
+        const bs = index.byRecordIdBits.get(recordId);
+        if (bs === undefined) return null;
+        bitsets.push(bs);
+    }
+    return bitsets;
+}
 
-    activeBuckets.sort((a, b) => a.length - b.length);
-    const smallest = activeBuckets[0];
-    const otherSets = activeBuckets.slice(1).map(b => new Set(b));
-    return smallest.filter(row => otherSets.every(s => s.has(row)));
+function computeBitsetIntersectionScratch(bitsets, wordCount) {
+    if (intersectScratch.length < wordCount) {
+        intersectScratch = new Uint32Array(Math.max(wordCount, intersectScratch.length * 2));
+    }
+    const dst = intersectScratch;
+    const b0 = bitsets[0];
+    const b1 = bitsets[1];
+    let i = 0;
+
+    // 8-way unrolled bitwise AND across the first two filter bitsets (FastBitSet pattern)
+    const unrollEnd = wordCount - (wordCount & 7);
+    for (; i < unrollEnd; i += 8) {
+        dst[i]     = b0[i]     & b1[i];
+        dst[i + 1] = b0[i + 1] & b1[i + 1];
+        dst[i + 2] = b0[i + 2] & b1[i + 2];
+        dst[i + 3] = b0[i + 3] & b1[i + 3];
+        dst[i + 4] = b0[i + 4] & b1[i + 4];
+        dst[i + 5] = b0[i + 5] & b1[i + 5];
+        dst[i + 6] = b0[i + 6] & b1[i + 6];
+        dst[i + 7] = b0[i + 7] & b1[i + 7];
+    }
+    for (; i < wordCount; i++) {
+        dst[i] = b0[i] & b1[i];
+    }
+
+    for (let k = 2; k < bitsets.length; k++) {
+        const bk = bitsets[k];
+        let j = 0;
+        for (; j < unrollEnd; j += 8) {
+            dst[j]     &= bk[j];
+            dst[j + 1] &= bk[j + 1];
+            dst[j + 2] &= bk[j + 2];
+            dst[j + 3] &= bk[j + 3];
+            dst[j + 4] &= bk[j + 4];
+            dst[j + 5] &= bk[j + 5];
+            dst[j + 6] &= bk[j + 6];
+            dst[j + 7] &= bk[j + 7];
+        }
+        for (; j < wordCount; j++) {
+            dst[j] &= bk[j];
+        }
+    }
+    return dst;
 }
 
 /**
- * Evaluates whether a journal row and its precomputed metadata match all query filter criteria.
- */
-function matchesQueryFilter(row, meta, { type, recordId, session, needle, sinceMs, untilMs, tag }) {
-    if (type !== undefined && row.type !== type) return false;
-    if (recordId !== undefined && row.data?.id !== recordId) return false;
-    if (session !== undefined && (row.type !== 'checkpoint' || (row.data?.session ?? null) !== session)) return false;
-    if (tag !== undefined && !meta.tagSet.has(tag)) return false;
-    if (sinceMs !== undefined && meta.timeMs < sinceMs) return false;
-    if (untilMs !== undefined && meta.timeMs > untilMs) return false;
-    if (needle && !meta.searchText.includes(needle)) return false;
-    return true;
-}
-
-/**
- * Queries the journal using in-memory metadata indexing for fast filtering.
- * Supports filtering by type, tag, timestamp bounds (since/until), session, and text.
+ * Queries the journal using bitset metadata indexing (Uint32Array word intersections + clz32 reverse scan).
+ * Supports filtering by type, tag, timestamp bounds (since/until), session, and value-only text search.
  *
  * @param {string} root - Project root.
  * @param {object} options - Query options.
@@ -317,30 +480,73 @@ export function queryJournalIndexed(root, { type, text = '', limit = 20, history
     const sinceMs = parseTimestampBound(since, 'since');
     const untilMs = parseTimestampBound(until, 'until');
 
-    const { rows, cache } = syncJournalCache(root);
+    const { rows, cache } = syncJournalCacheInternal(root, false);
+    const rowsLen = rows.length;
+    const head = { count: rowsLen, head: rowsLen > 0 ? rows[rowsLen - 1].hash : null };
+    if (rowsLen === 0) {
+        return { ...head, total: 0, limit, truncated: false, history, rows: [] };
+    }
+
     const session = sessionId === undefined ? undefined : toSessionHash(sessionId);
-    const needle = text ? text.toLocaleLowerCase('en-US') : '';
+    const needle = text ? text.toLowerCase() : '';
+    const idx = cache.index;
+    const bitsets = collectActiveBitsets(idx, { type, tag, session, recordId });
 
-    const candidates = selectSmallestCandidateSet(rows, cache.index, { type, tag, session, recordId });
-    const filterContext = { type, recordId, session, needle, sinceMs, untilMs, tag };
-    const { supersededHashes, metaByHash } = cache.index;
+    if (bitsets === null) {
+        return { ...head, total: 0, limit, truncated: false, history, rows: [] };
+    }
 
+    const { supersededBits, timeMsArr, expiresAtMsArr, searchTextArr } = idx;
     const matchedRows = [];
     let total = 0;
-    for (let i = candidates.length - 1; i >= 0; i--) {
-        const row = candidates[i];
-        const meta = metaByHash.get(row.hash);
-        const superseded = supersededHashes.has(row.hash);
-        const expired = meta.expiresAtMs !== null && meta.expiresAtMs <= now;
-        if (!history && (superseded || expired)) continue;
-        if (!matchesQueryFilter(row, meta, filterContext)) continue;
-        total++;
-        if (matchedRows.length < limit) {
-            matchedRows.push(Object.freeze({ ...row, superseded, expired }));
+
+    if (bitsets.length === 0) {
+        for (let i = rowsLen - 1; i >= 0; i--) {
+            const superseded = ((supersededBits[i >>> 5] >>> (i & 31)) & 1) === 1;
+            const expired = expiresAtMsArr[i] <= now;
+            if (!history && (superseded || expired)) continue;
+            if (sinceMs !== undefined && timeMsArr[i] < sinceMs) continue;
+            if (untilMs !== undefined && timeMsArr[i] > untilMs) continue;
+            if (needle && !searchTextArr[i].includes(needle)) continue;
+            total++;
+            if (matchedRows.length < limit) {
+                matchedRows.push(Object.freeze({ ...rows[i], superseded, expired }));
+            }
+        }
+    } else {
+        const maxWords = ((rowsLen - 1) >>> 5) + 1;
+        let wordCount = maxWords;
+        for (let k = 0; k < bitsets.length; k++) {
+            if (bitsets[k].length < wordCount) wordCount = bitsets[k].length;
+        }
+        const scanWords = bitsets.length === 1
+            ? bitsets[0]
+            : computeBitsetIntersectionScratch(bitsets, wordCount);
+
+        for (let wIdx = wordCount - 1; wIdx >= 0; wIdx--) {
+            let w = scanWords[wIdx];
+            if (w === 0) continue;
+            const base = wIdx << 5;
+            const supWord = supersededBits[wIdx] || 0;
+            while (w !== 0) {
+                const bit = 31 - Math.clz32(w);
+                w ^= (1 << bit);
+                const rowIdx = base + bit;
+                if (rowIdx >= rowsLen) continue;
+                const superseded = ((supWord >>> bit) & 1) === 1;
+                const expired = expiresAtMsArr[rowIdx] <= now;
+                if (!history && (superseded || expired)) continue;
+                if (sinceMs !== undefined && timeMsArr[rowIdx] < sinceMs) continue;
+                if (untilMs !== undefined && timeMsArr[rowIdx] > untilMs) continue;
+                if (needle && !searchTextArr[rowIdx].includes(needle)) continue;
+                total++;
+                if (matchedRows.length < limit) {
+                    matchedRows.push(Object.freeze({ ...rows[rowIdx], superseded, expired }));
+                }
+            }
         }
     }
 
-    const head = { count: rows.length, head: rows.at(-1)?.hash || null };
     return {
         ...head,
         total,
@@ -350,5 +556,3 @@ export function queryJournalIndexed(root, { type, text = '', limit = 20, history
         rows: matchedRows
     };
 }
-
-

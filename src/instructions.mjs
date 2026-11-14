@@ -1,6 +1,8 @@
+// SPDX-License-Identifier: Apache-2.0
 import * as fs from 'node:fs';
 import path from 'node:path';
 import { safePath, readText, sha256, canonical, rootOf, compareAscii } from './fs.mjs';
+
 const patterns = [
     ['approval-stall', /always (?:ask|wait for).{0,25}(?:permission|approval)/i],
     ['unbounded-tests', /(?:run all tests after every|repeat.{0,20}tests until perfect)/i],
@@ -8,6 +10,10 @@ const patterns = [
     ['hierarchy-conflict', /user instructions.{0,20}override.{0,20}system/i],
     ['private-reasoning', /(?:reveal|print|show).{0,20}(?:hidden chain|private chain)/i]
 ];
+
+const CLAUSE_NEGATION_RE = /\b(?:do not|don't|never|must not|mustn't|cannot|can't|avoid|refuse to|forbid|prohibit|without)\s+(?:[^\s.,;:!?()[\]]+\s+){0,4}$/i;
+const CLAUSE_BREAK_RE = /[.,;:!?\n()[\]—–]/g;
+
 const INSTRUCTION_ROOTS = [
     'AGENTS.md',
     'CLAUDE.md',
@@ -17,18 +23,63 @@ const INSTRUCTION_ROOTS = [
     '.agents/skills',
     '.claude/skills'
 ];
+
+function isNegatedInClause(text, matchIndex) {
+    if (matchIndex <= 0) return false;
+    const windowStart = Math.max(0, matchIndex - 96);
+    const slice = text.slice(windowStart, matchIndex);
+    let lastBreak = -1;
+    CLAUSE_BREAK_RE.lastIndex = 0;
+    let m;
+    while ((m = CLAUSE_BREAK_RE.exec(slice)) !== null) {
+        lastBreak = m.index;
+    }
+    const clausePrefix = lastBreak >= 0 ? slice.slice(lastBreak + 1) : slice;
+    return CLAUSE_NEGATION_RE.test(clausePrefix);
+}
+
 function scanInstructionFile(abs, relative) {
     const text = readText(abs, 256 * 1024);
     const findings = [];
+    const seen = new Set();
     const lines = text.split('\n');
+
+    const record = (code, lineNumber) => {
+        const key = `${code}:${lineNumber}`;
+        if (!seen.has(key)) {
+            seen.add(key);
+            findings.push({ code, line: lineNumber });
+        }
+    };
+
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
         for (const [code, re] of patterns) {
-            if (re.test(line)) {
-                findings.push({ code, line: i + 1 });
+            const singleMatch = re.exec(line);
+            if (singleMatch && !isNegatedInClause(line, singleMatch.index)) {
+                record(code, i + 1);
+            }
+        }
+        if (i + 1 < lines.length) {
+            const nextTrimmed = lines[i + 1].trimStart();
+            if (nextTrimmed.length > 0) {
+                const boundary = line.length;
+                const joined = `${line} ${nextTrimmed}`;
+                for (const [code, re] of patterns) {
+                    const wrappedMatch = re.exec(joined);
+                    if (
+                        wrappedMatch &&
+                        wrappedMatch.index <= boundary &&
+                        wrappedMatch.index + wrappedMatch[0].length > boundary + 1 &&
+                        !isNegatedInClause(joined, wrappedMatch.index)
+                    ) {
+                        record(code, i + 1);
+                    }
+                }
             }
         }
     }
+
     return {
         path: relative.split(path.sep).join('/'),
         sha256: sha256(text),
@@ -36,6 +87,7 @@ function scanInstructionFile(abs, relative) {
         findings
     };
 }
+
 export function auditInstructions(root) {
     root = rootOf(root);
     const files = [];

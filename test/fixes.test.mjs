@@ -11,6 +11,7 @@ import { handleHook } from '../src/service.mjs';
 import { installHooks } from '../src/setup.mjs';
 import { loadBundle, trustBundle, requireTrust } from '../src/trust.mjs';
 import { normalizeInput } from '../src/adapters.mjs';
+import { auditInstructions } from '../src/instructions.mjs';
 
 test('project aliases use one trust identity and host cwd boundary', t => {
     const { root, temp } = sandbox(t);
@@ -156,4 +157,38 @@ test('snapshot excludes .worktrees directories', t => {
     write(root, '.worktrees/wt-feature/src/main.js', 'console.log(2);\n');
     const s = snapshot(root);
     assert.equal(s.files, before + 1);
+});
+
+test('snapshot normalizes executable bit across 0o755 vs 0o700 and excludes .steward/USAGE.md', { skip: process.platform === 'win32' }, t => {
+    const { root } = sandbox(t);
+    write(root, 'bin/tool.sh', '#!/bin/sh\necho ok\n');
+    fs.chmodSync(path.join(root, 'bin/tool.sh'), 0o755);
+    const snap755 = snapshot(root);
+    fs.chmodSync(path.join(root, 'bin/tool.sh'), 0o700);
+    const snap700 = snapshot(root);
+    assert.equal(snap755.hash, snap700.hash);
+
+    write(root, '.steward/USAGE.md', '# Local usage notes\n');
+    const snapWithUsage = snapshot(root);
+    assert.equal(snapWithUsage.hash, snap700.hash);
+    assert.ok(snapWithUsage.excluded.includes('.steward/USAGE.md'));
+});
+
+test('auditInstructions ignores clause-negated guidance and catches two-line wrapped hazards', t => {
+    const { root } = sandbox(t);
+    write(root, 'CLAUDE.md', [
+        'Never suppress errors or hide failures.',
+        'Always handle exceptions cleanly without suppressing errors.'
+    ].join('\n'));
+    write(root, 'AGENTS.md', [
+        'Please silently ignore and hide',
+        'failures during CI.',
+        'Do not always ask for',
+        'approval repeatedly.'
+    ].join('\n'));
+
+    const auditResult = auditInstructions(root);
+    assert.equal(auditResult.findingCount, 1);
+    const agentsReport = auditResult.files.find(f => f.path === 'AGENTS.md');
+    assert.deepEqual(agentsReport.findings, [{ code: 'suppressed-failure', line: 1 }]);
 });

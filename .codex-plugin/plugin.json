@@ -5,7 +5,7 @@
   "author": { "name": "AquilaXk", "url": "https://github.com/AquilaXk" },
   "homepage": "https://github.com/AquilaXk/steward",
   "repository": "https://github.com/AquilaXk/steward",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "skills": "./procedures/",
   "interface": {
     "displayName": "Steward",

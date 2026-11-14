@@ -193,3 +193,41 @@ test('tokenizeCommand elides POSIX backslash-newline line continuations outside 
     const p = policy([rule({ id: 'no-force', effect: 'deny', body: 'No force.', on: ['tool'], match: { tools: ['shell'], patternsAny: ['--force'] } })]);
     assert.equal(evaluate(p, { ...event('git push --fo\\\nrce origin main'), event: 'tool', tool: 'Bash' }).decision, 'deny');
 });
+
+test('matchGlob handles [Z-a] without case-folding inversion and steps surrogate bracket escapes safely', async () => {
+    const { matchGlob, isSafePattern } = await import('../src/matcher.mjs');
+    assert.equal(matchGlob('[Z-a]', 'b'), false);
+    assert.equal(matchGlob('[Z-a]', 'B'), false);
+    assert.equal(matchGlob('[Z-a]', 'Z'), true);
+    assert.equal(matchGlob('[Z-a]', 'z'), true);
+    assert.equal(matchGlob('[Z-a]', '_'), true);
+    assert.equal(matchGlob('[Z-a]', 'a'), true);
+    assert.equal(matchGlob('[Z-a]', 'z', { caseSensitive: true }), false);
+    assert.equal(isSafePattern(String.raw`[\🎉]`), true);
+    assert.equal(matchGlob(String.raw`[\🎉a]`, '🎉'), true);
+    assert.equal(matchGlob('file-[0-9]?', 'file-7z'), true);
+});
+
+test('tokenizeCommand, normalizeTool, and matchArgGlob handle extended shell operators, ANSI-C escapes, and bounded unquoted braces', async () => {
+    const { tokenizeCommand, matchArgGlob } = await import('../src/matcher.mjs');
+    const { normalizeTool } = await import('../src/engine.mjs');
+
+    assert.equal(normalizeTool('write_file'), 'file.write');
+    assert.equal(normalizeTool('edit_file'), 'file.write');
+
+    assert.deepEqual(
+        tokenizeCommand('cmd1|&cmd2&>out.log&>>err.log<<<word'),
+        ['cmd1', '|&', 'cmd2', '&>', 'out.log', '&>>', 'err.log', '<<<', 'word']
+    );
+    assert.deepEqual(tokenizeCommand('a;;&b;&c'), ['a', ';;&', 'b', ';&', 'c']);
+    assert.deepEqual(
+        tokenizeCommand(String.raw`$'r\x6d' $'\u002d\162f' $'\e[0m' $"hello"`),
+        ['rm', '-rf', '\x1b[0m', 'hello']
+    );
+
+    assert.equal(matchArgGlob(['rm'], String.raw`r$'\x6d' /tmp/x`), true);
+    assert.equal(matchArgGlob(['rm *-rf /*'], 'r{m,mv} -rf /'), true);
+    assert.equal(matchArgGlob(['--force'], 'git push origin {main,--force}'), true);
+    assert.equal(matchArgGlob(['rm'], "echo '{rm,mv}'"), false);
+    assert.equal(matchArgGlob(['rm'], '{a,b}'.repeat(8)), false);
+});

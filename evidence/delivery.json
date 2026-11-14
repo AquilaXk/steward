@@ -2,12 +2,12 @@
   "package": "steward",
   "version": "0.2.0",
   "revision": "v0.2.0 verification Refresh",
-  "collectedAt": "2026-10-18T00:02:55.216Z",
+  "collectedAt": "2026-11-14T03:16:00.000Z",
   "environment": {
     "os": "macOS",
     "architecture": "arm64",
     "node": "v24.19.0",
-    "npm": "11.6.2"
+    "npm": "11.17.0"
   },
   "commands": [
     {
@@ -24,8 +24,8 @@
     }
   ],
   "tests": {
-    "tests": 228,
-    "pass": 228,
+    "tests": 236,
+    "pass": 236,
     "fail": 0,
     "cancelled": 0,
     "skipped": 0,

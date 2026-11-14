@@ -4,7 +4,7 @@
   "private": true,
   "description": "A local, evidence-aware policy and memory toolkit for coding agents.",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/AquilaXk/steward.git"
@@ -53,6 +53,7 @@
     "assets",
     "README.md",
     "README.ko.md",
-    "LICENSE"
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
   ]
 }

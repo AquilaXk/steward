@@ -1,5 +1,10 @@
+// SPDX-License-Identifier: Apache-2.0
+// Stdio NDJSON UTF-8 framing adapted from modelcontextprotocol/typescript-sdk (Apache-2.0/MIT).
+// See THIRD_PARTY_NOTICES.md for full upstream copyright and license texts.
+
 import fs from 'node:fs';
 import path from 'node:path';
+import { StringDecoder } from 'node:string_decoder';
 import { rootOf, safePath, toSessionHash } from '../fs.mjs';
 import { VERSION } from '../version.mjs';
 import { evaluate } from '../engine.mjs';
@@ -743,7 +748,7 @@ export function startMcpServer(root, { inStream = process.stdin, outStream = pro
         inStream.on('error', close);
         outStream.on('error', close);
 
-        inStream.setEncoding('utf8');
+        const decoder = new StringDecoder('utf8');
 
         async function processLine(line) {
             const trimmed = line.trim();
@@ -772,8 +777,8 @@ export function startMcpServer(root, { inStream = process.stdin, outStream = pro
             }
         }
 
-        inStream.on('data', (chunk) => {
-            const str = typeof chunk === 'string' ? chunk : chunk.toString('utf8');
+        const consumeDecoded = (str) => {
+            if (!str) return;
             const nlIdx = str.indexOf('\n');
             if (nlIdx === -1) {
                 if (discardingOversized) return;
@@ -824,9 +829,15 @@ export function startMcpServer(root, { inStream = process.stdin, outStream = pro
                 bufferBytes = tailBytes;
                 discardingOversized = false;
             }
+        };
+
+        inStream.on('data', (chunk) => {
+            const str = typeof chunk === 'string' ? chunk : decoder.write(chunk);
+            consumeDecoded(str);
         });
 
         inStream.on('end', () => {
+            consumeDecoded(decoder.end());
             if (discardingOversized) {
                 discardingOversized = false;
                 queue = queue.then(() => writeParseError('Parse error: message exceeds 1 MiB limit')).catch(() => {});

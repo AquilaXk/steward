@@ -6,7 +6,7 @@
 [![Release](https://img.shields.io/github/v/release/AquilaXk/steward)](https://github.com/AquilaXk/steward/releases)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22-339933)](package.json)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-blue)](package.json)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 [English](README.md) · [한국어](README.ko.md) · [Releases](https://github.com/AquilaXk/steward/releases) · [Discussions](https://github.com/AquilaXk/steward/discussions)
 
@@ -21,8 +21,8 @@
 ## 핵심 특징
 
 - **무의존성 Node.js 22+ 툴킷**: 런타임·개발 서드파티 의존성 없이 단일 코드베이스(`bin/steward.mjs`, `src/`, `index.d.ts`)로 로컬 CLI, ESM/TypeScript 라이브러리, 개행 구분 stdio JSON-RPC 2.0 MCP 서버, 네이티브 호스트 플러그인 번들을 제공합니다.
-- **비트 수준 정책·글롭 엔진 (`src/engine.mjs`, `src/matcher.mjs`)**: `Uint32Array(4)` 128비트 ASCII 비트맵, `Uint8Array` 문자 분류 테이블, 16비트 정수 패킹 POSIX.1 셸 토크나이저, 이벤트 단위 1회 메모이제이션(`prepareEventContext`, `prepareGlobTargets`), Fail-Closed `GLOB_COMPLEXITY` 스텝 예산을 결합한 선형 시간 매칭을 수행합니다.
-- **$O(1)$ 색인 기반 해시 체인 저널 (`src/journal.mjs`, `src/index-cache.mjs`)**: SHA-256 해시로 연결되는 불변 저널 레코드(`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`)를 인메모리 보조 색인(`byHash`, `metaByHash`, `byType`, `byRecordId`, `bySession`, `byTag`), 최소 버킷 교집합, 역방향 조기 종료, 파일당 단일 `lstatSync` 증분 검증으로 빠르게 조회합니다.
+- **비트 수준 정책·글롭 엔진 (`src/engine.mjs`, `src/matcher.mjs`)**: 32비트 패킹 글롭 오퍼코드, `Uint32Array(4)` 128비트 ASCII 비트맵, `Uint8Array` 문자 분류 테이블, 확장 셸 연산자·따옴표·중괄호 렉서(2·3글자 연산자, `$'...'`, `$"..."`, 상한 제한 비인용 중괄호), `WeakMap` 규칙·패턴 캐싱, Fail-Closed `GLOB_COMPLEXITY` 스텝 예산을 결합해 선형 시간으로 평가합니다.
+- **비트셋 색인 해시 체인 저널 (`src/journal.mjs`, `src/index-cache.mjs`)**: SHA-256 해시로 연결되는 불변 저널 레코드(`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`)를 `Uint32Array` 다중 워드 비트셋 색인(`byTypeBits`, `byTagBits`, `bySessionBits`, `byRecordIdBits`, `supersededBits`), 8단 언롤 교집합과 `Math.clz32` 역방향 스캔, write-through 추가 갱신, 파일별 `lstatSync` 위변조 탐지로 빠르게 조회합니다.
 - **소스 바인딩 검증 및 Ed25519 전자서명 (`src/verify.mjs`, `src/crypto.mjs`)**: 검토된 `argv` 배열을 셸 없이(`shell: false`) 실행해 표준 출력·오류 해시를 소스 트리 스냅샷에 결합하며, 도메인 분리 Ed25519 서명 Envelope(`steward.bundle.v1`, `steward.evidence.v1`)를 지원합니다.
 - **다중 호스트 플러그인 및 MCP 생태계**: Claude Code, Codex CLI, Google Antigravity, Cursor를 위한 수명주기 훅(`install`, `update`, `uninstall`, `doctor`), 8개 스킬(`skills/`), 11개 MCP 도구, 6개 `steward://` MCP 리소스를 기본 제공합니다.
 
@@ -145,7 +145,7 @@ node bin/steward.mjs --help
 소스 변경 후에는 기존 검증 근거를 거부합니다. 실행 후 임시 파일을 정리하며,
 실제 에이전트 앱은 실행하지 않습니다.
 
-전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 228개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
+전체 로컬 소프트웨어 테스트(코어 엔진, 저널, 색인 캐시, MCP 서버, Ed25519 암호화, 패턴 매칭, CLI 통합 등 236개 테스트)는 `npm run verify` (또는 `npm test`)로 실행합니다.
 실행 결과와 검증 범위는 [검증 기록](evidence/VERIFICATION.md)을 확인하세요.
 
 ## 4. 프로젝트 설정
@@ -487,5 +487,6 @@ npm 패키지는 `private: true`를 유지합니다. 소스 저장소 공개는 
 
 출처별 검토 날짜와 범위는 [docs/sources.json](docs/sources.json)에 기록합니다.
 Steward는 OpenAI·Anthropic과 독립적인 프로젝트입니다.
-직접 작성한 자료에는 [MIT 라이선스](LICENSE)를 적용하며,
+직접 작성한 자료에는 [Apache-2.0 라이선스](LICENSE)를 적용하며,
+차용한 오픈소스 출처와 원 라이선스는 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)에 적었습니다.
 연결한 외부 자료의 권리는 원저작자에게 있습니다.

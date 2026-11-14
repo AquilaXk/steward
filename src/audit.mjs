@@ -4,6 +4,50 @@ import { safePath, readJSON, atomicWrite, sha256, rootOf, compareAscii } from '.
 import { insist } from './errors.mjs';
 import { loadBundle } from './trust.mjs';
 const AUDIT_LIMIT = 20000;
+const auditCountCache = new Map();
+
+function readCachedAuditCount(root, dir) {
+    let stat;
+    try {
+        stat = fs.statSync(dir); //NOSONAR
+    } catch (e) {
+        if (e.code !== 'ENOENT') throw e;
+        auditCountCache.delete(root);
+        return { count: 0, stat: null };
+    }
+    const cached = auditCountCache.get(root);
+    if (
+        cached &&
+        cached.mtimeMs === stat.mtimeMs &&
+        cached.ctimeMs === stat.ctimeMs &&
+        cached.ino === stat.ino
+    ) {
+        return { count: cached.count, stat };
+    }
+    const count = fs.readdirSync(dir).length; //NOSONAR
+    auditCountCache.set(root, {
+        count,
+        mtimeMs: stat.mtimeMs,
+        ctimeMs: stat.ctimeMs,
+        ino: stat.ino
+    });
+    return { count, stat };
+}
+
+function recordAuditIncrement(root, dir, nextCount) {
+    try {
+        const afterStat = fs.statSync(dir); //NOSONAR
+        auditCountCache.set(root, {
+            count: nextCount,
+            mtimeMs: afterStat.mtimeMs,
+            ctimeMs: afterStat.ctimeMs,
+            ino: afterStat.ino
+        });
+    } catch {
+        auditCountCache.delete(root);
+    }
+}
+
 export function audit(root, host, event, result, bundleHash) {
     root = rootOf(root);
     const id = randomUUID();
@@ -25,16 +69,10 @@ export function audit(root, host, event, result, bundleHash) {
         hostAcknowledged: false
     };
     const dir = safePath(root, '.steward/state/audit');
-    let count = 0;
-    try {
-        count = fs.readdirSync(dir).length; //NOSONAR
-    }
-    catch (e) {
-        if (e.code !== 'ENOENT')
-            throw e;
-    }
+    const { count } = readCachedAuditCount(root, dir);
     insist(count < AUDIT_LIMIT, 'AUDIT_FULL', 'Audit retention limit reached. Archive receipts before continuing.');
     atomicWrite(root, `.steward/state/audit/${id}.json`, JSON.stringify(row) + '\n');
+    recordAuditIncrement(root, dir, count + 1);
     return id;
 }
 function readAuditDirectory(dir) {
@@ -134,5 +172,6 @@ export function pruneAudit(root, { keep = 5000 } = {}) {
             deleted++;
         } catch {}
     }
+    auditCountCache.delete(root);
     return { deleted, remaining: names.length - deleted };
 }

@@ -6,7 +6,7 @@
 [![Release](https://img.shields.io/github/v/release/AquilaXk/steward)](https://github.com/AquilaXk/steward/releases)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22-339933)](package.json)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-blue)](package.json)
-[![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 [English](README.md) · [한국어](README.ko.md) · [Releases](https://github.com/AquilaXk/steward/releases) · [Discussions](https://github.com/AquilaXk/steward/discussions)
 
@@ -21,8 +21,8 @@ During multi-step coding tasks, policy rules, recorded architectural decisions, 
 ## Key Highlights
 
 - **Zero-dependency Node.js 22+ toolkit**: One portable codebase (`bin/steward.mjs`, `src/`, `index.d.ts`) providing a local CLI, a programmatic ESM/TypeScript library, a newline-delimited stdio JSON-RPC 2.0 MCP server, and native host plugin bundles with zero runtime or development third-party packages.
-- **Bit-level policy & glob engine (`src/engine.mjs`, `src/matcher.mjs`)**: Linear-time glob matching backed by `Uint32Array(4)` 128-bit ASCII bitmaps, a `Uint8Array` character-class table, 16-bit packed POSIX.1 shell operator lexing, single-pass per-event memoization (`prepareEventContext`, `prepareGlobTargets`), and a fail-closed `GLOB_COMPLEXITY` step budget.
-- **$O(1)$ indexed hash-chained journal (`src/journal.mjs`, `src/index-cache.mjs`)**: Append-only SHA-256 hash-linked records (`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`) with deep-frozen in-memory secondary indexes (`byHash`, `metaByHash`, `byType`, `byRecordId`, `bySession`, `byTag`), smallest-bucket set intersection, reverse early-exit pagination, and single-`lstatSync` incremental cache validation.
+- **Bit-level policy & glob engine (`src/engine.mjs`, `src/matcher.mjs`)**: Linear-time matching with packed 32-bit glob opcodes, `Uint32Array(4)` 128-bit ASCII bitmaps, `Uint8Array` character-class tables, extended shell operator/quote/brace lexing (2- and 3-char operators, `$'...'`, `$"..."`, bounded unquoted braces), WeakMap rule/pattern caching, and a fail-closed `GLOB_COMPLEXITY` step budget.
+- **Bitset-indexed hash-chained journal (`src/journal.mjs`, `src/index-cache.mjs`)**: Append-only SHA-256 hash-linked records (`decision`, `question`, `knowledge`, `goal`, `checkpoint`, `schedule`, `handoff`, `verification`) backed by `Uint32Array` multi-word bitset indexes (`byTypeBits`, `byTagBits`, `bySessionBits`, `byRecordIdBits`, `supersededBits`), 8-way unrolled intersection with `Math.clz32` reverse scan, write-through appends, and per-file `lstatSync` tamper detection.
 - **Source-bound verification & Ed25519 signatures (`src/verify.mjs`, `src/crypto.mjs`)**: Reviewed `argv` check arrays run without a shell (`shell: false`), bind stdout/stderr digests to a workspace file snapshot, and support domain-separated Ed25519 signing envelopes (`steward.bundle.v1`, `steward.evidence.v1`).
 - **Multi-host plugin & MCP ecosystem**: First-class lifecycle hooks (`install`, `update`, `uninstall`, `doctor`), 8 compact procedures (`skills/`), 11 MCP Tools, and 6 `steward://` MCP Resources for Claude Code, Codex CLI, Google Antigravity, and Cursor.
 
@@ -146,7 +146,7 @@ The demo creates a temporary project, runs three synthetic arithmetic tests, rec
 and restores a checkpoint, and rejects evidence after a source change. It removes its
 fixture afterward and does not launch a native agent application.
 
-For the full local software suite (228 tests covering engine, journal, index cache,
+For the full local software suite (236 tests covering engine, journal, index cache,
 MCP server, Ed25519 crypto, pattern matcher, and CLI integration), run `npm run verify`
 (or `npm test`). See the [verification record](evidence/VERIFICATION.md) for observed results
 and their scope.
@@ -491,4 +491,4 @@ publishing the source repository does not publish an npm package.
 
 Source review dates and scope are recorded in [docs/sources.json](docs/sources.json).
 Steward is independent of OpenAI and Anthropic. Original project material is available
-under the [MIT license](LICENSE); linked sources retain their own ownership.
+under the [Apache-2.0 license](LICENSE); see [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for adapted open-source attributions and upstream licenses. Linked external sources retain their own ownership.

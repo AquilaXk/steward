@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, sha256, canonical, atomicWrite, withLock, rootOf, toSessionHash } from './fs.mjs';
 import { validateEntry, validateJournalRow } from './schema.mjs';
 import { insist } from './errors.mjs';
-import { syncJournalCache, queryJournalIndexed } from './index-cache.mjs';
+import { syncJournalCache, queryJournalIndexed, recordAppendedJournalRow } from './index-cache.mjs';
 const DIRECTORY = '.steward/state/journal';
 export function readJournal(root, { anchor = null, fresh = false } = {}) {
     const { rows } = syncJournalCache(root, { fresh });
@@ -50,7 +50,9 @@ export async function appendInternal(root, type, data) {
         };
         const row = { ...payload, hash: sha256(canonical(payload)) };
         validateJournalRow(row);
-        atomicWrite(root, `${DIRECTORY}/${String(row.seq).padStart(8, '0')}-${row.id}.json`, JSON.stringify(row, null, 2) + '\n');
+        const fileName = `${String(row.seq).padStart(8, '0')}-${row.id}.json`;
+        atomicWrite(root, `${DIRECTORY}/${fileName}`, JSON.stringify(row, null, 2) + '\n');
+        recordAppendedJournalRow(root, fileName, row);
         return row;
     });
 }

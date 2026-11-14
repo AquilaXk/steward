@@ -8,6 +8,17 @@ release never silently rewrites stored records.
 
 ## 0.2.0
 
+- Migrate project license to Apache-2.0 and document adapted open-source
+  attributions in `THIRD_PARTY_NOTICES.md`.
+- Optimize hot paths with packed 32-bit glob opcodes, raw-range `[Z-a]` bitmaps,
+  extended shell operators/quotes/bounded brace expansion, zero-allocation
+  schema validation helpers, `Uint32Array` bitset journal intersection with
+  `Math.clz32` reverse traversal, write-through journal appends, and cached
+  audit receipt counting.
+- Harden adapters and MCP framing with `write_file`/`edit_file`/`Path` alias
+  coverage, symlink resolution against project root, bounded backward
+  transcript chunk scanning, clause-scoped instruction negation matching, and
+  streaming UTF-8 `StringDecoder` stdio parsing.
 - Add native plugin onboarding (`--host claude|codex|antigravity|all`,
   `plugin.json`, `mcp_config.json`, `rules/AGENTS.md`, `.claude-plugin/`,
   `.codex-plugin/`) and a `doctor` command that separates local wiring from

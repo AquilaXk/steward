@@ -328,4 +328,68 @@ test('ASCII bitmap char classes, Unicode char classes, and prepareGlobTargets ma
     assert.equal(matchArgGlob(nonMatchingPatterns, cmd, { preparedTargets }), false);
 });
 
+test('journal search indexes values only, multi-word bitsets (>64 rows) intersect accurately, and write-through append updates cache', async (t) => {
+    const { root } = sandbox(t);
+    const { toSessionHash } = await import('../src/fs.mjs');
+    const targetSessHash = toSessionHash('sess-alpha');
+    const otherSessHash = toSessionHash('sess-beta');
+
+    for (let i = 0; i < 75; i++) {
+        if (i % 3 === 0) {
+            await appendEntry(root, {
+                type: 'decision',
+                data: {
+                    statement: `Use shard ${i}`,
+                    authority: { kind: 'user', reference: 'qa', quote: 'approved' },
+                    supersedes: null,
+                    tags: ['perf', `mod-${i % 2}`]
+                }
+            });
+        } else {
+            await appendEntry(root, {
+                type: 'checkpoint',
+                data: {
+                    summary: `Checkpoint batch ${i}`,
+                    next: `Step ${i + 1}`,
+                    blockers: [],
+                    session: i % 2 === 0 ? targetSessHash : otherSessHash,
+                    tags: [i % 4 === 0 ? 'perf' : 'core']
+                }
+            });
+        }
+    }
+
+    assert.equal(queryJournal(root, { text: 'statement' }).total, 0);
+    assert.equal(queryJournal(root, { text: 'authority' }).total, 0);
+
+    const multi = queryJournal(root, {
+        type: 'checkpoint',
+        tag: 'perf',
+        sessionId: 'sess-alpha',
+        limit: 5
+    });
+    assert.equal(multi.rows.length, 5);
+    assert.equal(multi.truncated, true);
+    assert.ok(multi.rows[0].seq > multi.rows[4].seq);
+    for (const r of multi.rows) {
+        assert.equal(r.type, 'checkpoint');
+        assert.equal(r.data.session, targetSessHash);
+        assert.ok(r.data.tags.includes('perf'));
+    }
+
+    await appendEntry(root, {
+        type: 'checkpoint',
+        data: {
+            summary: 'Write-through live entry',
+            next: 'Verify immediate visibility',
+            blockers: [],
+            session: targetSessHash,
+            tags: ['live']
+        }
+    });
+    const live = queryJournal(root, { type: 'checkpoint', tag: 'live', sessionId: 'sess-alpha' });
+    assert.equal(live.total, 1);
+    assert.equal(live.rows[0].data.summary, 'Write-through live entry');
+});
+
 

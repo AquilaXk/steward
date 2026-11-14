@@ -339,4 +339,113 @@ test('codex and claude adapters support exec_command cmd, file path alias, and s
     }, root), { code: 'BAD_EVENT' });
 });
 
+test('adapters cover write_file/edit_file fields, patch whitespace trim, symlink resolution, and large non-USER_INPUT transcript lines', (t) => {
+    const { root, temp } = sandbox(t);
+
+    const writeEv = normalizeInput('claude', {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'write_file',
+        tool_input: { Path: 'secrets/token.env', Content: 'API_TOKEN=topsecret' }
+    }, root, 'PreToolUse');
+    assert.deepEqual(writeEv.paths, ['secrets/token.env']);
+    assert.ok(writeEv.text.includes('API_TOKEN=topsecret'));
+
+    const editEv = normalizeInput('claude', {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'edit_file',
+        tool_input: { Path: 'src/app.mjs', Target: 'oldSecret', Replacement: 'newSecret' }
+    }, root, 'PreToolUse');
+    assert.deepEqual(editEv.paths, ['src/app.mjs']);
+    assert.ok(editEv.text.includes('oldSecret'));
+    assert.ok(editEv.text.includes('newSecret'));
+
+    const patchEv = normalizeInput('codex', {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'apply_patch',
+        tool_input: { command: '*** Begin Patch\n*** Update File:   secrets/key.pem   \n@@\n-a\n+b\n*** End Patch' }
+    }, root, 'PreToolUse');
+    assert.deepEqual(patchEv.paths, ['secrets/key.pem']);
+
+    write(root, 'secrets/prod.env', 'SECRET=1\n');
+    fs.symlinkSync(path.join(root, 'secrets/prod.env'), path.join(root, 'alias.txt'));
+    const outsideDir = path.join(temp, 'outside-symlink-target');
+    fs.mkdirSync(outsideDir, { recursive: true });
+    fs.symlinkSync(outsideDir, path.join(root, 'dirlink'));
+
+    const internalAliasEv = normalizeInput('claude', {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'write_file',
+        tool_input: { Path: 'alias.txt', Content: 'overwrite' }
+    }, root, 'PreToolUse');
+    assert.deepEqual(internalAliasEv.paths, ['secrets/prod.env']);
+
+    const externalEscapeEv = normalizeInput('claude', {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'write_file',
+        tool_input: { Path: 'dirlink/escape.txt', Content: 'x' }
+    }, root, 'PreToolUse');
+    assert.ok(externalEscapeEv.paths[0].startsWith('@outside/'));
+
+    const chunkedTranscript = path.join(root, '.steward/state/chunked-transcript.jsonl');
+    write(root, '.steward/state/chunked-transcript.jsonl', [
+        JSON.stringify({ step_index: 1, type: 'USER_INPUT', content: '<USER_REQUEST>\nVerify security invariants\n</USER_REQUEST>' }),
+        JSON.stringify({ step_index: 2, type: 'PLANNER_RESPONSE', content: 'x'.repeat(400 * 1024) })
+    ].join('\n') + '\n');
+    const promptEv = normalizeInput('antigravity', {
+        conversationId: 'conv-chunk',
+        invocationNum: 2,
+        transcriptPath: chunkedTranscript
+    }, root);
+    assert.equal(promptEv.text, 'Verify security invariants');
+
+    const tailTypedUserOversized = path.join(root, '.steward/state/tail-user-oversized.jsonl');
+    write(root, '.steward/state/tail-user-oversized.jsonl', JSON.stringify({
+        padding: 'x'.repeat(400 * 1024),
+        type: 'USER_INPUT',
+        content: 'blocked'
+    }) + '\n');
+    assert.throws(() => normalizeInput('antigravity', {
+        conversationId: 'conv-chunk',
+        invocationNum: 3,
+        transcriptPath: tailTypedUserOversized
+    }, root), { code: 'BAD_EVENT' });
+});
+
+test('resolveRealTargetPath follows dangling symlinks fail-closed and blocks non-JSON oversized spoofs', (t) => {
+    const { root, temp } = sandbox(t);
+
+    fs.symlinkSync(path.join(root, 'secrets/new-missing.env'), path.join(root, 'dangling-internal.txt'));
+    const danglingInternal = normalizeInput('claude', {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'write_file',
+        tool_input: { Path: 'dangling-internal.txt', Content: 'SECRET=1' }
+    }, root, 'PreToolUse');
+    assert.deepEqual(danglingInternal.paths, ['secrets/new-missing.env']);
+
+    const missingOutsideTarget = path.join(temp, 'outside-missing-dir', 'pwn.txt');
+    fs.symlinkSync(missingOutsideTarget, path.join(root, 'dangling-outside.txt'));
+    const danglingOutside = normalizeInput('claude', {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'write_file',
+        tool_input: { Path: 'dangling-outside.txt', Content: 'x' }
+    }, root, 'PreToolUse');
+    assert.ok(danglingOutside.paths[0].startsWith('@outside/'), `Expected @outside/ path, got: ${danglingOutside.paths[0]}`);
+
+    fs.symlinkSync('loop-b.txt', path.join(root, 'loop-a.txt'));
+    fs.symlinkSync('loop-a.txt', path.join(root, 'loop-b.txt'));
+    assert.throws(() => normalizeInput('claude', {
+        hook_event_name: 'PreToolUse',
+        tool_name: 'write_file',
+        tool_input: { Path: 'loop-a.txt', Content: 'x' }
+    }, root, 'PreToolUse'), { code: 'SYMLINK' });
+
+    const spoofTranscript = path.join(root, '.steward/state/spoof-oversized.jsonl');
+    write(root, '.steward/state/spoof-oversized.jsonl', 'RAW_TEXT "type":"PLANNER_RESPONSE" ' + 'x'.repeat(300 * 1024) + '\n');
+    assert.throws(() => normalizeInput('antigravity', {
+        conversationId: 'conv-spoof',
+        invocationNum: 1,
+        transcriptPath: spoofTranscript
+    }, root), { code: 'BAD_EVENT' });
+});
+
 

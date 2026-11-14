@@ -162,7 +162,7 @@ export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
         total += stat.size;
         insist(total <= 128 * 1024 * 1024, 'WORKSPACE_TOO_LARGE', 'Snapshot exceeds 128 MiB.');
         return {
-            executable: stat.mode & 0o111,
+            executable: (stat.mode & 0o111) !== 0 ? 1 : 0,
             bytes: fs.readFileSync(file) //NOSONAR
         };
     }
@@ -203,9 +203,14 @@ export function snapshot(root, extraExcludes = []) {
             entry.name === 'Thumbs.db' ||
             entry.name === 'desktop.ini' ||
             p === '.steward/state' ||
+            p === '.steward/USAGE.md' ||
             p === '.steward/install.lock' ||
             p.startsWith('.steward/install-') ||
             normalizedExcludes.some(x => p === x || p.startsWith(x + '/'))
     });
-    return { hash: sha256(canonical(files)), files: files.length, excluded: ['.git/', 'node_modules/', '.steward/state/', '.steward/install-*', ...extraExcludes] };
+    return {
+        hash: sha256(canonical(files)),
+        files: files.length,
+        excluded: ['.git/', 'node_modules/', '.worktrees/', '.steward/state/', '.steward/USAGE.md', '.steward/install-*', ...extraExcludes]
+    };
 }

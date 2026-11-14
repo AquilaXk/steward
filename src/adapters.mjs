@@ -1,9 +1,11 @@
+// SPDX-License-Identifier: Apache-2.0
 import * as fs from 'node:fs';
 import path from 'node:path';
-import { insist } from './errors.mjs';
+import { insist, StewardError } from './errors.mjs';
 import { isObject } from './schema.mjs';
 import { normalizeTool, relativePath, validateEvent } from './engine.mjs';
 import { rootOf, canonical } from './fs.mjs';
+
 const events = {
     UserPromptSubmit: 'prompt',
     PreInvocation: 'prompt',
@@ -12,8 +14,13 @@ const events = {
     PreCompact: 'compact',
     Stop: 'stop'
 };
+
 export const HOSTS = ['generic', 'codex', 'claude', 'antigravity'];
-const MAX_TRANSCRIPT_TAIL_BYTES = 256 * 1024;
+
+const MAX_TRANSCRIPT_LINE_BYTES = 256 * 1024;
+const MAX_TRANSCRIPT_SCAN_BYTES = 2 * 1024 * 1024;
+const TRANSCRIPT_CHUNK_BYTES = 64 * 1024;
+const OVERSIZED_SNIPPET_BYTES = 4096;
 const OPEN_USER_REQ = '<USER_REQUEST>';
 const CLOSE_USER_REQ = '</USER_REQUEST>';
 
@@ -38,7 +45,65 @@ function parseTranscriptLinePrompt(line) {
     }
 }
 
-function readTranscriptTail(transcriptPath) {
+function isOversizedUserInputOrUnknown(headText, tailText) {
+    if (!headText.trimStart().startsWith('{')) return true;
+    const combined = headText + '\n' + tailText;
+    if (/"type"\s*:\s*"USER_INPUT"/.test(combined)) return true;
+    const nonUserTypeMatch = /"type"\s*:\s*"([A-Z0-9_]+)"/.exec(combined);
+    return !nonUserTypeMatch || nonUserTypeMatch[1] === 'USER_INPUT';
+}
+
+function createBackwardLineCollector() {
+    return {
+        parts: [],
+        bytes: 0,
+        oversized: false,
+        rightTail: null,
+        leftHead: Buffer.alloc(0)
+    };
+}
+
+function prependChunkSliceToLine(collector, slice) {
+    if (slice.length === 0) return;
+    if (!collector.oversized) {
+        if (collector.bytes + slice.length <= MAX_TRANSCRIPT_LINE_BYTES) {
+            collector.parts.push(slice);
+            collector.bytes += slice.length;
+            return;
+        }
+        const tailConcat = Buffer.concat([slice, ...collector.parts.slice().reverse()]);
+        collector.rightTail = tailConcat.subarray(Math.max(0, tailConcat.length - OVERSIZED_SNIPPET_BYTES));
+        collector.leftHead = tailConcat.subarray(0, Math.min(tailConcat.length, OVERSIZED_SNIPPET_BYTES));
+        collector.parts = [];
+        collector.bytes += slice.length;
+        collector.oversized = true;
+        return;
+    }
+    collector.bytes += slice.length;
+    if (slice.length >= OVERSIZED_SNIPPET_BYTES) {
+        collector.leftHead = slice.subarray(0, OVERSIZED_SNIPPET_BYTES);
+    } else {
+        const combined = Buffer.concat([slice, collector.leftHead]);
+        collector.leftHead = combined.subarray(0, OVERSIZED_SNIPPET_BYTES);
+    }
+}
+
+function finalizeBackwardLine(collector) {
+    if (collector.bytes === 0) return null;
+    if (collector.oversized) {
+        const headText = collector.leftHead.toString('utf8');
+        const tailText = (collector.rightTail || Buffer.alloc(0)).toString('utf8');
+        insist(!isOversizedUserInputOrUnknown(headText, tailText), 'BAD_EVENT', 'Invalid or oversized event text.');
+        return null;
+    }
+    const lineBuf = collector.parts.length === 1
+        ? collector.parts[0]
+        : Buffer.concat(collector.parts.reverse());
+    const text = lineBuf.toString('utf8');
+    return parseTranscriptLinePrompt(text);
+}
+
+function extractAntigravityTranscriptPrompt(transcriptPath) {
     if (transcriptPath === undefined) return '';
     insist(typeof transcriptPath === 'string' && transcriptPath && !transcriptPath.includes('\0') && path.isAbsolute(transcriptPath), 'BAD_INPUT', 'Invalid transcriptPath.');
     let lstat;
@@ -50,17 +115,55 @@ function readTranscriptTail(transcriptPath) {
     }
     insist(lstat.isFile() && !lstat.isSymbolicLink(), 'BAD_INPUT', 'Transcript must be a regular, non-symlink file.');
     if (lstat.size === 0) return '';
+
     let fd;
     try {
         fd = fs.openSync(transcriptPath, 'r'); //NOSONAR
-        const length = Math.min(lstat.size, MAX_TRANSCRIPT_TAIL_BYTES);
-        const buf = Buffer.allocUnsafe(length);
-        const bytesRead = fs.readSync(fd, buf, 0, length, lstat.size - length);
-        const tail = buf.subarray(0, bytesRead).toString('utf8');
-        if (lstat.size > MAX_TRANSCRIPT_TAIL_BYTES) {
-            insist(tail.replace(/\r?\n$/, '').includes('\n'), 'BAD_EVENT', 'Invalid or oversized event text.');
+        let pos = lstat.size;
+        let scanned = 0;
+        let sawNewline = false;
+        let collector = createBackwardLineCollector();
+
+        while (pos > 0 && scanned < MAX_TRANSCRIPT_SCAN_BYTES) {
+            const remainingBudget = MAX_TRANSCRIPT_SCAN_BYTES - scanned;
+            const toRead = Math.min(pos, TRANSCRIPT_CHUNK_BYTES, remainingBudget);
+            const buf = Buffer.allocUnsafe(toRead);
+            const bytesRead = fs.readSync(fd, buf, 0, toRead, pos - toRead);
+            if (bytesRead <= 0) break;
+
+            pos -= bytesRead;
+            scanned += bytesRead;
+
+            let cursor = bytesRead;
+            while (cursor > 0) {
+                const nlIdx = buf.lastIndexOf(0x0a, cursor - 1);
+                if (nlIdx === -1) {
+                    prependChunkSliceToLine(collector, Buffer.from(buf.subarray(0, cursor)));
+                    break;
+                }
+                sawNewline = true;
+                prependChunkSliceToLine(collector, Buffer.from(buf.subarray(nlIdx + 1, cursor)));
+                const prompt = finalizeBackwardLine(collector);
+                if (prompt !== null) return prompt;
+                collector = createBackwardLineCollector();
+                cursor = nlIdx;
+            }
         }
-        return tail;
+
+        if (lstat.size > MAX_TRANSCRIPT_SCAN_BYTES && !sawNewline) {
+            insist(false, 'BAD_EVENT', 'Invalid or oversized event text.');
+        }
+
+        if (pos === 0 && collector.bytes > 0) {
+            const prompt = finalizeBackwardLine(collector);
+            if (prompt !== null) return prompt;
+        } else if (collector.oversized) {
+            const headText = collector.leftHead.toString('utf8');
+            const tailText = (collector.rightTail || Buffer.alloc(0)).toString('utf8');
+            insist(!isOversizedUserInputOrUnknown(headText, tailText), 'BAD_EVENT', 'Invalid or oversized event text.');
+        }
+
+        return '';
     } finally {
         if (fd !== undefined) {
             try { fs.closeSync(fd); } catch {}
@@ -68,15 +171,56 @@ function readTranscriptTail(transcriptPath) {
     }
 }
 
-function extractAntigravityTranscriptPrompt(transcriptPath) {
-    const tail = readTranscriptTail(transcriptPath);
-    if (!tail) return '';
-    const lines = tail.split('\n');
-    for (let i = lines.length - 1; i >= 0; i--) {
-        const prompt = parseTranscriptLinePrompt(lines[i]);
-        if (prompt !== null) return prompt;
+const MAX_SYMLINK_HOPS = 40;
+
+function resolveRealTargetPath(candidate) {
+    const trailing = [];
+    let cur = candidate;
+    let hops = 0;
+    while (true) {
+        try {
+            const real = fs.realpathSync(cur); //NOSONAR
+            return trailing.length === 0 ? real : path.join(real, ...trailing.reverse());
+        } catch (err) {
+            if (err?.code === 'ELOOP') {
+                throw new StewardError('SYMLINK', 'Symbolic link loop detected while resolving event path.');
+            }
+            if (err?.code !== 'ENOENT' && err?.code !== 'ENOTDIR') {
+                throw err;
+            }
+            let st = null;
+            try {
+                st = fs.lstatSync(cur);
+            } catch (lstatErr) {
+                if (lstatErr?.code !== 'ENOENT' && lstatErr?.code !== 'ENOTDIR') {
+                    throw lstatErr;
+                }
+            }
+            if (st !== null && st.isSymbolicLink()) {
+                if (++hops > MAX_SYMLINK_HOPS) {
+                    throw new StewardError('SYMLINK', 'Symbolic link loop detected while resolving event path.');
+                }
+                const nextBase = path.resolve(path.dirname(cur), fs.readlinkSync(cur));
+                cur = trailing.length === 0 ? nextBase : path.join(nextBase, ...trailing.reverse());
+                trailing.length = 0;
+                continue;
+            }
+            const parent = path.dirname(cur);
+            if (parent === cur) return candidate;
+            trailing.push(path.basename(cur));
+            cur = parent;
+        }
     }
-    return '';
+}
+
+function resolveAdapterRelativePath(root, rawInput, cwd = root) {
+    const cleaned = rawInput.replaceAll('\\', '/');
+    if (process.platform !== 'win32' && /^[a-z]:\//i.test(cleaned)) {
+        return '@outside/' + cleaned;
+    }
+    const candidate = path.resolve(cwd, cleaned);
+    const resolved = resolveRealTargetPath(candidate);
+    return relativePath(root, resolved, cwd);
 }
 
 function resolveHookCwd(root, rawCwd) {
@@ -106,7 +250,7 @@ function populatePatchEvent(result, ti, root, cwd) {
     for (const line of lines) {
         const m = /^\*\*\* (?:Add File|Update File|Delete File|Move from|Move to): (.+)$/.exec(line);
         if (m)
-            result.paths.push(relativePath(root, m[1], cwd));
+            result.paths.push(resolveAdapterRelativePath(root, m[1].trim(), cwd));
     }
     insist(result.paths.length > 0, 'BAD_PATCH', 'No recognized paths in patch.');
     result.text = patch;
@@ -127,6 +271,9 @@ function extractToolText(ti) {
         ti.Url,
         ti.description,
         ti.content,
+        ti.Content,
+        ti.Target,
+        ti.Replacement,
         ti.CodeContent,
         ti.ReplacementContent,
         ti.TargetContent,
@@ -186,11 +333,11 @@ function populateToolEvent(result, raw, root, cwd) {
     }
     else if (kind === 'file.write' || kind === 'file.read') {
         const rawPath = resolveSingleStringField(
-            [ti.file_path, ti.notebook_path, ti.TargetFile, ti.AbsolutePath, ti.path],
+            [ti.file_path, ti.notebook_path, ti.TargetFile, ti.AbsolutePath, ti.Path, ti.path],
             'File operation path is missing.',
             'File operation path fields disagree.'
         );
-        result.paths = [relativePath(root, rawPath, cwd)];
+        result.paths = [resolveAdapterRelativePath(root, rawPath, cwd)];
         result.text = [rawPath, result.text].filter(Boolean).join('\n');
     }
     result.paths = [...new Set(result.paths)];
@@ -241,7 +388,7 @@ export function normalizeInput(host, raw, root, expectedEvent = null) {
     insist(HOSTS.includes(host), 'BAD_HOST', 'Host must be generic, codex, claude or antigravity.');
     if (host === 'generic') {
         validateEvent(raw);
-        return validateEvent({ ...raw, paths: [...new Set(raw.paths.map(p => relativePath(root, p)))] });
+        return validateEvent({ ...raw, paths: [...new Set(raw.paths.map(p => resolveAdapterRelativePath(root, p, root)))] });
     }
     insist(isObject(raw), 'BAD_INPUT', 'Hook input must be an object.');
     const rawEventName = resolveRawEventName(host, raw, expectedEvent);
@@ -307,4 +454,5 @@ export function encode(host, event, result) {
     const hookEventName = { tool: 'PreToolUse', prompt: 'UserPromptSubmit', session: 'SessionStart' }[event];
     return { stdout: JSON.stringify({ hookSpecificOutput: { hookEventName, additionalContext: result.context } }), stderr: '', exitCode: 0 };
 }
+
 export const eventKind = (hostEvent) => (typeof hostEvent === 'string' && Object.hasOwn(events, hostEvent) ? events[hostEvent] : 'prompt');
