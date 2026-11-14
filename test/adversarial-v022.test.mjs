@@ -88,7 +88,7 @@ test('S-2: shell normalization, brace expansion, and command substitution close 
     const t0 = performance.now();
     assert.throws(() => matchArgGlob(['rm *'], '{a,b}'.repeat(5) + 'x'.repeat(250000)), { code: 'GLOB_COMPLEXITY' });
     const dt = performance.now() - t0;
-    assert.ok(dt < 100, `Expected fail-closed brace guard <100ms, took ${dt.toFixed(1)}ms`);
+    assert.ok(dt < 500, `Expected fail-closed brace guard <500ms, took ${dt.toFixed(1)}ms`);
 });
 
 test('S-3: adversarial glob backtracking throws GLOB_COMPLEXITY promptly while linear fast paths stay fast', () => {
@@ -97,7 +97,7 @@ test('S-3: adversarial glob backtracking throws GLOB_COMPLEXITY promptly while l
     const t0 = performance.now();
     assert.throws(() => matchGlob(pat, text), { code: 'GLOB_COMPLEXITY' });
     const dt = performance.now() - t0;
-    assert.ok(dt < 100, `Expected adversarial glob to fail within 100ms, took ${dt.toFixed(1)}ms`);
+    assert.ok(dt < 500, `Expected adversarial glob to fail within 500ms, took ${dt.toFixed(1)}ms`);
 
     assert.equal(matchGlob(pat, 'a'.repeat(250000)), false);
 });

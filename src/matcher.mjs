@@ -20,6 +20,8 @@ const ASCII_POOL_OFFSET_MASK = 0x0fffffff;
 const FLAG_WS = 1;
 const FLAG_OP = 1 << 1;
 const FLAG_DBL_ESC = 1 << 2;
+const FLAG_UNQUOTED_SPECIAL = 1 << 3;
+const UNQUOTED_STOP_MASK = FLAG_WS | FLAG_OP | FLAG_UNQUOTED_SPECIAL;
 
 const QUOTE_NONE = 0;
 const QUOTE_SINGLE = 1;
@@ -61,6 +63,9 @@ const CHAR_FLAGS = (() => {
     }
     for (const ch of ['"', '\\', '$', '`', '\n']) {
         table[ch.codePointAt(0)] |= FLAG_DBL_ESC;
+    }
+    for (const ch of ['\\', "'", '"', '$']) {
+        table[ch.codePointAt(0)] |= FLAG_UNQUOTED_SPECIAL;
     }
     return table;
 })();
@@ -871,17 +876,23 @@ function consumeAnsiCEscape(text, i, state) {
 
 function consumeAnsiCQuoted(text, i, state) {
     while (i < text.length) {
-        const ch = text[i];
-        if (ch === "'") {
+        const code = text.charCodeAt(i);
+        if (code === 0x27) {
             state.quote = QUOTE_NONE;
             return i + 1;
         }
-        if (ch === '\\') {
+        if (code === 0x5c) {
             i = consumeAnsiCEscape(text, i, state);
             continue;
         }
-        appendSegmentText(state, ch, false);
-        i++;
+        let end = i + 1;
+        while (end < text.length) {
+            const next = text.charCodeAt(end);
+            if (next === 0x27 || next === 0x5c) break;
+            end++;
+        }
+        appendSegmentText(state, end === i + 1 ? text[i] : text.slice(i, end), false);
+        i = end;
     }
     return text.length;
 }
@@ -900,8 +911,14 @@ function consumeDoubleQuoted(text, i, state) {
             return i + 2;
         }
     }
-    appendSegmentText(state, c, false);
-    return i + 1;
+    let end = i + 1;
+    while (end < text.length) {
+        const next = text.charCodeAt(end);
+        if (next === 0x22 || next === 0x5c) break;
+        end++;
+    }
+    appendSegmentText(state, end === i + 1 ? c : text.slice(i, end), false);
+    return end;
 }
 
 function consumeUnquotedOperator(text, i, args, state, tokenSlots) {
@@ -999,8 +1016,14 @@ function consumeUnquotedStep(text, i, args, state, tokenSlots) {
     if (isOperatorCode(code)) {
         return consumeUnquotedOperator(text, i, args, state, tokenSlots);
     }
-    appendSegmentText(state, text[i], true);
-    return i + 1;
+    let end = i + 1;
+    while (end < text.length) {
+        const next = text.charCodeAt(end);
+        if (next >= ASCII_LIMIT || (CHAR_FLAGS[next] & UNQUOTED_STOP_MASK) !== 0) break;
+        end++;
+    }
+    appendSegmentText(state, end === i + 1 ? text[i] : text.slice(i, end), true);
+    return end;
 }
 
 function runTokenizer(text, trackBraces) {

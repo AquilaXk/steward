@@ -219,17 +219,17 @@
     {
       "path": "evidence/check-results.json",
       "bytes": 507,
-      "sha256": "f44a4cdc123af6df153d9c64ca658f39ce6252106fdd14aa18e6b326d6509804"
+      "sha256": "07b67a036fd06d6c3f42e1084d4b6bbb9ce1068c0192bcc867d0920fdf98e533"
     },
     {
       "path": "evidence/delivery.json",
       "bytes": 1296,
-      "sha256": "c9a2451d29641957fa99c91b286d325c0ed6931e1d8878c6fec3c3d29427b016"
+      "sha256": "c1c94d9c9b7fb79276a4a97e2183795cdb4d3a8d07752dd06f01629e28700dd9"
     },
     {
       "path": "evidence/demo-results.json",
       "bytes": 3621,
-      "sha256": "5ecf8a4140fde224975daceb70109c4dabe07c95413b71565422100539b4a45d"
+      "sha256": "f0cf55ebb55c678c05e62ed60c794658fe66ee21356c80fe6855a07dbcb75f68"
     },
     {
       "path": "evidence/release-audit.json",
@@ -244,12 +244,12 @@
     {
       "path": "evidence/source-manifest.json",
       "bytes": 19737,
-      "sha256": "4c72384d1d43acceee3b7a71f2070a94d1e670ea3f45cf3f535e68aa4514547f"
+      "sha256": "01b57a1b4212f877a49962fdb63ef76d0159692f214b3f6bdd983a92e8224687"
     },
     {
       "path": "evidence/test-results.tap",
-      "bytes": 50326,
-      "sha256": "688de42a90cf89c68428bcf82e32ea9e455b780f3360477fbe220d941da66ef9"
+      "bytes": 50323,
+      "sha256": "421deb6615cb07eb50784611ce16c0275fc9fc5bc243264cf0970df70e939e1f"
     },
     {
       "path": "examples/checkpoint.json",
@@ -553,8 +553,8 @@
     },
     {
       "path": "src/matcher.mjs",
-      "bytes": 57655,
-      "sha256": "2fb90e05d97930a0ac89b6f4f68924f2da96e83a812a13c41b3e500c665944a1"
+      "bytes": 58574,
+      "sha256": "f3947e731c871b2cf39d466c92c075710b2f5e67c900bda0e18ff079e7a6a539"
     },
     {
       "path": "src/schema.mjs",
@@ -599,7 +599,7 @@
     {
       "path": "test/adversarial-v022.test.mjs",
       "bytes": 16533,
-      "sha256": "f2e5096ad0650dda603c6ab9e8f93ce223472ad6455ca3f09747020d0a6590e9"
+      "sha256": "81be5d981d1ff107ff777d03c6d2bbb4cd74aae85bc20db76d18638755c0edc1"
     },
     {
       "path": "test/cli.test.mjs",

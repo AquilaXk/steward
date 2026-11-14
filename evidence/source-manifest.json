@@ -508,8 +508,8 @@
     },
     {
       "path": "src/matcher.mjs",
-      "bytes": 57655,
-      "sha256": "2fb90e05d97930a0ac89b6f4f68924f2da96e83a812a13c41b3e500c665944a1"
+      "bytes": 58574,
+      "sha256": "f3947e731c871b2cf39d466c92c075710b2f5e67c900bda0e18ff079e7a6a539"
     },
     {
       "path": "src/schema.mjs",
@@ -554,7 +554,7 @@
     {
       "path": "test/adversarial-v022.test.mjs",
       "bytes": 16533,
-      "sha256": "f2e5096ad0650dda603c6ab9e8f93ce223472ad6455ca3f09747020d0a6590e9"
+      "sha256": "81be5d981d1ff107ff777d03c6d2bbb4cd74aae85bc20db76d18638755c0edc1"
     },
     {
       "path": "test/cli.test.mjs",
