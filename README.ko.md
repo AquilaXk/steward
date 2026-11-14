@@ -69,11 +69,11 @@ node bin/steward.mjs mcp --config --host claude   # 또는 cursor, codex, antigr
 
 **GitHub 릴리스 아카이브**
 
-[GitHub Releases](https://github.com/AquilaXk/steward/releases)에서 `steward-0.2.0.tgz`와 `steward-0.2.0.tgz.sha256`을 내려받아 체크섬을 검증합니다:
+[GitHub Releases](https://github.com/AquilaXk/steward/releases)에서 `steward-0.2.1.tgz`와 `steward-0.2.1.tgz.sha256`을 내려받아 체크섬을 검증합니다:
 
 ```sh
-shasum -a 256 -c steward-0.2.0.tgz.sha256
-tar -xzf steward-0.2.0.tgz
+shasum -a 256 -c steward-0.2.1.tgz.sha256
+tar -xzf steward-0.2.1.tgz
 ```
 
 에이전트가 프로젝트 검사를 구성하고, 정책과 실행 명령을 보여주고 승인받은 뒤
@@ -195,7 +195,7 @@ Claude 설치는 `CLAUDE.md`에서 공통 `AGENTS.md`를 가져오도록 연결�
 훅을 적용하기 전에 [운영 안내](docs/OPERATIONS.md)와
 [호스트 확인 절차](docs/HOSTS.md#required-native-smoke-test)를 읽어보세요.
 
-`version`으로 설치 버전을 확인하세요. 패키지·CLI·플러그인은 `0.2.0`을 공유하며,
+`version`으로 설치 버전을 확인하세요. 패키지·CLI·플러그인은 `0.2.1`을 공유하며,
 [변경 기록](CHANGELOG.md)에 버전 정책과 변경 내용을 정리했습니다.
 
 **운영 및 유지보수 명령:**

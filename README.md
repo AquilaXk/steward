@@ -69,11 +69,11 @@ node bin/steward.mjs mcp --config --host claude   # or cursor, codex, antigravit
 
 **GitHub Release Archive**
 
-Download `steward-0.2.0.tgz` and `steward-0.2.0.tgz.sha256` from [GitHub Releases](https://github.com/AquilaXk/steward/releases) and verify the archive digest:
+Download `steward-0.2.1.tgz` and `steward-0.2.1.tgz.sha256` from [GitHub Releases](https://github.com/AquilaXk/steward/releases) and verify the archive digest:
 
 ```sh
-shasum -a 256 -c steward-0.2.0.tgz.sha256
-tar -xzf steward-0.2.0.tgz
+shasum -a 256 -c steward-0.2.1.tgz.sha256
+tar -xzf steward-0.2.1.tgz
 ```
 
 The agent configures the project's checks, shows the policy and executable commands
@@ -197,7 +197,7 @@ migrated. Read [operations](docs/OPERATIONS.md) and the
 [host smoke test](docs/HOSTS.md#required-native-smoke-test) before adopting hooks.
 
 Run `version` to inspect the installed version. Package, CLI and plugins share
-`0.2.0`; [release notes](CHANGELOG.md) explain the versioning policy and changes.
+`0.2.1`; [release notes](CHANGELOG.md) explain the versioning policy and changes.
 
 **Operational and maintenance commands:**
 

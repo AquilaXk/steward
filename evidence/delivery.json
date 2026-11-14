@@ -1,8 +1,8 @@
 {
   "package": "steward",
-  "version": "0.2.0",
-  "revision": "v0.2.0 verification Refresh",
-  "collectedAt": "2026-11-14T03:16:00.000Z",
+  "version": "0.2.1",
+  "revision": "v0.2.1 release verification",
+  "collectedAt": "2026-11-14T03:31:00.000Z",
   "environment": {
     "os": "macOS",
     "architecture": "arm64",

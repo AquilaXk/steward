@@ -1,7 +1,7 @@
 {
   "command": "npm run check",
   "exitCode": 0,
-  "collectedAt": "2026-11-14T03:16:03.659Z",
+  "collectedAt": "2026-11-14T03:32:15.824Z",
   "result": {
     "pass": true,
     "node": "v24.19.0",
@@ -11,5 +11,5 @@
     "localLinks": 82,
     "dependencyCount": 0
   },
-  "rawOutput": "\n> steward@0.2.0 check\n> node scripts/check.mjs\n\n{\n  \"pass\": true,\n  \"node\": \"v24.19.0\",\n  \"syntaxModules\": 41,\n  \"jsonFiles\": 27,\n  \"skills\": 8,\n  \"localLinks\": 82,\n  \"dependencyCount\": 0\n}\n"
+  "rawOutput": "\n> steward@0.2.1 check\n> node scripts/check.mjs\n\n{\n  \"pass\": true,\n  \"node\": \"v24.19.0\",\n  \"syntaxModules\": 41,\n  \"jsonFiles\": 27,\n  \"skills\": 8,\n  \"localLinks\": 82,\n  \"dependencyCount\": 0\n}\n"
 }

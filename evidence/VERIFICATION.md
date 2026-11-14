@@ -1,6 +1,6 @@
 # Steward local verification
 
-This is the current verification record for package version 0.2.0.
+This is the current verification record for package version 0.2.1.
 Environment: macOS arm64, Node v24.19.0 (Node 22+ compatible), npm 11.17.0.
 
 | Command | Exit | Observed result |

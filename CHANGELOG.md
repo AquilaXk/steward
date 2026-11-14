@@ -6,7 +6,7 @@ configuration changes increment the minor version; compatible fixes increment
 the patch version. Journal and policy schema versions are independent: a package
 release never silently rewrites stored records.
 
-## 0.2.0
+## 0.2.1
 
 - Migrate project license to Apache-2.0 and document adapted open-source
   attributions in `THIRD_PARTY_NOTICES.md`.
@@ -16,9 +16,12 @@ release never silently rewrites stored records.
   `Math.clz32` reverse traversal, write-through journal appends, and cached
   audit receipt counting.
 - Harden adapters and MCP framing with `write_file`/`edit_file`/`Path` alias
-  coverage, symlink resolution against project root, bounded backward
-  transcript chunk scanning, clause-scoped instruction negation matching, and
-  streaming UTF-8 `StringDecoder` stdio parsing.
+  coverage, dangling and nested symlink resolution against project root,
+  bounded backward transcript chunk scanning, clause-scoped instruction
+  negation matching, and streaming UTF-8 `StringDecoder` stdio parsing.
+
+## 0.2.0
+
 - Add native plugin onboarding (`--host claude|codex|antigravity|all`,
   `plugin.json`, `mcp_config.json`, `rules/AGENTS.md`, `.claude-plugin/`,
   `.codex-plugin/`) and a `doctor` command that separates local wiring from
