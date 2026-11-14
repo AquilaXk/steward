@@ -25,8 +25,12 @@ export function queryJournal(root, options = {}) {
 export async function appendInternal(root, type, data) {
     root = rootOf(root);
     mkdir(root, DIRECTORY);
-    return withLock(root, '.steward/state/journal.lock', () => {
+    return withLock(root, '.steward/state/journal.lock', async () => {
         const { rows, cache } = syncJournalCache(root);
+        if (type === 'goal' && data.status === 'complete') {
+            const { verifyCompletionGateBatch } = await import('./verify.mjs');
+            verifyCompletionGateBatch(root, data.evidence, { cache });
+        }
         if (type === 'schedule' && data.id && !data.supersedes) {
             const existing = cache.index.byRecordId.get(data.id);
             insist(!existing?.some(r => r.type === 'schedule'), 'BAD_SUPERSEDE', 'Schedule identity already exists; supersede its latest record.');
@@ -59,11 +63,6 @@ export async function appendInternal(root, type, data) {
 export async function appendEntry(root, entry) {
     root = rootOf(root);
     validateEntry(entry);
-    if (entry.type === 'goal' && entry.data.status === 'complete') {
-        const { completionGate } = await import('./verify.mjs');
-        for (const evidence of entry.data.evidence)
-            completionGate(root, evidence);
-    }
     return appendInternal(root, entry.type, entry.data);
 }
 export function latestCheckpoint(root, sessionId = null) {

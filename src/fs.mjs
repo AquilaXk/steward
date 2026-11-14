@@ -154,19 +154,61 @@ export async function withLock(root, relative, fn, timeoutMs = 5000) {
         await removeLockDir(lock);
     }
 }
-export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
+const MAX_SNAPSHOT_DEPTH = 64;
+const MAX_SNAPSHOT_DIRS = 10000;
+const MAX_SNAPSHOT_BYTES = 128 * 1024 * 1024;
+const OPEN_READ_NOFOLLOW = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0);
+
+export function deepFreeze(value) {
+    if (value === null || typeof value !== 'object') return value;
+    if (Object.isFrozen(value)) return value;
+    if (Array.isArray(value)) {
+        for (let i = 0; i < value.length; i++) {
+            deepFreeze(value[i]);
+        }
+    } else {
+        const keys = Object.keys(value);
+        for (let i = 0; i < keys.length; i++) {
+            deepFreeze(value[keys[i]]);
+        }
+    }
+    return Object.freeze(value);
+}
+
+export function walk(root, { exclude = () => false, maxFiles = 20000, maxDepth = MAX_SNAPSHOT_DEPTH, maxDirs = MAX_SNAPSHOT_DIRS } = {}) {
     const result = [];
     let total = 0;
+    let dirsVisited = 0;
     function readTextOrBytes(file) {
-        const stat = fs.statSync(file); //NOSONAR
-        total += stat.size;
-        insist(total <= 128 * 1024 * 1024, 'WORKSPACE_TOO_LARGE', 'Snapshot exceeds 128 MiB.');
-        return {
-            executable: (stat.mode & 0o111) !== 0 ? 1 : 0,
-            bytes: fs.readFileSync(file) //NOSONAR
-        };
+        let fd;
+        try {
+            fd = fs.openSync(file, OPEN_READ_NOFOLLOW); //NOSONAR
+        } catch (err) {
+            if (err?.code === 'ELOOP') {
+                throw new StewardError('SPECIAL_FILE', 'Refusing symbolic link swap during snapshot.');
+            }
+            throw err;
+        }
+        try {
+            const stat = fs.fstatSync(fd); //NOSONAR
+            if (!stat.isFile()) {
+                throw new StewardError('SPECIAL_FILE', 'Workspace contains a non-regular file.');
+            }
+            insist(total + stat.size <= MAX_SNAPSHOT_BYTES, 'WORKSPACE_TOO_LARGE', 'Snapshot exceeds 128 MiB.');
+            const bytes = fs.readFileSync(fd); //NOSONAR
+            total += bytes.length;
+            insist(total <= MAX_SNAPSHOT_BYTES, 'WORKSPACE_TOO_LARGE', 'Snapshot exceeds 128 MiB.');
+            return {
+                executable: (stat.mode & 0o111) !== 0 ? 1 : 0,
+                bytes
+            };
+        } finally {
+            fs.closeSync(fd);
+        }
     }
-    function visit(dir) {
+    function visit(dir, depth) {
+        insist(depth <= maxDepth, 'TOO_DEEP', `Workspace snapshot exceeded depth limit (${maxDepth}).`);
+        insist(++dirsVisited <= maxDirs, 'TOO_MANY_FILES', `Workspace directory limit exceeded (${maxDirs}).`);
         const entries = fs.readdirSync(dir, { withFileTypes: true }).sort((a, b) => compareAscii(a.name, b.name)); //NOSONAR
         for (const entry of entries) {
             const file = path.join(dir, entry.name);
@@ -175,7 +217,7 @@ export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
                 continue;
             insist(result.length < maxFiles, 'TOO_MANY_FILES', 'Workspace file limit exceeded.');
             if (entry.isDirectory()) {
-                visit(file);
+                visit(file, depth + 1);
             }
             else if (entry.isSymbolicLink()) {
                 result.push({ path: rel, kind: 'link', hash: sha256(fs.readlinkSync(file)) }); //NOSONAR
@@ -189,7 +231,7 @@ export function walk(root, { exclude = () => false, maxFiles = 20000 } = {}) {
             }
         }
     }
-    visit(root);
+    visit(root, 0);
     return result;
 }
 export function snapshot(root, extraExcludes = []) {

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1440" height="380" viewBox="0 0 1440 380" role="img" aria-labelledby="title desc">
   <title id="title">Steward — Local policy, hash-linked memory, and source-bound verification for coding agents</title>
-  <desc id="desc">Architecture overview of Steward v0.2.1 showing the Policy Engine, Hash-Linked Journal, and Completion Gate.</desc>
+  <desc id="desc">Architecture overview of Steward v0.2.2 showing the Policy Engine, Hash-Linked Journal, and Completion Gate.</desc>
   <defs>
     <style>
       .sans { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif; }
@@ -17,7 +17,7 @@
   <circle cx="24" cy="22" r="5" fill="#475569"/>
   <circle cx="42" cy="22" r="5" fill="#475569"/>
   <circle cx="60" cy="22" r="5" fill="#475569"/>
-  <text x="84" y="27" fill="#94A3B8" font-size="12" class="mono">steward@0.2.1 — node &gt;= 22 · zero runtime dependencies · fail-closed core</text>
+  <text x="84" y="27" fill="#94A3B8" font-size="12" class="mono">steward@0.2.2 — node &gt;= 22 · zero runtime dependencies · fail-closed core</text>
   <text x="1416" y="27" fill="#64748B" font-size="12" text-anchor="end" class="mono">APACHE-2.0 LICENSE</text>
 
   <!-- Left Column: Identity & Core Summary -->
@@ -120,5 +120,5 @@
   <!-- Bottom Verification Status Console Bar -->
   <rect x="584" y="290" width="820" height="58" rx="8" fill="#0F172A" stroke="#1E293B"/>
   <text x="604" y="313" fill="#94A3B8" font-size="12" class="mono">$ node bin/steward.mjs verify --project . &amp;&amp; node bin/steward.mjs gate --project .</text>
-  <text x="604" y="335" fill="#34D399" font-size="12" font-weight="600" class="mono">PASS  236/236 checks · journal chain verified · workspace snapshot matched · ed25519 valid</text>
+  <text x="604" y="335" fill="#34D399" font-size="12" font-weight="600" class="mono">PASS  245/245 checks · journal chain verified · workspace snapshot matched · ed25519 valid</text>
 </svg>

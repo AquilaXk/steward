@@ -1,6 +1,6 @@
 {
   "name": "steward",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Local policy, durable memory and source-bound verification for coding agents.",
   "author": { "name": "AquilaXk", "url": "https://github.com/AquilaXk" },
   "homepage": "https://github.com/AquilaXk/steward",

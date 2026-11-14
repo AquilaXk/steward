@@ -72,13 +72,43 @@ const CLI_OPTIONS = Object.fromEntries([
     ...CLI_BOOLEAN_OPTIONS.map(k => [k, { type: 'boolean' }])
 ]);
 
-let command = process.argv[2] || 'help', opts = {}, positionals = [];
-// Retain the trusted registration hints even if option parsing itself fails.
-for (const key of ['host', 'event']) {
-    const i = process.argv.indexOf('--' + key);
-    if (i >= 0) {
-        opts[key] = process.argv[i + 1];
+const CLI_STRING_OPTION_SET = new Set(CLI_STRING_OPTIONS);
+let command = 'help', opts = {}, positionals = [];
+// Retain the command and registration hints even if option parsing itself fails.
+{
+    const rawArgs = process.argv.slice(2);
+    let detectedCmd = null;
+    for (let i = 0; i < rawArgs.length; i++) {
+        const arg = rawArgs[i];
+        if (arg === '--') {
+            if (detectedCmd === null && i + 1 < rawArgs.length) {
+                detectedCmd = rawArgs[i + 1];
+            }
+            break;
+        }
+        if (arg.startsWith('--')) {
+            const eqIdx = arg.indexOf('=');
+            const optName = eqIdx >= 0 ? arg.slice(2, eqIdx) : arg.slice(2);
+            if (eqIdx >= 0) {
+                if (optName === 'host' || optName === 'event' || optName === 'project') {
+                    opts[optName] = arg.slice(eqIdx + 1);
+                }
+            } else if (CLI_STRING_OPTION_SET.has(optName) && i + 1 < rawArgs.length) {
+                const val = rawArgs[++i];
+                if (optName === 'host' || optName === 'event' || optName === 'project') {
+                    opts[optName] = val;
+                }
+            }
+            continue;
+        }
+        if (arg.startsWith('-') && arg.length > 1) {
+            continue;
+        }
+        if (detectedCmd === null) {
+            detectedCmd = arg;
+        }
     }
+    if (detectedCmd) command = detectedCmd;
 }
 
 function output(value) {
@@ -99,7 +129,7 @@ function resolveKeyOption(primary, alias) {
     if (opts[alias]) {
         return resolveSafePath(opts[alias]);
     }
-    if (opts[primary] && !opts[primary].includes('-----BEGIN')) {
+    if (opts[primary] && !opts[primary].trimStart().startsWith('-----BEGIN ')) {
         return resolveSafePath(opts[primary]);
     }
     return opts[primary];
@@ -175,12 +205,26 @@ function handleTrust(root) {
         output(trustBundle(root, opts.approve));
         return;
     }
-    output({
+    let existingJournalRecords = 0;
+    let journalCorrupt = false;
+    try {
+        existingJournalRecords = readJournal(root).length;
+    } catch {
+        journalCorrupt = true;
+    }
+    const reviewPayload = {
         trusted: false,
         bundleHash: bundle.hash,
+        existingJournalRecords,
         review: { hash: bundle.hash, policy: bundle.policy, verification: bundle.plan },
         next: 'Review these rules and executable commands, then rerun trust --approve with the displayed hash.'
-    });
+    };
+    if (journalCorrupt) {
+        reviewPayload.journalWarning = 'Warning: pre-existing journal data failed integrity verification; inspect before trusting.';
+    } else if (existingJournalRecords > 0) {
+        reviewPayload.journalWarning = `Warning: ${existingJournalRecords} pre-existing journal record(s) found before trust approval; verify provenance.`;
+    }
+    output(reviewPayload);
 }
 
 function handleLifecycle(root) {

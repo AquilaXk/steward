@@ -1,10 +1,13 @@
 import * as fs from 'node:fs';
+import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { safePath, readJSON, atomicWrite, sha256, rootOf, compareAscii } from './fs.mjs';
 import { insist } from './errors.mjs';
 import { loadBundle } from './trust.mjs';
 const AUDIT_LIMIT = 20000;
+const RECEIPT_CACHE_LIMIT = 4096;
 const auditCountCache = new Map();
+const receiptSummaryCache = new Map();
 
 function readCachedAuditCount(root, dir) {
     let stat;
@@ -104,6 +107,45 @@ function accumulateCurrentBundleReceipt(r, byId) {
         byId.get(item.id).omitted++;
     }
 }
+function readReceiptSummary(dir, name) {
+    insist(path.basename(name) === name && !name.includes('\0'), 'BAD_PATH', 'Invalid audit receipt filename.');
+    const filePath = path.join(dir, name);
+    const stat = fs.lstatSync(filePath); //NOSONAR
+    insist(stat.isFile() && !stat.isSymbolicLink(), 'SYMLINK', `Refusing symbolic link: ${name}`);
+    const cached = receiptSummaryCache.get(filePath);
+    if (
+        cached &&
+        cached.ino === stat.ino &&
+        cached.size === stat.size &&
+        cached.mtimeMs === stat.mtimeMs &&
+        cached.ctimeMs === stat.ctimeMs
+    ) {
+        return cached.summary;
+    }
+    const r = readJSON(filePath);
+    const summary = {
+        version: r.version,
+        project: r.project,
+        bundleHash: r.bundleHash,
+        decision: r.decision,
+        time: r.time,
+        matched: r.matched,
+        emitted: r.emitted,
+        omitted: r.omitted
+    };
+    if (!receiptSummaryCache.has(filePath) && receiptSummaryCache.size >= RECEIPT_CACHE_LIMIT) {
+        receiptSummaryCache.delete(receiptSummaryCache.keys().next().value);
+    }
+    receiptSummaryCache.set(filePath, {
+        ino: stat.ino,
+        size: stat.size,
+        mtimeMs: stat.mtimeMs,
+        ctimeMs: stat.ctimeMs,
+        summary
+    });
+    return summary;
+}
+
 export function report(root) {
     root = rootOf(root);
     const dir = safePath(root, '.steward/state/audit');
@@ -116,7 +158,7 @@ export function report(root) {
     let currentReceipts = 0;
     const projectHash = sha256(root);
     for (const name of names) {
-        const r = readJSON(safePath(root, `.steward/state/audit/${name}`));
+        const r = readReceiptSummary(dir, name);
         insist(r.version === 1 && r.project === projectHash && Array.isArray(r.emitted), 'AUDIT_CORRUPT', 'Invalid audit receipt.');
         if (r.decision === 'deny')
             denied++;
@@ -159,16 +201,24 @@ export function pruneAudit(root, { keep = 5000 } = {}) {
     if (names.length <= keep)
         return { deleted: 0, remaining: names.length };
     const filesWithStats = names.map(name => {
-        const filePath = safePath(root, `.steward/state/audit/${name}`);
+        insist(path.basename(name) === name && !name.includes('\0'), 'BAD_PATH', 'Invalid audit receipt filename.');
+        const filePath = path.join(dir, name);
         let mtime = 0;
-        try { mtime = fs.statSync(filePath).mtimeMs; } catch {} //NOSONAR
+        try {
+            const stat = fs.lstatSync(filePath); //NOSONAR
+            insist(!stat.isSymbolicLink(), 'SYMLINK', `Refusing symbolic link: ${name}`);
+            mtime = stat.mtimeMs;
+        } catch (e) {
+            if (e.code !== 'ENOENT') throw e;
+        }
         return { name, filePath, mtime };
-    }).sort((a, b) => a.mtime - b.mtime);
+    }).sort((a, b) => (a.mtime - b.mtime) || compareAscii(a.name, b.name));
     const toDelete = filesWithStats.slice(0, filesWithStats.length - keep);
     let deleted = 0;
     for (const item of toDelete) {
         try {
             fs.unlinkSync(item.filePath); //NOSONAR
+            receiptSummaryCache.delete(item.filePath);
             deleted++;
         } catch {}
     }

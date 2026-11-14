@@ -1,6 +1,6 @@
 # Steward Runtime Governance Rule (Antigravity Plugin)
 
-Steward (`v0.2.1`) is installed as an active Antigravity plugin providing deterministic, fail-closed policy evaluation, SHA-256 hash-chained persistent journal memory, and source-bound completion verification (`Node.js 22+`, zero runtime dependencies).
+Steward (`v0.2.2`) is installed as an active Antigravity plugin providing deterministic, fail-closed policy evaluation, SHA-256 hash-chained persistent journal memory, and source-bound completion verification (`Node.js 22+`, zero runtime dependencies).
 
 ## Steward Toolkit, CLI & MCP Server
 

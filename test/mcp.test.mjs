@@ -414,7 +414,7 @@ test('startMcpServer enforces 1 MiB line limit and recovers for subsequent messa
     await serverPromise;
     const lines = output.trim().split('\n').map(l => JSON.parse(l));
     assert.equal(lines.length, 2);
-    assert.equal(lines[0].error.code, -32700);
+    assert.equal(lines[0].error.code, -32600);
     assert.equal(lines[1].id, 60);
     assert.deepEqual(lines[1].result, {});
 });

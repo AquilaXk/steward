@@ -6,6 +6,31 @@ configuration changes increment the minor version; compatible fixes increment
 the patch version. Journal and policy schema versions are independent: a package
 release never silently rewrites stored records.
 
+## 0.2.2
+
+- Harden path, adapter, shell, CLI, MCP, and crypto boundaries fail-closed:
+  walk intermediate symlink segments before resolving `..` in
+  `resolveAdapterRelativePath` and reject null bytes in `relativePath`;
+  close quote, brace-expansion, line-continuation, and command-substitution
+  bypasses while bounding `DEFAULT_MAX_STEPS` and brace expansion in
+  `src/matcher.mjs`; reject oversized raw NDJSON frames (`-32600`) before UTF-8
+  decoding with stream backpressure in `startMcpServer`; pre-scan CLI options
+  with string-flag skipping for `hook` denials and inline PEM checks; warn on
+  pre-existing journals during `trust`, inspect `call_mcp_tool` payloads, parse
+  top-level JSON transcript types safely, isolate checkpoint injections, and
+  enforce Ed25519 key type and passing-evidence invariants.
+- Accelerate hot paths and queries with `Uint8Array`/`Int8Array` ASCII/hex
+  lookup tables, Unicode Simple Case Folding lookup tables, 128-bit required
+  character precheck masks, `WeakMap` compiled policy caching over deep-frozen
+  trusted bundles, async subprocess verification with in-lock batch completion
+  gates, flat `Float64Array` stat columns and directory fast paths, lazy
+  lowercased search text, `popcount32` word counting, monotonic time early exit,
+  and bounded `receiptSummaryCache` summaries in `report()`/`pruneAudit()`.
+- Export `prepareGlobTargets` publicly in `src/index.mjs` and `index.d.ts`,
+  exclude non-command fields from `shell` tool text matching, cap workspace
+  snapshot traversal at depth 64, support Windows `*-cli.js` discovery in
+  `resolveSpawnSpec`, and verify behavior across 245 automated tests.
+
 ## 0.2.1
 
 - Migrate project license to Apache-2.0 and document adapted open-source

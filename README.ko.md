@@ -69,11 +69,11 @@ node bin/steward.mjs mcp --config --host claude   # 또는 cursor, codex, antigr
 
 **GitHub 릴리스 아카이브**
 
-[GitHub Releases](https://github.com/AquilaXk/steward/releases)에서 `steward-0.2.1.tgz`와 `steward-0.2.1.tgz.sha256`을 내려받아 체크섬을 검증합니다:
+[GitHub Releases](https://github.com/AquilaXk/steward/releases)에서 `steward-0.2.2.tgz`와 `steward-0.2.2.tgz.sha256`을 내려받아 체크섬을 검증합니다:
 
 ```sh
-shasum -a 256 -c steward-0.2.1.tgz.sha256
-tar -xzf steward-0.2.1.tgz
+shasum -a 256 -c steward-0.2.2.tgz.sha256
+tar -xzf steward-0.2.2.tgz
 ```
 
 에이전트가 프로젝트 검사를 구성하고, 정책과 실행 명령을 보여주고 승인받은 뒤
@@ -195,7 +195,7 @@ Claude 설치는 `CLAUDE.md`에서 공통 `AGENTS.md`를 가져오도록 연결�
 훅을 적용하기 전에 [운영 안내](docs/OPERATIONS.md)와
 [호스트 확인 절차](docs/HOSTS.md#required-native-smoke-test)를 읽어보세요.
 
-`version`으로 설치 버전을 확인하세요. 패키지·CLI·플러그인은 `0.2.1`을 공유하며,
+`version`으로 설치 버전을 확인하세요. 패키지·CLI·플러그인은 `0.2.2`를 공유하며,
 [변경 기록](CHANGELOG.md)에 버전 정책과 변경 내용을 정리했습니다.
 
 **운영 및 유지보수 명령:**
@@ -357,8 +357,8 @@ node bin/steward.mjs mcp --config --host claude   # 또는 cursor, codex, antigr
 
 ### 인메모리 색인 캐시 및 회상
 
-Steward는 파일 상태(`mtimeMs`, `size`, `ino`, `ctimeMs`)를 추적하며 레코드를 `byHash`, `metaByHash`(사전 계산된 타임스탬프·소문자 검색 텍스트·태그 집합), `byType`, `byRecordId`, `bySession`(세션 미지정 `null` 체크포인트 포함), `byTag`, `supersededHashes`별로 인덱싱하는 인메모리 색인 캐시(`src/index-cache.mjs`)를 유지합니다.
-복합 필터 질의는 가장 작은 후보 버킷부터 교집합을 구하고 최신순 역방향 순회와 `limit` 조기 종료로 탐색 비용을 줄이며, 반환 객체를 동결(`Object.freeze`)해 호출자 변조를 차단하고 캐시 미스 및 완료 게이트 실행 시 암호학적 해시 체인 전체를 검증합니다.
+Steward는 평탄 `Float64Array` 파일 스탯 컬럼(`mtimeMs`, `size`, `ino`, `ctimeMs`)과 디렉터리 스탯 빠른 경로를 유지하면서 레코드를 `byHash`, `metaByHash`(지연 검색 텍스트·사전 계산 타임스탬프·태그 집합), `byType`, `byRecordId`, `bySession`(세션 미지정 `null` 체크포인트 포함), `byTagBits`, `supersededHashes`로 인덱싱하는 인메모리 색인 캐시(`src/index-cache.mjs`)를 운용합니다.
+복합 필터 질의는 `Uint32Array` 비트셋 교집합을 구하고, 대체된 비트와 만료 없는 분기를 건너뛰며 `popcount32` 개수 계산과 단조 `since` 조기 종료로 탐색 비용을 줄입니다. 반환 객체는 `Object.freeze`로 동결해 호출자 변조를 막고, 캐시 미스와 완료 게이트 실행 시 암호학적 해시 체인을 검증합니다.
 
 ### 프로그래밍 방식 라이브러리 연동 및 TypeScript (`index.d.ts`)
 
@@ -370,6 +370,7 @@ import {
   evaluate,
   matchArgGlob,
   matchGlob,
+  prepareGlobTargets,
   // 저널 및 인메모리 색인 캐시
   appendEntry,
   readJournal,

@@ -4,7 +4,6 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { StringDecoder } from 'node:string_decoder';
 import { rootOf, safePath, toSessionHash } from '../fs.mjs';
 import { VERSION } from '../version.mjs';
 import { evaluate } from '../engine.mjs';
@@ -723,9 +722,12 @@ export function formatMcpConfig({ host = 'claude', project = process.cwd(), runn
  */
 export function startMcpServer(root, { inStream = process.stdin, outStream = process.stdout } = {}) {
     root = rootOf(root);
-    let buffer = '';
-    let bufferBytes = 0;
+    let pendingChunks = [];
+    let pendingBytes = 0;
     let discardingOversized = false;
+    let inFlight = 0;
+    let paused = false;
+    const utf8Decoder = new TextDecoder('utf-8', { fatal: true });
 
     return new Promise((resolve) => {
         let isClosed = false;
@@ -738,17 +740,30 @@ export function startMcpServer(root, { inStream = process.stdin, outStream = pro
             }
         };
 
-        const writeParseError = (message = 'Parse error') => {
-            const parseErr = { jsonrpc: '2.0', id: null, error: { code: -32700, message } };
+        const writeJsonRpcError = (id, code, message) => {
+            const errPayload = { jsonrpc: '2.0', id, error: { code, message } };
             if (!isClosed && !outStream.destroyed) {
-                outStream.write(JSON.stringify(parseErr) + '\n');
+                outStream.write(JSON.stringify(errPayload) + '\n');
             }
+        };
+
+        const enqueueTask = (task) => {
+            inFlight++;
+            if (inFlight >= 32 && !paused) {
+                paused = true;
+                inStream.pause?.();
+            }
+            queue = queue.then(task).catch(() => {}).finally(() => {
+                inFlight--;
+                if (paused && inFlight < 16 && !isClosed) {
+                    paused = false;
+                    inStream.resume?.();
+                }
+            });
         };
 
         inStream.on('error', close);
         outStream.on('error', close);
-
-        const decoder = new StringDecoder('utf8');
 
         async function processLine(line) {
             const trimmed = line.trim();
@@ -758,7 +773,7 @@ export function startMcpServer(root, { inStream = process.stdin, outStream = pro
             try {
                 message = JSON.parse(trimmed);
             } catch {
-                writeParseError('Parse error');
+                writeJsonRpcError(null, -32700, 'Parse error');
                 return;
             }
 
@@ -770,82 +785,74 @@ export function startMcpServer(root, { inStream = process.stdin, outStream = pro
             } catch (err) {
                 const e = publicError(err);
                 const respId = (typeof message?.id === 'string' || (typeof message?.id === 'number' && Number.isFinite(message.id))) ? message.id : null;
-                const internalErr = { jsonrpc: '2.0', id: respId, error: { code: -32603, message: `Internal error [${e.code}]: ${e.message}` } };
-                if (!isClosed && !outStream.destroyed) {
-                    outStream.write(JSON.stringify(internalErr) + '\n');
-                }
+                writeJsonRpcError(respId, -32603, `Internal error [${e.code}]: ${e.message}`);
             }
         }
 
-        const consumeDecoded = (str) => {
-            if (!str) return;
-            const nlIdx = str.indexOf('\n');
-            if (nlIdx === -1) {
-                if (discardingOversized) return;
-                const chunkBytes = Buffer.byteLength(str, 'utf8');
-                if (bufferBytes + chunkBytes > MAX_LINE_BYTES) {
-                    buffer = '';
-                    bufferBytes = 0;
-                    discardingOversized = true;
-                } else {
-                    buffer += str;
-                    bufferBytes += chunkBytes;
+        function processRawFrame(lineBuf) {
+            if (lineBuf.length === 0) return;
+            enqueueTask(async () => {
+                let text;
+                try {
+                    text = utf8Decoder.decode(lineBuf);
+                } catch {
+                    writeJsonRpcError(null, -32700, 'Parse error');
+                    return;
                 }
-                return;
-            }
-
-            const parts = str.split('\n');
-            const firstPart = parts[0];
-            const firstBytes = Buffer.byteLength(firstPart, 'utf8');
-            if (discardingOversized || bufferBytes + firstBytes > MAX_LINE_BYTES) {
-                buffer = '';
-                bufferBytes = 0;
-                discardingOversized = false;
-                queue = queue.then(() => writeParseError('Parse error: message exceeds 1 MiB limit')).catch(() => {});
-            } else {
-                const fullLine = buffer + firstPart;
-                buffer = '';
-                bufferBytes = 0;
-                queue = queue.then(() => processLine(fullLine)).catch(() => {});
-            }
-
-            for (let i = 1; i < parts.length - 1; i++) {
-                const line = parts[i];
-                if (Buffer.byteLength(line, 'utf8') > MAX_LINE_BYTES) {
-                    queue = queue.then(() => writeParseError('Parse error: message exceeds 1 MiB limit')).catch(() => {});
-                } else {
-                    queue = queue.then(() => processLine(line)).catch(() => {});
-                }
-            }
-
-            const tail = parts[parts.length - 1];
-            const tailBytes = Buffer.byteLength(tail, 'utf8');
-            if (tailBytes > MAX_LINE_BYTES) {
-                buffer = '';
-                bufferBytes = 0;
-                discardingOversized = true;
-            } else {
-                buffer = tail;
-                bufferBytes = tailBytes;
-                discardingOversized = false;
-            }
-        };
+                await processLine(text);
+            });
+        }
 
         inStream.on('data', (chunk) => {
-            const str = typeof chunk === 'string' ? chunk : decoder.write(chunk);
-            consumeDecoded(str);
+            const buf = typeof chunk === 'string' ? Buffer.from(chunk, 'utf8') : chunk;
+            let offset = 0;
+            while (offset < buf.length) {
+                const nlIdx = buf.indexOf(0x0a, offset);
+                if (nlIdx === -1) {
+                    const restLen = buf.length - offset;
+                    if (!discardingOversized) {
+                        if (pendingBytes + restLen > MAX_LINE_BYTES) {
+                            pendingChunks = [];
+                            pendingBytes = 0;
+                            discardingOversized = true;
+                        } else if (restLen > 0) {
+                            pendingChunks.push(Buffer.from(buf.subarray(offset)));
+                            pendingBytes += restLen;
+                        }
+                    }
+                    break;
+                }
+
+                const segLen = nlIdx - offset;
+                if (discardingOversized || pendingBytes + segLen > MAX_LINE_BYTES) {
+                    pendingChunks = [];
+                    pendingBytes = 0;
+                    discardingOversized = false;
+                    enqueueTask(() => writeJsonRpcError(null, -32600, 'Invalid Request: message exceeds 1 MiB limit'));
+                } else {
+                    const seg = segLen > 0 ? buf.subarray(offset, nlIdx) : null;
+                    const lineBuf = pendingChunks.length === 0
+                        ? (seg ? Buffer.from(seg) : Buffer.alloc(0))
+                        : (seg ? Buffer.concat([...pendingChunks, seg]) : Buffer.concat(pendingChunks));
+                    pendingChunks = [];
+                    pendingBytes = 0;
+                    processRawFrame(lineBuf);
+                }
+                offset = nlIdx + 1;
+            }
         });
 
         inStream.on('end', () => {
-            consumeDecoded(decoder.end());
             if (discardingOversized) {
+                pendingChunks = [];
+                pendingBytes = 0;
                 discardingOversized = false;
-                queue = queue.then(() => writeParseError('Parse error: message exceeds 1 MiB limit')).catch(() => {});
-            } else if (buffer.trim()) {
-                const remaining = buffer;
-                buffer = '';
-                bufferBytes = 0;
-                queue = queue.then(() => processLine(remaining)).catch(() => {});
+                enqueueTask(() => writeJsonRpcError(null, -32600, 'Invalid Request: message exceeds 1 MiB limit'));
+            } else if (pendingBytes > 0) {
+                const lineBuf = pendingChunks.length === 1 ? pendingChunks[0] : Buffer.concat(pendingChunks);
+                pendingChunks = [];
+                pendingBytes = 0;
+                processRawFrame(lineBuf);
             }
             queue.then(close).catch(close);
         });

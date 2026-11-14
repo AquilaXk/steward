@@ -9,9 +9,52 @@ import { syncJournalCache } from './index-cache.mjs';
 
 const HEX_128_RE = /^[0-9a-fA-F]{128}$/;
 const ISO_DATE_PREFIX_RE = /^\d{4}-\d\d-\d\dT/;
+const OPEN_READ_NOFOLLOW = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW || 0);
+const OS_MOUNT_SYMLINK_DIRS = new Set(['/tmp', '/var', '/etc']);
 
 function isIsoTimestamp(value) {
     return typeof value === 'string' && value.length <= 80 && ISO_DATE_PREFIX_RE.test(value) && Number.isFinite(Date.parse(value));
+}
+
+function assertParentDirNotSymlink(filePath) {
+    const parent = path.dirname(filePath);
+    if (!parent || parent === filePath || OS_MOUNT_SYMLINK_DIRS.has(parent)) return;
+    try {
+        const pst = fs.lstatSync(parent); //NOSONAR
+        if (pst.isSymbolicLink() || !pst.isDirectory()) {
+            throw new StewardError('BAD_FILE', 'Refusing symbolic link or non-directory parent.');
+        }
+    } catch (err) {
+        if (err instanceof StewardError || err?.code !== 'ENOENT') throw err;
+    }
+}
+
+function writePrivateAtomic(targetPath, content, mode) {
+    const parent = path.dirname(targetPath);
+    const tmpPath = path.join(parent, `.steward-tmp-${process.pid}-${crypto.randomUUID()}`);
+    let fd;
+    try {
+        fd = fs.openSync(tmpPath, fs.constants.O_WRONLY | fs.constants.O_CREAT | fs.constants.O_EXCL, mode); //NOSONAR
+        fs.writeFileSync(fd, content); //NOSONAR
+        fs.fchmodSync(fd, mode); //NOSONAR
+    } finally {
+        if (fd !== undefined) fs.closeSync(fd);
+    }
+    try {
+        fs.renameSync(tmpPath, targetPath); //NOSONAR
+    } catch (err) {
+        try { fs.unlinkSync(tmpPath); } catch {}
+        throw err;
+    }
+}
+
+function assertPassingVerificationRow(row) {
+    const d = row?.data;
+    insist(
+        d && d.allPassed === true && d.sourceUnchanged === true && Array.isArray(d.checks) && d.checks.length > 0 && d.checks.every(c => c.status === 'pass'),
+        'CHECKS_FAILED',
+        'Verification did not pass every required check.'
+    );
 }
 
 /**
@@ -47,7 +90,16 @@ function toSignableBuffer(data) {
  * @returns {string} 32-character hex ID.
  */
 export function deriveKeyId(publicKeyPem) {
-    return sha256(publicKeyPem.trim()).slice(0, 32);
+    insist(typeof publicKeyPem === 'string' && publicKeyPem.trim().length > 0, 'CRYPTO_ERROR', 'Expected Ed25519 public key PEM.');
+    let keyObj;
+    try {
+        keyObj = crypto.createPublicKey(publicKeyPem);
+    } catch {
+        throw new StewardError('CRYPTO_ERROR', 'Invalid Ed25519 public key PEM.');
+    }
+    insist(keyObj.type === 'public' && keyObj.asymmetricKeyType === 'ed25519', 'CRYPTO_ERROR', 'Expected an Ed25519 public key.');
+    const canonicalPem = keyObj.export({ type: 'spki', format: 'pem' }).toString().replaceAll('\r\n', '\n').trim();
+    return sha256(canonicalPem).slice(0, 32);
 }
 
 function parseEd25519PrivateKey(privateKeyPem) {
@@ -97,11 +149,18 @@ export function verifySignature(data, signatureHex, publicKeyPem) {
     if (typeof signatureHex !== 'string' || signatureHex.length !== 128 || !HEX_128_RE.test(signatureHex) || typeof publicKeyPem !== 'string') {
         return false;
     }
+    if (publicKeyPem.includes('PRIVATE KEY')) {
+        return false;
+    }
     try {
+        const keyObj = crypto.createPublicKey(publicKeyPem);
+        if (keyObj.type !== 'public' || keyObj.asymmetricKeyType !== 'ed25519') {
+            return false;
+        }
         const buffer = toSignableBuffer(data);
         const sigBuffer = Buffer.from(signatureHex, 'hex');
         if (sigBuffer.length !== 64) return false;
-        return crypto.verify(null, buffer, publicKeyPem, sigBuffer);
+        return crypto.verify(null, buffer, keyObj, sigBuffer);
     } catch {
         return false;
     }
@@ -111,8 +170,9 @@ function validateSafeKeyInput(input, label = 'Key') {
     if (typeof input !== 'string' || !input.trim()) {
         throw new StewardError('USAGE', 'Key input is required.');
     }
-    if (input.includes('-----BEGIN')) {
-        return { isInline: true, pem: input.trim() };
+    const trimmed = input.trim();
+    if (trimmed.startsWith('-----BEGIN ')) {
+        return { isInline: true, pem: trimmed };
     }
     if (input.includes('\0')) {
         throw new StewardError('BAD_PATH', 'Path contains null byte.');
@@ -121,6 +181,7 @@ function validateSafeKeyInput(input, label = 'Key') {
     if (!path.isAbsolute(resolved)) {
         throw new StewardError('BAD_PATH', 'Expected absolute resolved path.');
     }
+    assertParentDirNotSymlink(resolved);
     let stat;
     try {
         stat = fs.lstatSync(resolved); //NOSONAR
@@ -177,10 +238,30 @@ export function resolveKeyPem(input, role = 'any') {
     if (!stat.isFile()) {
         throw new StewardError('BAD_FILE', 'Expected a regular, non-symlink file.');
     }
-    if (stat.size > 64 * 1024) {
-        throw new StewardError('INPUT_TOO_LARGE', 'Key file exceeds 64 KiB limit.');
+    let fd;
+    try {
+        fd = fs.openSync(resolved, OPEN_READ_NOFOLLOW); //NOSONAR
+    } catch (err) {
+        if (err?.code === 'ELOOP') {
+            throw new StewardError('BAD_FILE', 'Refusing symbolic link.');
+        }
+        if (err?.code === 'ENOENT') {
+            throw new StewardError('CRYPTO_ERROR', `Key file does not exist: ${resolved}`);
+        }
+        throw err;
     }
-    return fs.readFileSync(resolved, 'utf8').trim(); //NOSONAR
+    try {
+        const fstat = fs.fstatSync(fd); //NOSONAR
+        if (!fstat.isFile()) {
+            throw new StewardError('BAD_FILE', 'Expected a regular, non-symlink file.');
+        }
+        if (fstat.size > 64 * 1024) {
+            throw new StewardError('INPUT_TOO_LARGE', 'Key file exceeds 64 KiB limit.');
+        }
+        return fs.readFileSync(fd, 'utf8').trim(); //NOSONAR
+    } finally {
+        fs.closeSync(fd);
+    }
 }
 
 /**
@@ -251,6 +332,7 @@ function assertExistingTargetIsSafe(targetPath, expectDirectory) {
 export function saveKeypair(outDir, keyPair) {
     validateSaveKeypairInputs(outDir, keyPair);
     const baseDir = path.resolve(outDir);
+    assertParentDirNotSymlink(baseDir);
     assertExistingTargetIsSafe(baseDir, true);
 
     const { privPath, pubPath } = resolveKeypairPaths(baseDir);
@@ -258,10 +340,8 @@ export function saveKeypair(outDir, keyPair) {
     assertExistingTargetIsSafe(privPath, false);
     assertExistingTargetIsSafe(pubPath, false);
 
-    fs.writeFileSync(privPath, keyPair.privateKeyPem, { mode: 0o600 }); //NOSONAR
-    fs.chmodSync(privPath, 0o600); //NOSONAR
-    fs.writeFileSync(pubPath, keyPair.publicKeyPem, { mode: 0o644 }); //NOSONAR
-    fs.chmodSync(pubPath, 0o644); //NOSONAR
+    writePrivateAtomic(privPath, keyPair.privateKeyPem, 0o600);
+    writePrivateAtomic(pubPath, keyPair.publicKeyPem, 0o644);
 
     const keyId = keyPair.keyId || deriveKeyId(keyPair.publicKeyPem);
     return { out: baseDir, privPath, pubPath, keyId };
@@ -342,6 +422,7 @@ export function verifyBundleSignature(root, publicKeyInput, sigRecord = null) {
 export function signVerificationEvidence(root, evidenceHash, privateKeyInput) {
     const row = syncJournalCache(root, { fresh: true }).cache.index.byHash.get(evidenceHash);
     insist(row && row.type === 'verification', 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
+    assertPassingVerificationRow(row);
 
     const privPem = resolveKeyPem(privateKeyInput, 'private');
     const keyId = deriveKeyIdFromPrivateKey(privPem);
@@ -377,6 +458,7 @@ export function signVerificationEvidence(root, evidenceHash, privateKeyInput) {
 export function verifyVerificationEvidence(root, evidenceHash, publicKeyInput, sigRecord = null) {
     const row = syncJournalCache(root, { fresh: true }).cache.index.byHash.get(evidenceHash);
     insist(row && row.type === 'verification', 'NO_EVIDENCE', `Verification evidence not found: ${evidenceHash}`);
+    assertPassingVerificationRow(row);
 
     const pubPem = resolveKeyPem(publicKeyInput, 'public');
     const sigPath = safePath(root, `.steward/state/checks/${row.data.runId}/evidence.sig.json`);

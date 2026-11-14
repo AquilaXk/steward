@@ -1,12 +1,12 @@
 # Steward local verification
 
-This is the current verification record for package version 0.2.1.
+This is the current verification record for package version 0.2.2.
 Environment: macOS arm64, Node v24.19.0 (Node 22+ compatible), npm 11.17.0.
 
 | Command | Exit | Observed result |
 |---|---:|---|
-| `npm run check` | 0 | Module syntax (41 modules), JSON (27 files), package identity, skill metadata (8 skills), `index.d.ts` and schema parity, and local Markdown links/anchors |
-| `npm test` | 0 | 236 passed; 0 failed, cancelled, skipped or todo |
+| `npm run check` | 0 | Module syntax (42 modules), JSON (27 files), package identity, skill metadata (8 skills), `index.d.ts` and schema parity, and local Markdown links/anchors |
+| `npm test` | 0 | 245 passed; 0 failed, cancelled, skipped or todo |
 | `npm run demo` | 0 | Three synthetic arithmetic tests; policy denial; checkpoint recovery; source-change rejection |
 | Skill Creator structural validator | 0 | All eight canonical skills have valid names, frontmatter and complete bodies |
 

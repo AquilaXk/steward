@@ -1,6 +1,6 @@
 export { VERSION } from './version.mjs';
 export { evaluate, matches, normalizeTool, relativePath, validateEvent } from './engine.mjs';
-export { matchGlob, matchArgGlob, tokenizeCommand, isSafePattern } from './matcher.mjs';
+export { matchGlob, matchArgGlob, tokenizeCommand, isSafePattern, prepareGlobTargets } from './matcher.mjs';
 export {
     validatePolicy,
     validatePlan,

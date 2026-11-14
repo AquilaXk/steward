@@ -82,15 +82,26 @@ export function text(x: unknown, label: string, max?: number): void;
 export function strings(x: unknown, label: string, options?: { empty?: boolean; max?: number }): void;
 export function date(x: unknown, label: string): void;
 
+export interface PreparedGlobTargets {
+    fullTarget: object;
+    tokenTargets: object[];
+    expandedTargets: object[];
+    fullInfo: object;
+    tokenInfos: object[];
+    expandedInfos: object[];
+}
+
 export interface GlobOptions {
     caseSensitive?: boolean;
     maxSteps?: number;
+    preparedTargets?: PreparedGlobTargets;
 }
 
 export function matchGlob(pattern: string, text: string, options?: GlobOptions): boolean;
 export function matchArgGlob(patterns: string[], text: string, options?: GlobOptions): boolean;
 export function tokenizeCommand(text: string): string[];
 export function isSafePattern(pattern: string): boolean;
+export function prepareGlobTargets(text: string, caseSensitive?: boolean): PreparedGlobTargets;
 
 export type UserRecordType =
     | 'decision'

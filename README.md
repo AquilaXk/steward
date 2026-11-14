@@ -69,11 +69,11 @@ node bin/steward.mjs mcp --config --host claude   # or cursor, codex, antigravit
 
 **GitHub Release Archive**
 
-Download `steward-0.2.1.tgz` and `steward-0.2.1.tgz.sha256` from [GitHub Releases](https://github.com/AquilaXk/steward/releases) and verify the archive digest:
+Download `steward-0.2.2.tgz` and `steward-0.2.2.tgz.sha256` from [GitHub Releases](https://github.com/AquilaXk/steward/releases) and verify the archive digest:
 
 ```sh
-shasum -a 256 -c steward-0.2.1.tgz.sha256
-tar -xzf steward-0.2.1.tgz
+shasum -a 256 -c steward-0.2.2.tgz.sha256
+tar -xzf steward-0.2.2.tgz
 ```
 
 The agent configures the project's checks, shows the policy and executable commands
@@ -197,7 +197,7 @@ migrated. Read [operations](docs/OPERATIONS.md) and the
 [host smoke test](docs/HOSTS.md#required-native-smoke-test) before adopting hooks.
 
 Run `version` to inspect the installed version. Package, CLI and plugins share
-`0.2.1`; [release notes](CHANGELOG.md) explain the versioning policy and changes.
+`0.2.2`; [release notes](CHANGELOG.md) explain the versioning policy and changes.
 
 **Operational and maintenance commands:**
 
@@ -360,8 +360,8 @@ All MCP tools accept an optional `project` directory parameter, and all `steward
 ### In-memory index cache and recall
 
 Steward maintains an in-memory metadata index cache (`src/index-cache.mjs`) indexing
-records by `byHash`, `metaByHash` (precomputed timestamps, lowercased search text, and tag sets), `byType`, `byRecordId`, `bySession` (including unscoped `null` checkpoints), `byTag`, and `supersededHashes` alongside file `mtimeMs`, `size`, `ino`, and `ctimeMs`.
-Multi-filter queries intersect the smallest candidate buckets first, scan newest-first with early `limit` exit, freeze returned rows against caller mutation, and verify cryptographic hash-chain integrity on cache misses and gate checks.
+records by `byHash`, `metaByHash` (lazy search text, precomputed timestamps, and tag sets), `byType`, `byRecordId`, `bySession` (including unscoped `null` checkpoints), `byTagBits`, and `supersededHashes` alongside flat `Float64Array` stat columns (`mtimeMs`, `size`, `ino`, `ctimeMs`) and directory stat checks.
+Multi-filter queries intersect `Uint32Array` bitsets, skip superseded words and non-expiring branches, count overflow matches with `popcount32`, exit early on monotonic `since` bounds, freeze returned rows against caller mutation, and verify cryptographic hash-chain integrity on cache misses and gate checks.
 
 ### Programmatic TypeScript and Node.js API
 
@@ -373,6 +373,7 @@ import {
   evaluate,
   matchArgGlob,
   matchGlob,
+  prepareGlobTargets,
   // Journal & In-Memory Index Cache
   appendEntry,
   readJournal,
